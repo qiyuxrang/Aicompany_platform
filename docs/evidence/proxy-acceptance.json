@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-09-20T10:35:35.653630+00:00",
+  "host": "127.0.0.1",
+  "port": 18100,
+  "synthetic_source_addresses": [
+    "198.18.79.12",
+    "198.19.79.12"
+  ],
+  "boundary": "真实Compose Waitress/Django HTTP检查；测试代理头模拟可信反代。并非真实TLS证书或已安装Nginx验收。仅隔离Compose数据库的不存在账号。",
+  "results": [
+    {
+      "case": "容器直接HTTP重定向HTTPS",
+      "passed": true
+    },
+    {
+      "case": "可信反代HTTPS头下健康200",
+      "passed": true
+    },
+    {
+      "case": "生产CSRF Cookie Secure HttpOnly SameSite",
+      "passed": true
+    },
+    {
+      "case": "HSTS一年",
+      "passed": true
+    },
+    {
+      "case": "未知Host拒绝",
+      "passed": true
+    },
+    {
+      "case": "生产无CSRF登录拒绝",
+      "passed": true
+    },
+    {
+      "case": "同一来源IP第31次被限流",
+      "passed": true
+    },
+    {
+      "case": "不同来源IP不共享限流桶",
+      "passed": true
+    }
+  ],
+  "passed": 8,
+  "failed": 0
+}

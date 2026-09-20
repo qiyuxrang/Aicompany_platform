@@ -1,0 +1,20 @@
+Already up to date
+Done in 430ms using pnpm v11.10.0
+[36mvite v8.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 17 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.51 kB │ gzip:  0.33 kB
+dist/assets/index-DQJY6AHx.css   13.30 kB │ gzip:  3.84 kB
+dist/assets/index-Dn2euUd6.js   242.87 kB │ gzip: 75.55 kB
+
+[32m✓ built in 395ms[39m
+Checked 9 packages in 25ms
+$ tsc --noEmit && vite build
+error: No environment file found at: `C:UsersBJRunnerDesktopai智能体平台.runtimelocal.env`
+[31;1mException: [0mC:\Users\BJRunner\Desktop\ai������ƽ̨\scripts\start-local.ps1:76[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m  76 | [0m     if ($LASTEXITCODE -ne 0) { [36;1mthrow "�������ݿ�Ǩ��ʧ�ܡ�"[0m }[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                                ~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1m�������ݿ�Ǩ��ʧ�ܡ�[0m

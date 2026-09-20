@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-09-20T10:21:52.197354+00:00",
+  "container": "enterprise-portal-phase1-db",
+  "source": "portal_phase1",
+  "restore": "portal_phase1_restore_final",
+  "tables": {
+    "auth_group": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "auth_group_permissions": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "auth_permission": {
+      "rows": 48,
+      "sha256": "3ad32c34d197c5a09dd8129262d0c7a120baf06eaf7168247f1509dfda07bacd"
+    },
+    "django_admin_log": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "django_content_type": {
+      "rows": 12,
+      "sha256": "31bebb474447a13f9b8ac123007786c33c229d8d472f9a4baba0e2dec9c14fc1"
+    },
+    "django_migrations": {
+      "rows": 20,
+      "sha256": "3dcacc2c5558cb75ebe161750f271d69405dc96737f6fadbdacfa7f470fff876"
+    },
+    "django_session": {
+      "rows": 2,
+      "sha256": "f88525db115a68686293c53bfb3a07051f0f3e55dba9087c18aad816986bc9d6"
+    },
+    "portal_auditevent": {
+      "rows": 45,
+      "sha256": "4e3910accda9f591aa3e2f1b7a269bf0a244605e8be7905650a3b15a3cdf34bc"
+    },
+    "portal_businessmapping": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "portal_integrationticket": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "portal_loginattempt": {
+      "rows": 18,
+      "sha256": "138ca9a9c1316a13f17689a3ea608e035eb9022a8ab556596c38c3128e43873c"
+    },
+    "portal_module": {
+      "rows": 4,
+      "sha256": "5ffe13c13bc362e253be94aece828dd1d6b36bc00c6b965fbc7cb3f4322f3fa2"
+    },
+    "portal_role": {
+      "rows": 5,
+      "sha256": "522fa16144540eb3a8d935ee8e6e559d421c2d03a3ba9c57f0240af25b367f53"
+    },
+    "portal_role_modules": {
+      "rows": 4,
+      "sha256": "fb9a3316741a633cdc43e1e30942dde3dcf340f610d15f72b08c952210305621"
+    },
+    "portal_user": {
+      "rows": 8,
+      "sha256": "1adea45a7aa901b88228a12d9ba7705d94ac03ed216265b64ce883d0ef502701"
+    },
+    "portal_user_groups": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "portal_user_roles": {
+      "rows": 8,
+      "sha256": "8f71566441504507ecbcddd3b3e5cad50c1ba450960f287600265d06e340350d"
+    },
+    "portal_user_user_permissions": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "all_tables_equal": true,
+  "source_unchanged": true,
+  "dump_sha256": "5aa24c21f33fa3aed0468b8090d1e3f637fec635795bafaa6afe28d9d24abc30",
+  "dump_bytes": 59041,
+  "config_backup": "validation.env 与 postgres.env，位于被忽略的受限备份目录；不在报告中披露值"
+}

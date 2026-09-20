@@ -1,0 +1,37 @@
+Deployment validation evidence
+Date: 2026-09-20 (Asia/Shanghai)
+
+Scope actually run
+- Read-only inspection of repository settings, WSGI entrypoint, frontend build config, lock files, health view, and management commands.
+- docker compose config --quiet: passed using .runtime/validation.env and .runtime/postgres.env. Resolved secrets were not printed.
+- After the isolation correction, docker compose config with PORTAL_HTTP_PORT=18100 passed; parsed output confirmed no db published ports, no explicit container names, backend 127.0.0.1:18100 -> 8100, and project volume enterprise-portal-phase1_phase1_pg_data.
+- PowerShell parser check for scripts/*.ps1: passed.
+- Root .gitignore currently contains backups/ and git check-ignore attributes backups/example.dump to that rule; the deployment write set did not edit .gitignore.
+- uv sync --frozen: passed; 9 locked packages checked in the local environment.
+- corepack pnpm install --frozen-lockfile from frontend/: passed with pnpm 11.10.0.
+- corepack pnpm build: passed; TypeScript check and Vite 8.3.0 production build completed.
+- docker build --check --pull=false -f Dockerfile .: passed with no Dockerfile warnings.
+- First full docker build: failed because host frontend/node_modules entered the context and overwrote Linux dependencies.
+- After .dockerignore excluded frontend/node_modules and frontend/dist, full docker build passed and produced local image enterprise-portal-phase1:validation.
+- One-shot application container collectstatic: passed as the non-root image user.
+- One-shot application container python manage.py check --deploy with PORTAL_DEBUG=0, PORTAL_HTTPS=1, and PORTAL_BEHIND_PROXY=1: completed with only security.W021 because HSTS preload is intentionally disabled.
+- Host python manage.py check --deploy using the existing validation environment completed with W004, W008, W012, W016, and W018 because that environment is DEBUG/HTTP validation, not production configuration.
+- A later real Compose up was run by the primary operator, not this deploy agent. Migration and collectstatic succeeded, but backend health timed out because Waitress removed the untrusted X-Forwarded-Proto and Django returned 301. The original output remains in compose-up.txt.
+- Proxy fix added Waitress trusted-proxy flags for only x-forwarded-proto and x-forwarded-for, plus one proxy hop and clearing of all other untrusted proxy headers. This change has only static validation in this evidence file; no replacement container was started by this deploy agent.
+- Post-fix docker compose config --quiet passed with PORTAL_HTTP_PORT=18100; parsed Compose output still showed loopback-only backend publishing and no db published port.
+- Waitress 3.0.2 parsed the exact proxy flags successfully. A local middleware self-check confirmed a trusted single X-Forwarded-For becomes REMOTE_ADDR, X-Forwarded-Proto becomes the WSGI scheme, untrusted forwarding headers are removed, and an exact trusted peer mismatch causes all forwarding headers to be ignored and cleared.
+- Static Nginx template assertions confirmed default HTTP rejection, unknown TLS handshake rejection, fixed-domain HTTP redirect, single-value X-Forwarded-For overwrite, and fixed HTTPS proto overwrite. Nginx itself was not loaded or started.
+- start-local.ps1 was corrected to run migrate, idempotent seed_portal, collectstatic, and check before starting Waitress. Only PowerShell syntax and command ordering were checked; the local server flow was not run.
+
+Not run
+- docker compose up, start, stop, down, or any Compose service health check.
+- Any start, stop, migration, backup, restore, drop, or data comparison against PostgreSQL.
+- The local start-local.ps1 server flow.
+- A live Waitress health request through the published host port.
+- Nginx configuration loading, DNS, certificate, public HTTPS, or firewall validation.
+- Django test suite against test_portal_phase1.
+- Runtime HTTP 301, trusted-proxy 200, normalized REMOTE_ADDR, and healthy status after the proxy fix.
+
+Still required
+- PostgreSQL owner must execute backup and isolated portal_phase1_restore rehearsal.
+- Production owner must update the pinned PostgreSQL patch version/digest before go-live if a newer supported patch is available.

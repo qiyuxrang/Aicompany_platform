@@ -1,0 +1,118 @@
+Creating test database for alias 'default' ('test_portal_phase1')...
+
+Found 80 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: messages, rest_framework, staticfiles
+  Apply all migrations: admin, auth, contenttypes, portal, sessions
+Synchronizing apps without migrations:
+  Creating tables...
+    Running deferred SQL...
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0001_initial... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying portal.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying portal.0002_integrationticket_grant_version_user_grant_version... OK
+test_admin_logout_is_post_only_and_records_real_logout (portal.tests.test_admin.AdminSecurityTests.test_admin_logout_is_post_only_and_records_real_logout) ... ok
+test_admin_logout_post_requires_csrf (portal.tests.test_admin.AdminSecurityTests.test_admin_logout_post_requires_csrf) ... ok
+test_audit_events_cannot_be_added_or_changed_in_admin (portal.tests.test_admin.AdminSecurityTests.test_audit_events_cannot_be_added_or_changed_in_admin) ... ok
+test_forged_superuser_and_staff_fields_cannot_escalate_user (portal.tests.test_admin.AdminSecurityTests.test_forged_superuser_and_staff_fields_cannot_escalate_user) ... ok
+test_invalid_password_reset_ids_return_404_without_audit (portal.tests.test_admin.AdminSecurityTests.test_invalid_password_reset_ids_return_404_without_audit) ... ok
+test_invalid_reset_form_does_not_increment_version_or_audit (portal.tests.test_admin.AdminSecurityTests.test_invalid_reset_form_does_not_increment_version_or_audit) ... ok
+test_password_values_never_appear_in_audit_storage (portal.tests.test_admin.AdminSecurityTests.test_password_values_never_appear_in_audit_storage) ... ok
+test_platform_admin_has_admin_access_without_business_access (portal.tests.test_admin.AdminSecurityTests.test_platform_admin_has_admin_access_without_business_access) ... ok
+test_user_and_audit_delete_views_are_forbidden (portal.tests.test_admin.AdminSecurityTests.test_user_and_audit_delete_views_are_forbidden) ... ok
+test_anonymous_protected_api_is_rejected_without_identity_details (portal.tests.test_auth.AuthenticationTests.test_anonymous_protected_api_is_rejected_without_identity_details) ... ok
+test_dedicated_cookie_names_are_issued (portal.tests.test_auth.AuthenticationTests.test_dedicated_cookie_names_are_issued) ... ok
+test_failed_login_audit_uses_hmac_rate_limit_bucket_hashes (portal.tests.test_auth.AuthenticationTests.test_failed_login_audit_uses_hmac_rate_limit_bucket_hashes) ... ok
+test_first_password_change_blocks_other_api_then_requires_relogin (portal.tests.test_auth.AuthenticationTests.test_first_password_change_blocks_other_api_then_requires_relogin) ... ok
+test_legacy_csrf_cookie_cannot_satisfy_portal_csrf (portal.tests.test_auth.AuthenticationTests.test_legacy_csrf_cookie_cannot_satisfy_portal_csrf) ... ok
+test_legacy_session_cookie_cannot_authenticate (portal.tests.test_auth.AuthenticationTests.test_legacy_session_cookie_cannot_authenticate) ... ok
+test_login_and_password_change_reject_array_and_oversized_payloads (portal.tests.test_auth.AuthenticationTests.test_login_and_password_change_reject_array_and_oversized_payloads) ... ok
+test_login_rate_limit_is_case_insensitive_and_returns_retry_after (portal.tests.test_auth.AuthenticationTests.test_login_rate_limit_is_case_insensitive_and_returns_retry_after) ... ok
+test_login_requires_csrf (portal.tests.test_auth.AuthenticationTests.test_login_requires_csrf) ... ok
+test_logout_invalidates_authenticated_session (portal.tests.test_auth.AuthenticationTests.test_logout_invalidates_authenticated_session) ... ok
+test_password_and_logout_require_csrf (portal.tests.test_auth.AuthenticationTests.test_password_and_logout_require_csrf) ... ok
+test_password_change_invalidates_all_existing_sessions (portal.tests.test_auth.AuthenticationTests.test_password_change_invalidates_all_existing_sessions) ... ok
+test_valid_login_sets_real_session_version (portal.tests.test_auth.AuthenticationTests.test_valid_login_sets_real_session_version) ... ok
+test_wrong_password_and_inactive_account_share_generic_failure (portal.tests.test_auth.AuthenticationTests.test_wrong_password_and_inactive_account_share_generic_failure) ... ok
+test_mocked_bad_data_is_rejected_without_substitute_data (portal.tests.test_integration.PortalBusinessProtocolTests.test_mocked_bad_data_is_rejected_without_substitute_data) ... ok
+test_mocked_timeout_is_classified_as_upstream_unavailable (portal.tests.test_integration.PortalBusinessProtocolTests.test_mocked_timeout_is_classified_as_upstream_unavailable) ... ok
+test_mocked_upstream_403_remains_403 (portal.tests.test_integration.PortalBusinessProtocolTests.test_mocked_upstream_403_remains_403) ... ok
+test_revocation_during_mocked_request_rejects_response (portal.tests.test_integration.PortalBusinessProtocolTests.test_revocation_during_mocked_request_rejects_response) ... ok
+test_synthetic_full_summary_slots_reject_without_upstream_wait (portal.tests.test_integration.PortalBusinessProtocolTests.test_synthetic_full_summary_slots_reject_without_upstream_wait) ... ok
+test_synthetic_upstream_exception_releases_summary_slot (portal.tests.test_integration.PortalBusinessProtocolTests.test_synthetic_upstream_exception_releases_summary_slot) ... ok
+test_unconfigured_protocol_does_not_call_any_upstream (portal.tests.test_integration.PortalBusinessProtocolTests.test_unconfigured_protocol_does_not_call_any_upstream) ... ok
+test_unconsumed_ticket_rejects_otherwise_valid_mocked_response (portal.tests.test_integration.PortalBusinessProtocolTests.test_unconsumed_ticket_rejects_otherwise_valid_mocked_response) ... ok
+test_valid_mocked_contract_is_returned_after_ticket_consumption (portal.tests.test_integration.PortalBusinessProtocolTests.test_valid_mocked_contract_is_returned_after_ticket_consumption) ... ok
+test_amounts_must_be_plain_decimal_strings (portal.tests.test_integration.SummarySchemaTests.test_amounts_must_be_plain_decimal_strings) ... ok
+test_project_count_must_be_a_non_negative_integer (portal.tests.test_integration.SummarySchemaTests.test_project_count_must_be_a_non_negative_integer) ... ok
+test_updated_at_must_include_timezone (portal.tests.test_integration.SummarySchemaTests.test_updated_at_must_include_timezone) ... ok
+test_valid_strict_contract_is_accepted (portal.tests.test_integration.SummarySchemaTests.test_valid_strict_contract_is_accepted) ... ok
+test_issue_ticket_binds_mapping_version_and_stores_only_digest (portal.tests.test_integration.TicketIssuanceTests.test_issue_ticket_binds_mapping_version_and_stores_only_digest) ... ok
+test_issue_ticket_rejects_missing_business_authorization (portal.tests.test_integration.TicketIssuanceTests.test_issue_ticket_rejects_missing_business_authorization) ... ok
+test_issue_ticket_rejects_missing_or_disabled_mapping (portal.tests.test_integration.TicketIssuanceTests.test_issue_ticket_rejects_missing_or_disabled_mapping) ... ok
+test_deactivation_after_issue_rejects_redemption (portal.tests.test_integration.TicketRedemptionTests.test_deactivation_after_issue_rejects_redemption) ... ok
+test_mapping_disable_then_restore_does_not_restore_old_ticket (portal.tests.test_integration.TicketRedemptionTests.test_mapping_disable_then_restore_does_not_restore_old_ticket) ... ok
+test_mapping_id_change_then_restore_does_not_restore_old_ticket (portal.tests.test_integration.TicketRedemptionTests.test_mapping_id_change_then_restore_does_not_restore_old_ticket) ... ok
+test_mapping_revocation_after_issue_rejects_redemption (portal.tests.test_integration.TicketRedemptionTests.test_mapping_revocation_after_issue_rejects_redemption) ... ok
+test_module_disable_then_restore_does_not_restore_old_ticket (portal.tests.test_integration.TicketRedemptionTests.test_module_disable_then_restore_does_not_restore_old_ticket) ... ok
+test_non_ascii_service_authorization_is_denied_not_crashed (portal.tests.test_integration.TicketRedemptionTests.test_non_ascii_service_authorization_is_denied_not_crashed) ... ok
+test_password_reset_version_after_issue_rejects_redemption (portal.tests.test_integration.TicketRedemptionTests.test_password_reset_version_after_issue_rejects_redemption) ... ok
+test_role_module_revocation_then_restore_does_not_restore_old_ticket (portal.tests.test_integration.TicketRedemptionTests.test_role_module_revocation_then_restore_does_not_restore_old_ticket) ... ok
+test_role_revocation_after_issue_rejects_redemption (portal.tests.test_integration.TicketRedemptionTests.test_role_revocation_after_issue_rejects_redemption) ... ok
+test_role_revocation_then_restore_does_not_restore_old_ticket (portal.tests.test_integration.TicketRedemptionTests.test_role_revocation_then_restore_does_not_restore_old_ticket) ... ok
+test_service_authentication_failure_does_not_consume_ticket (portal.tests.test_integration.TicketRedemptionTests.test_service_authentication_failure_does_not_consume_ticket) ... ok
+test_stale_user_save_cannot_roll_back_grant_version (portal.tests.test_integration.TicketRedemptionTests.test_stale_user_save_cannot_roll_back_grant_version) ... ok
+test_tampered_and_expired_tickets_are_rejected (portal.tests.test_integration.TicketRedemptionTests.test_tampered_and_expired_tickets_are_rejected) ... ok
+test_ticket_with_wrong_bound_audience_is_rejected (portal.tests.test_integration.TicketRedemptionTests.test_ticket_with_wrong_bound_audience_is_rejected) ... ok
+test_ticket_with_wrong_bound_purpose_is_rejected (portal.tests.test_integration.TicketRedemptionTests.test_ticket_with_wrong_bound_purpose_is_rejected) ... ok
+test_valid_ticket_redeems_once_with_mapped_identity (portal.tests.test_integration.TicketRedemptionTests.test_valid_ticket_redeems_once_with_mapped_identity) ... ok
+test_wrong_request_audience_or_purpose_is_rejected_without_consuming (portal.tests.test_integration.TicketRedemptionTests.test_wrong_request_audience_or_purpose_is_rejected_without_consuming) ... ok
+test_disabled_module_is_listed_disabled_but_cannot_open_or_launch (portal.tests.test_modules.ModuleStateTests.test_disabled_module_is_listed_disabled_but_cannot_open_or_launch) ... ok
+test_offline_module_reports_unavailable_without_fallback (portal.tests.test_modules.ModuleStateTests.test_offline_module_reports_unavailable_without_fallback) ... ok
+test_pending_module_cannot_launch (portal.tests.test_modules.ModuleStateTests.test_pending_module_cannot_launch) ... ok
+test_reachable_authorized_module_returns_only_configured_url (portal.tests.test_modules.ModuleStateTests.test_reachable_authorized_module_returns_only_configured_url) ... ok
+test_debug_mode_may_use_explicitly_trusted_http_origin (portal.tests.test_modules.ModuleTargetValidationTests.test_debug_mode_may_use_explicitly_trusted_http_origin) ... ok
+test_non_pending_module_requires_a_target (portal.tests.test_modules.ModuleTargetValidationTests.test_non_pending_module_requires_a_target) ... ok
+test_only_plain_trusted_https_targets_are_accepted (portal.tests.test_modules.ModuleTargetValidationTests.test_only_plain_trusted_https_targets_are_accepted) ... ok
+test_reachable_rejects_every_redirect_status (portal.tests.test_modules.ModuleTargetValidationTests.test_reachable_rejects_every_redirect_status) ... ok
+test_direct_module_url_requires_login_and_current_authorization (portal.tests.test_permissions.RoleAndModuleAuthorizationTests.test_direct_module_url_requires_login_and_current_authorization) ... ok
+test_existing_ungranted_module_and_unknown_code_are_not_enumerable (portal.tests.test_permissions.RoleAndModuleAuthorizationTests.test_existing_ungranted_module_and_unknown_code_are_not_enumerable) ... ok
+test_five_seed_roles_have_only_their_expected_modules (portal.tests.test_permissions.RoleAndModuleAuthorizationTests.test_five_seed_roles_have_only_their_expected_modules) ... ok
+test_forged_user_and_role_parameters_do_not_expand_access (portal.tests.test_permissions.RoleAndModuleAuthorizationTests.test_forged_user_and_role_parameters_do_not_expand_access) ... ok
+test_multi_role_user_gets_union_without_duplicates (portal.tests.test_permissions.RoleAndModuleAuthorizationTests.test_multi_role_user_gets_union_without_duplicates) ... ok
+test_role_revocation_takes_effect_on_next_request (portal.tests.test_permissions.RoleAndModuleAuthorizationTests.test_role_revocation_takes_effect_on_next_request) ... ok
+test_admin_same_password_reset_invalidates_every_old_session (portal.tests.test_permissions.SessionRevocationTests.test_admin_same_password_reset_invalidates_every_old_session) ... ok
+test_deactivate_then_reactivate_never_restores_old_session (portal.tests.test_permissions.SessionRevocationTests.test_deactivate_then_reactivate_never_restores_old_session) ... ok
+test_direct_deactivate_then_reactivate_never_restores_old_session (portal.tests.test_permissions.SessionRevocationTests.test_direct_deactivate_then_reactivate_never_restores_old_session) ... ok
+test_stale_full_save_after_deactivation_preserves_inactive_state (portal.tests.test_permissions.SessionRevocationTests.test_stale_full_save_after_deactivation_preserves_inactive_state) ... ok
+test_stale_full_save_after_reset_does_not_restore_old_password (portal.tests.test_permissions.SessionRevocationTests.test_stale_full_save_after_reset_does_not_restore_old_password) ... ok
+test_stale_full_save_after_reset_preserves_must_change_password (portal.tests.test_permissions.SessionRevocationTests.test_stale_full_save_after_reset_preserves_must_change_password) ... ok
+test_stale_user_display_save_cannot_roll_back_session_or_grant_epoch (portal.tests.test_permissions.SessionRevocationTests.test_stale_user_display_save_cannot_roll_back_session_or_grant_epoch) ... ok
+test_seed_creates_exact_baseline_without_default_accounts (portal.tests.test_seed.SeedPortalTests.test_seed_creates_exact_baseline_without_default_accounts) ... ok
+test_seed_is_idempotent_and_does_not_overwrite_existing_authorization (portal.tests.test_seed.SeedPortalTests.test_seed_is_idempotent_and_does_not_overwrite_existing_authorization) ... ok
+test_concurrent_redeem_has_exactly_one_success (portal.tests.test_integration_postgres.PostgreSQLTicketConcurrencyTests.test_concurrent_redeem_has_exactly_one_success) ... ok
+
+----------------------------------------------------------------------
+Ran 80 tests in 65.563s
+
+OK
+Destroying test database for alias 'default' ('test_portal_phase1')...
+
+  Applying sessions.0001_initial... OK
+System check identified no issues (0 silenced).

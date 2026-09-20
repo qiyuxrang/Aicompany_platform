@@ -1,0 +1,118 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clearApiSession,
+  changePassword,
+  getModule,
+  launchModule,
+  unauthorizedEvent,
+  getModules,
+  login,
+  logout,
+  passwordChangeRequiredEvent,
+} from "./api";
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+describe("API client", () => {
+  beforeEach(() => {
+    clearApiSession();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("为不安全请求携带 CSRF，并在登录后刷新令牌", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ csrfToken: "before-login" }))
+      .mockResolvedValueOnce(json({
+        id: 1,
+        username: "tester",
+        display_name: "测试用户",
+        roles: [],
+        must_change_password: false,
+        is_platform_admin: false,
+      }))
+      .mockResolvedValueOnce(json({ csrfToken: "after-login" }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await login("tester", "secret");
+    await logout();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const loginInit = fetchMock.mock.calls[1][1] as RequestInit;
+    const logoutInit = fetchMock.mock.calls[3][1] as RequestInit;
+    expect(new Headers(loginInit.headers).get("X-CSRFToken")).toBe("before-login");
+    expect(new Headers(logoutInit.headers).get("X-CSRFToken")).toBe("after-login");
+    expect(loginInit.credentials).toBe("same-origin");
+  });
+
+  it("将首次改密限制广播给路由层", async () => {
+    const listener = vi.fn();
+    window.addEventListener(passwordChangeRequiredEvent, listener);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({
+      detail: "请先修改密码",
+      code: "password_change_required",
+    }, 403)));
+
+    await expect(getModules()).rejects.toMatchObject({ status: 403, code: "password_change_required" });
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(passwordChangeRequiredEvent, listener);
+  });
+
+  it.each(["password", "logout", "csrf"])("%s 的 401 会通知会话过期", async (endpoint) => {
+    const listener = vi.fn();
+    window.addEventListener(unauthorizedEvent, listener);
+    const fetchMock = vi.fn();
+    if (endpoint !== "csrf") fetchMock.mockResolvedValueOnce(json({ csrfToken: "test-token" }));
+    fetchMock.mockResolvedValueOnce(json({ detail: "会话已失效" }, 401));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(endpoint === "password" ? changePassword("old", "new") : logout())
+        .rejects.toMatchObject({ status: 401 });
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(unauthorizedEvent, listener);
+    }
+  });
+
+  it("拒绝错误模块参数，不请求后端或旧站", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(getModule("../admin")).rejects.toMatchObject({ status: 400 });
+    await expect(launchModule("/")).rejects.toMatchObject({ status: 400 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("未知模块状态报格式错误而不是渲染崩溃", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json([
+      { code: "product", name: "产品", description: "", status: "unexpected", enabled: true },
+    ])));
+    await expect(getModules()).rejects.toMatchObject({ status: 502 });
+  });
+
+  it.each(["javascript:alert(1)", "https://user:password@example.test", "http://["])("拒绝不安全或无效跳转 %s", async (url) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ csrfToken: "test-token" }))
+      .mockResolvedValueOnce(json({ url }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(launchModule("business")).rejects.toMatchObject({ status: 502 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([403, 409, 503])("保留 launch 的 %i 错误且不探测旧系统", async (status) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ csrfToken: "test-token" }))
+      .mockResolvedValueOnce(json({ detail: "入口不可用" }, status));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(launchModule("product")).rejects.toMatchObject({ status, message: "入口不可用" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/modules/product/launch/");
+  });
+});

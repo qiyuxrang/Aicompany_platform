@@ -1,0 +1,304 @@
+PROJECT C:\Users\BJRunner\Desktop\监控看板
+ M .env.example
+ M backend/config/settings.py
+ M backend/config/urls.py
+ M backend/ledger/admin.py
+ M backend/ledger/imports_api.py
+ M backend/ledger/management/commands/seed_demo.py
+ M backend/ledger/models.py
+ M backend/ledger/permissions.py
+ M backend/ledger/reports.py
+ M backend/ledger/serializers.py
+ M backend/ledger/services.py
+ M backend/ledger/status_import.py
+ M backend/ledger/tests/base.py
+ M backend/ledger/tests/test_auth_permissions.py
+ M backend/ledger/tests/test_finance.py
+ M backend/ledger/tests/test_import_attachment_seed.py
+ M backend/ledger/tests/test_sales_workspace.py
+ M backend/ledger/tests/test_status_import.py
+ M backend/ledger/unified_export.py
+ M backend/ledger/urls.py
+ M backend/ledger/views.py
+ M compose.yaml
+ M frontend/App.tsx
+ M frontend/api.ts
+ M frontend/components/Dialogs.tsx
+ M frontend/components/ProjectDetail.tsx
+ M frontend/components/ProjectEditor.tsx
+ M frontend/components/RegisterScreen.tsx
+ M frontend/components/SalesLedger.tsx
+ M frontend/components/UnifiedLedger.tsx
+ M frontend/components/unified-ledger.css
+ M frontend/sales.ts
+ M frontend/styles.css
+ M frontend/types.ts
+ M scripts/start.ps1
+ M tests/department-status.test.mjs
+ M tests/http_smoke.py
+ M tests/sales-workspace.test.mjs
+ M tests/unified_browser.py
+ M 启动平台.cmd
+?? -us-/
+?? .github/
+?? backend/config/observability.py
+?? backend/ledger/activity.py
+?? backend/ledger/auth_views.py
+?? backend/ledger/department_fields.py
+?? backend/ledger/export_limits.py
+?? backend/ledger/exports.py
+?? backend/ledger/finance_reads.py
+?? backend/ledger/financial_candidates.py
+?? backend/ledger/history_content.py
+?? backend/ledger/inventory_scope.py
+?? backend/ledger/migrations/0007_audit_source_followup_next_step_and_more.py
+?? backend/ledger/migrations/0008_attachment_department.py
+?? backend/ledger/migrations/0009_opportunity.py
+?? backend/ledger/migrations/0010_projectfinance.py
+?? backend/ledger/migrations/0011_copy_finance_details.py
+?? backend/ledger/migrations/0012_projectengineering_projectsales.py
+?? backend/ledger/migrations/0013_copy_department_notes.py
+?? backend/ledger/migrations/0014_projectengineering_acceptance_status_and_more.py
+?? backend/ledger/migrations/0015_copy_department_fields.py
+?? backend/ledger/migrations/0016_projectsales_overview_projectsales_sequence.py
+?? backend/ledger/opportunities.py
+?? backend/ledger/optional_pagination.py
+?? backend/ledger/project_amounts.py
+?? backend/ledger/project_paging.py
+?? backend/ledger/read_queries.py
+?? backend/ledger/read_scope.py
+?? backend/ledger/resource_limits.py
+?? backend/ledger/sales_project_entry.py
+?? backend/ledger/specialist_reads.py
+?? backend/ledger/status_history.py
+?? backend/ledger/tests/test_attachment_scope.py
+?? backend/ledger/tests/test_department_details.py
+?? backend/ledger/tests/test_department_fields_migration.py
+?? backend/ledger/tests/test_department_notes_migration.py
+?? backend/ledger/tests/test_finance_details_migration.py
+?? backend/ledger/tests/test_financial_candidates.py
+?? backend/ledger/tests/test_history_paging.py
+?? backend/ledger/tests/test_input_validation.py
+?? backend/ledger/tests/test_inventory_concurrency.py
+?? backend/ledger/tests/test_lazy_audits.py
+?? backend/ledger/tests/test_legacy_import_versions.py
+?? backend/ledger/tests/test_opportunities.py
+?? backend/ledger/tests/test_pagination.py
+?? backend/ledger/tests/test_production_auth.py
+?? backend/ledger/tests/test_project_activity.py
+?? backend/ledger/tests/test_project_aggregate.py
+?? backend/ledger/tests/test_read_performance.py
+?? backend/ledger/tests/test_registration_scope.py
+?? backend/ledger/tests/test_resource_limits.py
+?? backend/ledger/tests/test_sales_project_entry.py
+?? backend/ledger/tests/test_specialist_pages.py
+?? backend/ledger/tests/test_status_history.py
+?? backend/ledger/tests/test_structure_permissions.py
+?? deploy/compose.tls.yaml
+?? deploy/nginx.tls.conf
+?? docs/全量优化计划.md
+?? docs/分页拆分告警最终验收.md
+?? docs/发布前恢复与最新版本验证.md
+?? docs/大单项目聚合对照.md
+?? docs/展开记录分页验证.md
+?? docs/最终优化与稳定性结果.md
+?? docs/服务端分页实施计划.md
+?? docs/服务端分页验证报告.md
+?? docs/生产化优化执行清单.md
+?? docs/生产化优化验证记录.md
+?? docs/第二轮优化记录.md
+?? docs/结构优化实施计划.md
+?? docs/结构优化当前状态.md
+?? docs/结构优化验证记录.md
+?? docs/财务候选搜索验证.md
+?? docs/资源治理与监控实施记录.md
+?? docs/资源治理第二阶段.md
+?? docs/项目评估与压力测试报告.md
+?? docs/项目金额聚合验证.md
+?? docs/默认分页迁移记录.md
+?? frontend/AppAuth.tsx
+?? frontend/AppPanels.tsx
+?? frontend/AppShared.tsx
+?? frontend/components/DialogShared.tsx
+?? frontend/components/DialogTypes.ts
+?? frontend/components/ExpandedProjectRecords.tsx
+?? frontend/components/FinancialForms.tsx
+?? frontend/components/InventoryPager.tsx
+?? frontend/components/ManagerCharts.tsx
+?? frontend/components/Opportunities.tsx
+?? frontend/components/PageControls.tsx
+?? frontend/components/ProjectAuditHistory.tsx
+?? frontend/components/ProjectForms.tsx
+?? frontend/components/ProjectRecordPage.tsx
+?? frontend/components/ProjectSelect.tsx
+?? frontend/components/SalesProjectForm.tsx
+?? frontend/components/SidebarSummary.tsx
+?? frontend/components/StatusHistory.tsx
+?? frontend/components/manager-charts.css
+?? frontend/components/sidebar-summary.css
+?? frontend/components/status-history.css
+?? frontend/dialog-backdrop.ts
+?? frontend/hooks/useProjectRecords.ts
+?? frontend/polling.ts
+?? scripts/benchmark_project_amounts.py
+?? scripts/check_health.py
+?? scripts/lan.ps1
+?? scripts/production_seed.py
+?? scripts/rehearse_backup.py
+?? scripts/rehearse_structure.py
+?? scripts/stress_http.py
+?? scripts/stress_production.py
+?? tests/pagination_browser.py
+?? tests/polling.test.mjs
+?? tests/test_health_probe.py
+?? 清单模板/
+?? 配置局域网防火墙.cmd
+
+PROJECT C:\Git_projects\bj_device_company
+ M README.md
+ M docs/architecture/workbuddy-skill-workflow.md
+ M docs/release.md
+ M mcp.json
+ M mcp/index.js
+ M skills/bj-docs/SKILL.md
+ M skills/bj-docs/references/document-flow.md
+ M skills/bj-docs/references/feasibility.md
+ M skills/bj-docs/references/plan.md
+ M skills/bj-docs/references/review.md
+ M skills/bj-docs/references/technical-solution.md
+ M skills/bj-docs/scripts/artifacts.py
+ M skills/bj-docs/scripts/bootstrap.cjs
+ M skills/bj-docs/scripts/contract.py
+ M skills/bj-docs/scripts/office_render.py
+ M skills/bj-docs/scripts/ooxml.py
+ M skills/bj-docs/scripts/presentations.py
+ M skills/bj-docs/scripts/spreadsheet.py
+ M skills/bj-expert/SKILL.md
+ M skills/bj-know/SKILL.md
+ M skills/bj-show/SKILL.md
+ M skills/bj-show/references/scene.md
+ M skills/bj-show/references/slides.md
+ M skills/bj-work/SKILL.md
+ M skills/bj-work/references/workbuddy-tools.md
+ M skills/bj-work/references/workflow-contracts.md
+ M skills/bj-work/references/workflow-map.md
+ M skills/bj-work/scripts/hash.cjs
+ M tests/README.md
+ M tests/test_artifact_templates.py
+ M tests/test_clean_room_distribution.py
+ M tests/test_release_packages.py
+ M tests/test_skill_workflow_design.py
+ M token-schema.json
+ M tools/build_release.py
+?? .github/
+?? docs/architecture/WORKBUDDY_ACCEPTANCE.md
+?? docs/architecture/chapter-pages-ppt-master-pilot.md
+?? docs/architecture/delivery-quality-optimization-design.md
+?? docs/architecture/delivery-quality-optimization-plan.md
+?? docs/architecture/demo-optimization-plan.md
+?? docs/architecture/device-list-pilot.md
+?? docs/architecture/environment-agent-acceptance.md
+?? docs/architecture/incremental-production.md
+?? docs/architecture/list-to-deliverables-plan.md
+?? docs/architecture/long-writing-efficiency.md
+?? docs/architecture/performance-quality-optimization.md
+?? docs/architecture/template-content-study.md
+?? docs/architecture/workbuddy-format-pilot-plan.md
+?? docs/architecture/workbuddy-native-route.md
+?? docs/unified-skill.md
+?? docs/windows-installation.md
+?? skills/bj-docs/references/content-depth.md
+?? skills/bj-docs/references/delivery-check.md
+?? skills/bj-docs/references/handoff.md
+?? skills/bj-docs/references/incremental-production.md
+?? skills/bj-docs/references/project-flow.md
+?? skills/bj-docs/references/technical-diagrams.md
+?? skills/bj-docs/scripts/chapter_check.py
+?? skills/bj-docs/scripts/chapter_merge.py
+?? skills/bj-docs/scripts/citation_audit.py
+?? skills/bj-docs/scripts/deck_sources.py
+?? skills/bj-docs/scripts/delivery_check.py
+?? skills/bj-docs/scripts/delivery_evidence.py
+?? skills/bj-docs/scripts/delivery_limits.py
+?? skills/bj-docs/scripts/demo_check.py
+?? skills/bj-docs/scripts/formulas.py
+?? skills/bj-docs/scripts/handoff.py
+?? skills/bj-docs/scripts/installation.cjs
+?? skills/bj-docs/scripts/light_runtime_check.py
+?? skills/bj-docs/scripts/mermaid.cjs
+?? skills/bj-docs/scripts/pair_handoff.py
+?? skills/bj-docs/scripts/ppt_inspect.py
+?? skills/bj-docs/scripts/production.py
+?? skills/bj-docs/scripts/project_flow.py
+?? skills/bj-docs/scripts/project_inputs.py
+?? skills/bj-docs/scripts/runtime_check.py
+?? skills/bj-docs/scripts/strict_json.py
+?? skills/bj-know/references/retrieval-evidence.md
+?? skills/bj-show/references/blender-user-guide.md
+?? skills/bj-show/references/blender.md
+?? skills/bj-show/references/ppt-master.md
+?? skills/bj-show/references/solution-story.md
+?? skills/bj-show/scripts/
+?? skills/bj-work/references/blueprint-presentation.md
+?? skills/bj-work/references/communication.md
+?? skills/bj-work/references/environment.md
+?? tests/test_blender_portability.py
+?? tests/test_blender_scene.py
+?? tests/test_chapter_check.py
+?? tests/test_chapter_merge.py
+?? tests/test_citation_audit.py
+?? tests/test_content_handoff.py
+?? tests/test_deck_sources.py
+?? tests/test_delivery_check.py
+?? tests/test_delivery_limits.py
+?? tests/test_demo_upgrade.py
+?? tests/test_equipment_demo.py
+?? tests/test_evidence_performance.py
+?? tests/test_hash_release_safety.py
+?? tests/test_knowledge_tools.py
+?? tests/test_mcp_resource_bounds.py
+?? tests/test_mermaid_tool.py
+?? tests/test_pair_handoff.py
+?? tests/test_performance_quality.py
+?? tests/test_ppt_master_binding.py
+?? tests/test_ppt_master_setup.py
+?? tests/test_production.py
+?? tests/test_production_performance.py
+?? tests/test_project_flow.py
+?? tests/test_project_inputs.py
+?? tests/test_safety_boundaries.py
+?? tests/test_scene_tool.py
+?? tests/test_strict_json.py
+?? tests/test_sync_skills.py
+?? tests/test_unified_skill.py
+?? tests/test_windows_installability.py
+?? tools/build_unified_skill.py
+?? tools/requirements-test.txt
+?? tools/sync_skills.py
+?? tools/unified-entry.md
+?? tools/unified-migration.md
+?? tools/verify_demo_browser.py
+?? tools/verify_project.py
+?? 模板文件/
+
+PROJECT C:\Users\BJRunner\Desktop\转正工作流\.worktrees\v1-demo
+ M backend/app/api/demo.py
+ M frontend/package.json
+ M frontend/pnpm-lock.yaml
+ M frontend/src/App.tsx
+ M frontend/src/components/AppShell.tsx
+ M frontend/src/pages/hr/AssessmentProgressPage.tsx
+ M frontend/src/pages/hr/DashboardPage.tsx
+ M frontend/src/pages/hr/hr-pages.test.tsx
+ M scripts/demo_runtime.py
+?? backend/tests/test_demo_processes.py
+?? frontend/e2e/dashboard-layout.spec.ts
+?? frontend/e2e/dual-demo.spec.ts
+?? frontend/src/lib/useDemoPolling.ts
+?? frontend/src/pages/hr/DashboardOverview.tsx
+?? frontend/src/pages/public/DualDemoPage.tsx
+?? frontend/src/pages/public/MobileDemoPage.tsx
+?? frontend/src/pages/public/mobile-demo.test.tsx
+?? frontend/src/styles/mobile-demo.css
+?? frontend/src/styles/workspace.css
+?? start-dual-demo.bat

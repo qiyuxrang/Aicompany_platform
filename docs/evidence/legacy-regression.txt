@@ -1,0 +1,161 @@
+旧经营项目只读定向回归；使用全新隔离目录与内存测试数据库，不访问原业务库。
+Labels: ledger.tests.test_auth_permissions, ledger.tests.test_production_auth, ledger.tests.test_structure_permissions, ledger.tests.test_read_performance
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Found 26 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: messages, rest_framework, staticfiles
+  Apply all migrations: admin, auth, contenttypes, ledger, sessions
+Synchronizing apps without migrations:
+  Creating tables...
+    Running deferred SQL...
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0001_initial... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying ledger.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying ledger.0002_add_lead_user_and_urge... OK
+  Applying ledger.0003_sales_tracking_fields... OK
+  Applying ledger.0004_receivable_inventory_contacts... OK
+  Applying ledger.0005_project_actual_acceptance_project_finance_note_and_more... OK
+  Applying ledger.0006_receivable_payment_category_and_more... OK
+  Applying ledger.0007_audit_source_followup_next_step_and_more... OK
+  Applying ledger.0008_attachment_department... OK
+  Applying ledger.0009_opportunity... OK
+  Applying ledger.0010_projectfinance... OK
+  Applying ledger.0011_copy_finance_details... OK
+  Applying ledger.0012_projectengineering_projectsales... OK
+  Applying ledger.0013_copy_department_notes... OK
+  Applying ledger.0014_projectengineering_acceptance_status_and_more... OK
+  Applying ledger.0015_copy_department_fields... OK
+  Applying ledger.0016_projectsales_overview_projectsales_sequence... OK
+  Applying sessions.0001_initial...test_auth_requires_csrf_and_returns_rotated_token (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_auth_requires_csrf_and_returns_rotated_token) ... {"request_id": "85cbe1fdc0d64e0c9ef35c17b386e0b1", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 10.44}
+{"request_id": "a66ef2b8115e46c48cc526704e289ef5", "route": "api/auth/login/", "method": "POST", "status": 403, "duration_ms": 58.01}
+{"request_id": "253aa0612b02456db5bf959823c8d27b", "route": "api/auth/login/", "method": "POST", "status": 200, "duration_ms": 514.42}
+ok
+test_demo_login_is_unavailable_in_production (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_demo_login_is_unavailable_in_production) ... {"request_id": "360a8d63dede46ce9d8f633c2c73b6ba", "route": "api/auth/demo-login/", "method": "POST", "status": 404, "duration_ms": 0.66}
+ok
+test_demo_login_selects_fixed_department_account (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_demo_login_selects_fixed_department_account) ... {"request_id": "bd09fe1ce6c148619613cfc2a11a7edb", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 0.79}
+{"request_id": "6887b5828db040a5a21faec5812c1541", "route": "api/auth/demo-login/", "method": "POST", "status": 200, "duration_ms": 3.78}
+{"request_id": "181c3c9683994d4eb20c8f5f6a3a4e4c", "route": "api/projects/$", "method": "GET", "status": 200, "duration_ms": 21.69}
+ok
+test_department_filter_and_field_permissions (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_department_filter_and_field_permissions) ... {"request_id": "d69333ad6d684a8d95e9f95bc313e77f", "route": "api/projects/$", "method": "GET", "status": 200, "duration_ms": 6.27}
+{"request_id": "4ca78655f8f5472f9d6ddcea1a876b26", "route": "api/projects/(?P<pk>[^/.]+)/$", "method": "PATCH", "status": 403, "duration_ms": 1.64}
+{"request_id": "bece7f4592e94ae2b716e13b542f6d5e", "route": "api/projects/(?P<pk>[^/.]+)/$", "method": "PATCH", "status": 200, "duration_ms": 27.75}
+ok
+test_illegal_cross_project_relation_is_rejected (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_illegal_cross_project_relation_is_rejected) ... {"request_id": "f191e7ed97d343ea9ef4f2165bee025d", "route": "api/adjustments/$", "method": "POST", "status": 400, "duration_ms": 4.67}
+ok
+test_initial_password_blocks_business_api (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_initial_password_blocks_business_api) ... {"request_id": "0c4a77cc3dc447d88b9c3d4e20710123", "route": "api/projects/$", "method": "GET", "status": 403, "duration_ms": 0.38}
+ok
+test_initial_password_cannot_be_cleared_by_reusing_old_password (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_initial_password_cannot_be_cleared_by_reusing_old_password) ... {"request_id": "fa98ecea94ba4a629e75d79e121a645a", "route": "api/auth/password/", "method": "POST", "status": 400, "duration_ms": 394.55}
+ok
+test_lan_mode_disables_passwordless_login (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_lan_mode_disables_passwordless_login) ... {"request_id": "9f5bfb19671d4e2485ad1e6d544b866e", "route": "api/auth/demo-login/", "method": "POST", "status": 404, "duration_ms": 0.94}
+Not Found: /api/auth/demo-login/
+ok
+test_login_failure_limit_persists (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_login_failure_limit_persists) ... {"request_id": "320c8fbb32d949e48aaef3f7c394da9b", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 0.52}
+{"request_id": "b0ac08b77b2e46c8a45ebdb330c63be7", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 342.92}
+{"request_id": "31587272c40d492ea71baaf9c742cbd5", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 359.88}
+{"request_id": "0941a41f1cc946e1befe6feb8198e2ce", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 411.5}
+{"request_id": "c5df22280b4f4c5d9304933d573f6b2d", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 579.48}
+{"request_id": "0a920bc013804745b8a6ad3001817adb", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 558.41}
+{"request_id": "504aced74acf499cb95af0b7ab5e01fe", "route": "api/auth/login/", "method": "POST", "status": 429, "duration_ms": 1.02}
+ok
+test_manager_is_business_read_only (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_manager_is_business_read_only) ... {"request_id": "15432dc8825945ab86b0af00a2dc235b", "route": "api/projects/$", "method": "POST", "status": 403, "duration_ms": 0.5}
+ok
+test_registration_rejects_mismatched_role_or_unknown_department (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_registration_rejects_mismatched_role_or_unknown_department) ... {"request_id": "155b1bb022764a48ab525c049e74d379", "route": "api/auth/register/", "method": "POST", "status": 400, "duration_ms": 0.74}
+Bad Request: /api/auth/register/
+{"request_id": "72bb2f8700be4349bda9c6bb7714ccf1", "route": "api/auth/register/", "method": "POST", "status": 400, "duration_ms": 0.42}
+Bad Request: /api/auth/register/
+ok
+test_reset_account_updates_display_name_without_rewriting_audit (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_reset_account_updates_display_name_without_rewriting_audit) ... ok
+test_stale_version_is_409 (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_stale_version_is_409) ... {"request_id": "f25d6902cc604facac614b9f63d1a22f", "route": "api/projects/(?P<pk>[^/.]+)/$", "method": "PATCH", "status": 409, "duration_ms": 3.3}
+ok
+test_unauthenticated_me_is_401 (ledger.tests.test_auth_permissions.AuthAndPermissionTests.test_unauthenticated_me_is_401) ... {"request_id": "8e5a1e2097054fea9f9cd38567bb72ab", "route": "api/auth/me/", "method": "GET", "status": 401, "duration_ms": 0.32}
+ok
+test_auth_capabilities_disable_hidden_endpoints (ledger.tests.test_production_auth.ProductionAuthTests.test_auth_capabilities_disable_hidden_endpoints) ... {"request_id": "cad8718a2c2443a1869b02db9495cf84", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 0.49}
+{"request_id": "5a385ff042ee4124bc765b972a167b80", "route": "api/auth/register/", "method": "POST", "status": 403, "duration_ms": 0.27}
+Forbidden: /api/auth/register/
+ok
+test_debug_alone_does_not_enable_passwordless_login (ledger.tests.test_production_auth.ProductionAuthTests.test_debug_alone_does_not_enable_passwordless_login) ... {"request_id": "dc94bb2f5fae48d39cf365208a7f8150", "route": "api/auth/demo-login/", "method": "POST", "status": 404, "duration_ms": 0.51}
+Not Found: /api/auth/demo-login/
+ok
+test_production_never_allows_public_registration (ledger.tests.test_production_auth.ProductionAuthTests.test_production_never_allows_public_registration) ... {"request_id": "6c98e16a1f344cd98548bb14a19ca8f5", "route": "api/auth/register/", "method": "POST", "status": 403, "duration_ms": 0.49}
+ok
+test_department_audit_is_scoped_and_snapshots_redacted (ledger.tests.test_structure_permissions.StructurePermissionTests.test_department_audit_is_scoped_and_snapshots_redacted) ... {"request_id": "c043a6d74ead44bbb82a7244edf75b8d", "route": "api/audits/$", "method": "GET", "status": 200, "duration_ms": 3.4}
+{"request_id": "623413f68e5747adb67d6a1bb138c4a3", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 9.56}
+ok
+test_finance_reads_contract_and_can_create_contract (ledger.tests.test_structure_permissions.StructurePermissionTests.test_finance_reads_contract_and_can_create_contract) ... {"request_id": "2f06148533454e80888de68e48b8e3f8", "route": "api/contracts/$", "method": "GET", "status": 200, "duration_ms": 3.2}
+{"request_id": "b5ff88ac480c4dc48554ba6fc773eb6e", "route": "api/contracts/$", "method": "POST", "status": 201, "duration_ms": 3.26}
+ok
+test_retired_urge_endpoint_cannot_write (ledger.tests.test_structure_permissions.StructurePermissionTests.test_retired_urge_endpoint_cannot_write) ... {"request_id": "bf7edd8fa2c24691bfed3937a9b1a037", "route": "api/projects/(?P<pk>[^/.]+)/urge/$", "method": "POST", "status": 403, "duration_ms": 0.5}
+{"request_id": "560e9bd15cd14d859cf51b41bc4f292b", "route": "api/projects/(?P<pk>[^/.]+)/urge/$", "method": "POST", "status": 403, "duration_ms": 0.35}
+{"request_id": "d10bc76eef7e4a3ca63a08dab74e5d1b", "route": "api/projects/(?P<pk>[^/.]+)/urge/$", "method": "POST", "status": 403, "duration_ms": 0.88}
+{"request_id": "df67f3cf37cc45dc8cd1f9fe176b1732", "route": "api/projects/(?P<pk>[^/.]+)/urge/$", "method": "POST", "status": 403, "duration_ms": 0.28}
+ok
+test_sales_cannot_create_financial_plan (ledger.tests.test_structure_permissions.StructurePermissionTests.test_sales_cannot_create_financial_plan) ... {"request_id": "7494f4168e4a4ccaa55a7bb9cf69328a", "route": "api/plans/$", "method": "POST", "status": 403, "duration_ms": 0.89}
+ok
+test_department_bootstrap_queries_are_bounded (ledger.tests.test_read_performance.ReadPerformanceTests.test_department_bootstrap_queries_are_bounded) ... {"request_id": "1d7ddbf74d0c4c4fa58ce43e3f9b0c1a", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 15.03}
+{"request_id": "52a17a238b4e42eda26841263c717471", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 10.78}
+{"request_id": "3eb2faa8830d48f488a574a9e640fdd2", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 27.62}
+ok
+test_engineering_bootstrap_does_not_query_financial_tables (ledger.tests.test_read_performance.ReadPerformanceTests.test_engineering_bootstrap_does_not_query_financial_tables) ... {"request_id": "b95bd68090ca4be4b0cd221de3dbc180", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 10.93}
+ok
+test_latest_activity_is_department_scoped (ledger.tests.test_read_performance.ReadPerformanceTests.test_latest_activity_is_department_scoped) ... {"request_id": "b3113e441ac2465aaf454d3c8afd495d", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 29.77}
+{"request_id": "d019aae59d724a429cf8ef86811d5f42", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 10.65}
+{"request_id": "5e0753d0ad0a4a3c94c47e179a1e7d9f", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 8.35}
+{"request_id": "a7ef19a6c4dd4e16aff1aba3a1c9099d", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 30.13}
+ok
+test_read_queries_do_not_grow_per_project (ledger.tests.test_read_performance.ReadPerformanceTests.test_read_queries_do_not_grow_per_project) ... {"request_id": "f8c1aff4a00545de871d5d03d75c0821", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 30.46}
+{"request_id": "b1cafae5237e41598fe5bff27c0ac8ce", "route": "api/projects/$", "method": "GET", "status": 200, "duration_ms": 15.13}
+{"request_id": "22ac3c867eb2403d9bbb1ca169a46931", "route": "api/receivables/$", "method": "GET", "status": 200, "duration_ms": 6.91}
+{"request_id": "3ab3706900324ff0a36289f4916b0484", "route": "api/dashboard/", "method": "GET", "status": 200, "duration_ms": 8.6}
+{"request_id": "4feb3026a2a34e7480a8c6ba64fe0ca4", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 38.83}
+{"request_id": "42201c3305c94d3a8082066d9188b100", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 29.36}
+{"request_id": "386154ec557b4e5cb897900dae7f88c1", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 33.07}
+{"request_id": "eac694aa93c04a60a3f9dd46b20e9c55", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 31.44}
+{"request_id": "a7ca8f09479c415db7fa991e2ff4e87d", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 17.68}
+{"request_id": "3353d9d016234eceb76d1eb9262f8f28", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 32.85}
+{"request_id": "0ecae1ed2209412db4ad1fb77cdb0dbc", "route": "api/projects/$", "method": "GET", "status": 200, "duration_ms": 19.47}
+{"request_id": "78e1c88ccf194943b4879fddf077bd48", "route": "api/receivables/$", "method": "GET", "status": 200, "duration_ms": 5.24}
+{"request_id": "251d9f6e103348bfa88cb8f63df6166a", "route": "api/dashboard/", "method": "GET", "status": 200, "duration_ms": 7.89}
+{"request_id": "053762320d424b23ba1b27450c3fe416", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 38.17}
+{"request_id": "570c8d3ca1c74711879daab585d8d85d", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 43.94}
+{"request_id": "5fba0192d20846adb89f904dcf1c6344", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 71.57}
+{"request_id": "083fb582d4664315988bb63e84a8a8f4", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 46.13}
+{"request_id": "a8302dfb3a2843df9c2e3c7693fa28c9", "route": "api/export/", "method": "GET", "status": 200, "duration_ms": 21.21}
+ok
+test_totals_do_not_multiply_joins_or_include_unconfirmed_money (ledger.tests.test_read_performance.ReadPerformanceTests.test_totals_do_not_multiply_joins_or_include_unconfirmed_money) ... {"request_id": "2e7999f63de94e60b14f8b79523be85c", "route": "api/bootstrap/", "method": "GET", "status": 200, "duration_ms": 29.87}
+ok
+
+----------------------------------------------------------------------
+Ran 26 tests in 53.887s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+ OK
+System check identified no issues (0 silenced).
+QUERY bootstrap sales: 9
+QUERY bootstrap engineering: 8
+QUERY bootstrap finance: 15
+QUERY /api/bootstrap/: 18 -> 18
+QUERY /api/projects/: 4 -> 4
+QUERY /api/receivables/: 3 -> 3
+QUERY /api/dashboard/: 7 -> 7
+QUERY /api/export/?kind=unified: 4 -> 4
+QUERY /api/export/?kind=projects: 4 -> 4
+QUERY /api/export/?kind=sales: 5 -> 5
+QUERY /api/export/?kind=engineering: 4 -> 4
+QUERY /api/export/?kind=receivables: 3 -> 3

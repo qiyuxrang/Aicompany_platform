@@ -1,0 +1,9 @@
+[project]
+name = "enterprise-portal"
+version = "0.1.0"
+description = "独立账号、模块授权与经营接入边界"
+requires-python = ">=3.13,<3.14"
+dependencies = ["Django>=5.2,<5.3", "djangorestframework>=3.16,<3.17", "psycopg[binary]>=3.2,<4", "whitenoise>=6.9,<7", "waitress>=3.0,<4"]
+
+[tool.uv]
+package = false

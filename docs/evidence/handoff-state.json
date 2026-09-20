@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-09-20T10:47:31.017087+00:00",
+  "portal": "http://127.0.0.1:8100",
+  "portal_health": 200,
+  "database_engine": "django.db.backends.postgresql",
+  "database_name": "portal_phase1",
+  "active_qa_accounts": 0,
+  "legacy_health": 200,
+  "modules": [
+    {
+      "code": "product",
+      "status": "pending",
+      "enabled": true
+    },
+    {
+      "code": "cost",
+      "status": "pending",
+      "enabled": true
+    },
+    {
+      "code": "hr",
+      "status": "pending",
+      "enabled": true
+    },
+    {
+      "code": "business",
+      "status": "navigation",
+      "enabled": true
+    }
+  ],
+  "compose_validation_states": {
+    "enterprise-portal-phase1-backend-1": "exited",
+    "enterprise-portal-phase1-db-1": "exited"
+  },
+  "branch": "feature/phase1-portal",
+  "version": "0.1.0",
+  "commit": "未创建提交"
+}

@@ -1,0 +1,198 @@
+{
+  "timestamp": "2026-09-20T10:36:11.009928+00:00",
+  "base": "http://127.0.0.1:8100",
+  "database": "独立 portal_phase1 PostgreSQL 验收库",
+  "results": [
+    {
+      "case": "匿名受保护API为401",
+      "passed": true
+    },
+    {
+      "case": "真实HTTP登录缺CSRF为403",
+      "passed": true
+    },
+    {
+      "case": "qa_product真实登录",
+      "passed": true
+    },
+    {
+      "case": "qa_product服务端模块范围",
+      "passed": true
+    },
+    {
+      "case": "qa_productCookie隔离",
+      "passed": true
+    },
+    {
+      "case": "跨模块详情禁止",
+      "passed": true
+    },
+    {
+      "case": "伪造用户角色参数无效",
+      "passed": true
+    },
+    {
+      "case": "普通用户管理页面拒绝",
+      "passed": true
+    },
+    {
+      "case": "待接入模块不能启动",
+      "passed": true
+    },
+    {
+      "case": "qa_product退出",
+      "passed": true
+    },
+    {
+      "case": "qa_product退出后401",
+      "passed": true
+    },
+    {
+      "case": "qa_engineering真实登录",
+      "passed": true
+    },
+    {
+      "case": "qa_engineering服务端模块范围",
+      "passed": true
+    },
+    {
+      "case": "qa_engineeringCookie隔离",
+      "passed": true
+    },
+    {
+      "case": "qa_engineering退出",
+      "passed": true
+    },
+    {
+      "case": "qa_engineering退出后401",
+      "passed": true
+    },
+    {
+      "case": "qa_hr真实登录",
+      "passed": true
+    },
+    {
+      "case": "qa_hr服务端模块范围",
+      "passed": true
+    },
+    {
+      "case": "qa_hrCookie隔离",
+      "passed": true
+    },
+    {
+      "case": "qa_hr退出",
+      "passed": true
+    },
+    {
+      "case": "qa_hr退出后401",
+      "passed": true
+    },
+    {
+      "case": "qa_manager真实登录",
+      "passed": true
+    },
+    {
+      "case": "qa_manager服务端模块范围",
+      "passed": true
+    },
+    {
+      "case": "qa_managerCookie隔离",
+      "passed": true
+    },
+    {
+      "case": "导航返回已验证在线的原入口",
+      "passed": true
+    },
+    {
+      "case": "未接入真实数据明确503而非伪造成功",
+      "passed": true
+    },
+    {
+      "case": "qa_manager退出",
+      "passed": true
+    },
+    {
+      "case": "qa_manager退出后401",
+      "passed": true
+    },
+    {
+      "case": "qa_admin真实登录",
+      "passed": true
+    },
+    {
+      "case": "qa_admin服务端模块范围",
+      "passed": true
+    },
+    {
+      "case": "qa_adminCookie隔离",
+      "passed": true
+    },
+    {
+      "case": "管理员访问真实Admin",
+      "passed": true
+    },
+    {
+      "case": "管理员不默认读经营数据",
+      "passed": true
+    },
+    {
+      "case": "qa_admin退出",
+      "passed": true
+    },
+    {
+      "case": "qa_admin退出后401",
+      "passed": true
+    },
+    {
+      "case": "qa_empty真实登录",
+      "passed": true
+    },
+    {
+      "case": "qa_empty服务端模块范围",
+      "passed": true
+    },
+    {
+      "case": "qa_emptyCookie隔离",
+      "passed": true
+    },
+    {
+      "case": "qa_empty退出",
+      "passed": true
+    },
+    {
+      "case": "qa_empty退出后401",
+      "passed": true
+    },
+    {
+      "case": "qa_multi真实登录",
+      "passed": true
+    },
+    {
+      "case": "qa_multi服务端模块范围",
+      "passed": true
+    },
+    {
+      "case": "qa_multiCookie隔离",
+      "passed": true
+    },
+    {
+      "case": "qa_multi退出",
+      "passed": true
+    },
+    {
+      "case": "qa_multi退出后401",
+      "passed": true
+    },
+    {
+      "case": "首次改密标记",
+      "passed": true
+    },
+    {
+      "case": "首次改密前功能受限",
+      "passed": true
+    }
+  ],
+  "passed": 47,
+  "failed": 0,
+  "boundary": "真实门户HTTP与真实经营导航；未登录或查询旧业务数据，不是可信数据集成或SSO验收。"
+}

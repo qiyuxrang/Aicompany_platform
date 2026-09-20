@@ -1,0 +1,7 @@
+{
+  "verifiedAt": "2026-09-20T09:44:02.884Z",
+  "portal": "http://127.0.0.1:8100",
+  "destination": "http://127.0.0.1:8018/",
+  "result": "原系统独立登录页；没有读取或登录旧账号；不是SSO",
+  "snapshot": "- main:\n  - heading \"经营分析与台账平台\" [level=1]\n  - paragraph: Business Analytics & Ledger Platform\n  - list:\n    - generic: 项目全周期管理\n    - generic: 实时进度监控\n    - generic: 财务数据可视化\n  - paragraph: 榆林市皓天科技有限公司\n  - paragraph: 陕西一二三数字信息技术有限公司\n  - region \"欢迎回来\":\n    - heading \"欢迎回来\" [level=2]\n    - paragraph: 使用公司分配的账号登录系统\n    - generic: 账号\n    - textbox \"账号\" [active]:\n      - /placeholder: 请输入分配的账号\n    - generic: 密码\n    - textbox \"密码\":\n      - /placeholder: 请输入登录密码\n    - button \"进入工作台\"\n    - generic: 还没有账号？\n    - button \"注册新账号\"\n    - generic: 当前为演示环境，请勿录入真实敏感信息"
+}

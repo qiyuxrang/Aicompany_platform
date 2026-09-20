@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-09-20T10:45:01.386704+00:00",
+  "engine": "django.db.backends.sqlite3",
+  "module_count": 4,
+  "role_count": 5,
+  "user_count": 0,
+  "all_pending": true,
+  "health": 200,
+  "admin_css": 200,
+  "boundary": "实际执行start-local.ps1：SQLite、冻结依赖、构建、迁移、seed、collectstatic与Waitress启动；独立于PG验证库，没有默认账号。"
+}

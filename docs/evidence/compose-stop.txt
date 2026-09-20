@@ -1,0 +1,4 @@
+ Container enterprise-portal-phase1-backend-1 Stopping 
+ Container enterprise-portal-phase1-backend-1 Stopped 
+ Container enterprise-portal-phase1-db-1 Stopping 
+ Container enterprise-portal-phase1-db-1 Stopped 

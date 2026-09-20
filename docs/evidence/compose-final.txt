@@ -1,0 +1,136 @@
+ Image enterprise-portal-phase1:local Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 583B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.34kB done
+#2 DONE 0.0s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#3 DONE 0.8s
+
+#4 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#4 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 0.1s done
+#4 CACHED
+
+#5 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.17@sha256:03bdc89bb9798628846e60c3a9ad19006c8c3c724ccd2985a33145c039a0577b
+#5 ...
+
+#6 [internal] load metadata for docker.io/library/node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8
+#6 DONE 1.3s
+
+#7 [internal] load metadata for docker.io/library/python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285
+#7 DONE 1.4s
+
+#5 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.17@sha256:03bdc89bb9798628846e60c3a9ad19006c8c3c724ccd2985a33145c039a0577b
+#5 DONE 1.8s
+
+#8 [internal] load .dockerignore
+#8 transferring context: 291B done
+#8 DONE 0.0s
+
+#9 [internal] load build context
+#9 DONE 0.0s
+
+#10 [uv 1/1] FROM ghcr.io/astral-sh/uv:0.11.17@sha256:03bdc89bb9798628846e60c3a9ad19006c8c3c724ccd2985a33145c039a0577b
+#10 resolve ghcr.io/astral-sh/uv:0.11.17@sha256:03bdc89bb9798628846e60c3a9ad19006c8c3c724ccd2985a33145c039a0577b 0.1s done
+#10 DONE 0.1s
+
+#11 [frontend-build 1/7] FROM docker.io/library/node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8
+#11 resolve docker.io/library/node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8 0.1s done
+#11 DONE 0.2s
+
+#12 [runtime  1/10] FROM docker.io/library/python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285
+#12 resolve docker.io/library/python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285 0.1s done
+#12 DONE 0.2s
+
+#9 [internal] load build context
+#9 transferring context: 54.66kB 0.0s done
+#9 DONE 0.0s
+
+#13 [runtime  4/10] COPY pyproject.toml uv.lock ./
+#13 CACHED
+
+#14 [runtime  3/10] WORKDIR /app
+#14 CACHED
+
+#15 [runtime  5/10] RUN uv sync --frozen --no-dev --no-install-project && rm -rf /root/.cache/uv
+#15 CACHED
+
+#16 [runtime  2/10] COPY --from=uv /uv /uvx /bin/
+#16 CACHED
+
+#17 [frontend-build 3/7] RUN corepack enable
+#17 CACHED
+
+#18 [frontend-build 4/7] COPY frontend/package.json frontend/pnpm-lock.yaml ./
+#18 CACHED
+
+#19 [frontend-build 2/7] WORKDIR /build/frontend
+#19 CACHED
+
+#20 [runtime  6/10] RUN groupadd --system portal && useradd --system --gid portal --home-dir /app portal
+#20 CACHED
+
+#21 [frontend-build 5/7] RUN pnpm install --frozen-lockfile
+#21 CACHED
+
+#22 [runtime  7/10] COPY --chown=portal:portal backend/ ./backend/
+#22 DONE 0.1s
+
+#23 [frontend-build 6/7] COPY frontend/ ./
+#23 DONE 0.1s
+
+#24 [frontend-build 7/7] RUN pnpm build
+#24 0.637 $ tsc --noEmit && vite build
+#24 1.052 vite v8.3.0 building client environment for production...
+#24 1.067 transforming...
+#24 1.159 ✓ 17 modules transformed.
+#24 1.192 rendering chunks...
+#24 1.233 computing gzip size...
+#24 1.237 dist/index.html                   0.51 kB │ gzip:  0.33 kB
+#24 1.237 dist/assets/index-DQJY6AHx.css   13.30 kB │ gzip:  3.84 kB
+#24 1.237 dist/assets/index-Dn2euUd6.js   242.87 kB │ gzip: 75.55 kB
+#24 1.237 
+#24 1.237 ✓ built in 183ms
+#24 DONE 1.3s
+
+#25 [runtime  8/10] COPY --from=frontend-build --chown=portal:portal /build/frontend/dist/ ./frontend/dist/
+#25 DONE 0.5s
+
+#26 [runtime  9/10] RUN mkdir /app/staticfiles && chown portal:portal /app/staticfiles
+#26 DONE 0.3s
+
+#27 [runtime 10/10] WORKDIR /app/backend
+#27 DONE 0.2s
+
+#28 exporting to image
+#28 exporting layers
+#28 exporting layers 0.6s done
+#28 exporting manifest sha256:796af256e46a446fc4677bab55edb1367353e1ee5c562c389331ee18b213facf 0.0s done
+#28 exporting config sha256:a033a1efc99a351cee780708df1d9e5877e3e8662e764136f5e21b8b204ecf81 0.0s done
+#28 exporting attestation manifest sha256:23f27492566081625ff427756c356fc17649fdfd96d4c3eb64eabd17f7fa1dd3
+#28 exporting attestation manifest sha256:23f27492566081625ff427756c356fc17649fdfd96d4c3eb64eabd17f7fa1dd3 0.1s done
+#28 exporting manifest list sha256:431dfb098b7c80329548dc44b5a209a590b05e2d9ddcf2ad026bb56465e639f9 0.0s done
+#28 naming to docker.io/library/enterprise-portal-phase1:local
+#28 naming to docker.io/library/enterprise-portal-phase1:local done
+#28 unpacking to docker.io/library/enterprise-portal-phase1:local
+#28 unpacking to docker.io/library/enterprise-portal-phase1:local 0.2s done
+#28 DONE 1.2s
+
+#29 resolving provenance for metadata file
+#29 DONE 0.0s
+ Image enterprise-portal-phase1:local Built 
+ Container enterprise-portal-phase1-backend-1 Recreate 
+ Container enterprise-portal-phase1-backend-1 Recreated 
+ Container enterprise-portal-phase1-db-1 Starting 
+ Container enterprise-portal-phase1-db-1 Started 
+ Container enterprise-portal-phase1-db-1 Waiting 
+ Container enterprise-portal-phase1-db-1 Healthy 
+ Container enterprise-portal-phase1-backend-1 Starting 
+ Container enterprise-portal-phase1-backend-1 Started 
+ Container enterprise-portal-phase1-backend-1 Waiting 
+ Container enterprise-portal-phase1-db-1 Waiting 
+ Container enterprise-portal-phase1-db-1 Healthy 
+ Container enterprise-portal-phase1-backend-1 Healthy 

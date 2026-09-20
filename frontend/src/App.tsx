@@ -1,0 +1,763 @@
+import { FormEvent, MouseEvent, ReactNode, useEffect, useState } from "react";
+import {
+  ApiError,
+  BusinessSummary,
+  CurrentUser,
+  PortalModule,
+  summaryLabels,
+  isModuleCode,
+  changePassword,
+  clearApiSession,
+  getBusinessSummary,
+  getMe,
+  getModule,
+  getModules,
+  isApiError,
+  launchModule,
+  login,
+  logout,
+  passwordChangeRequiredEvent,
+  unauthorizedEvent,
+} from "./api";
+
+const statusMeta = {
+  pending: { label: "待接入", tone: "warning", detail: "入口尚在准备中，开放时间以平台通知为准。" },
+  navigation: { label: "导航接入", tone: "info", detail: "平台提供统一导航，目标系统保留原有登录。" },
+  verified: { label: "已验证集成", tone: "success", detail: "平台已完成入口验证，目标系统仍按自身认证策略运行。" },
+  disabled: { label: "已停用", tone: "muted", detail: "该入口当前不可用，请联系平台管理员。" },
+} as const;
+
+function navigate(path: string, replace = false): void {
+  if (window.location.pathname === path) return;
+  window.history[replace ? "replaceState" : "pushState"]({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function usePathname(): string {
+  const [pathname, setPathname] = useState(window.location.pathname);
+  useEffect(() => {
+    const update = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
+  return pathname;
+}
+
+function AppLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+  const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigate(href);
+  };
+  return (
+    <a href={href} className={className} onClick={handleClick}>
+      {children}
+    </a>
+  );
+}
+
+function Brand() {
+  return (
+    <AppLink href="/" className="brand" aria-label="企业统一门户首页">
+      <span className="brand-mark" aria-hidden="true">企</span>
+      <span>
+        <strong>企业统一门户</strong>
+        <small>Enterprise Workspace</small>
+      </span>
+    </AppLink>
+  );
+}
+
+function PageLoading({ label = "正在加载门户" }: { label?: string }) {
+  return (
+    <main className="state-page" aria-busy="true" aria-live="polite">
+      <div className="state-card loading-card">
+        <span className="skeleton skeleton-title" />
+        <span className="skeleton skeleton-line" />
+        <span className="skeleton skeleton-line short" />
+        <span className="sr-only">{label}</span>
+      </div>
+    </main>
+  );
+}
+
+function ErrorPage({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <main className="state-page">
+      <section className="state-card" role="alert">
+        <span className="state-symbol" aria-hidden="true">!</span>
+        <p className="eyebrow">门户暂不可用</p>
+        <h1>无法连接平台服务</h1>
+        <p>{message}</p>
+        <button className="button primary" type="button" onClick={onRetry}>重新加载</button>
+      </section>
+    </main>
+  );
+}
+
+function LoginPage({
+  notice,
+  onAuthenticated,
+}: {
+  notice: string;
+  onAuthenticated: (user: CurrentUser) => void;
+}) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    if (!username.trim() || !password) {
+      setError("请输入用户名和密码。");
+      return;
+    }
+    setPending(true);
+    try {
+      onAuthenticated(await login(username.trim(), password));
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "登录请求失败，请稍后重试。");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <main className="auth-layout">
+      <section className="auth-intro" aria-labelledby="login-title">
+        <Brand />
+        <div>
+          <p className="eyebrow">统一身份 · 授权访问</p>
+          <h1 id="login-title">欢迎回来</h1>
+          <p className="auth-lead">从一个入口访问已授权的业务系统，权限与可用状态均由平台后端确认。</p>
+        </div>
+        <p className="security-note">身份信息仅用于当前会话，不在浏览器本地保存。</p>
+      </section>
+      <section className="auth-panel" aria-label="登录表单">
+        <div className="form-card">
+          <div className="form-heading">
+            <p className="eyebrow">账号登录</p>
+            <h2>进入工作台</h2>
+          </div>
+          {notice && <div className="notice info" role="status">{notice}</div>}
+          {error && <div className="notice error" role="alert">{error}</div>}
+          <form onSubmit={handleSubmit} noValidate>
+            <label htmlFor="username">用户名</label>
+            <input
+              id="username"
+              name="username"
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              required
+              autoFocus
+            />
+            <label htmlFor="password">密码</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+            <button className="button primary full" type="submit" disabled={pending}>
+              {pending ? "正在验证…" : "登录"}
+            </button>
+          </form>
+          <p className="form-footnote">如无法登录，请联系平台管理员核对账号状态。</p>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function PasswordPage({
+  forced,
+  onChanged,
+  onLogout,
+}: {
+  forced: boolean;
+  onChanged: (detail: string) => void;
+  onLogout: () => Promise<void>;
+}) {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setError("请完整填写三个密码字段。");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("两次输入的新密码不一致。");
+      return;
+    }
+    setPending(true);
+    try {
+      const result = await changePassword(oldPassword, newPassword);
+      onChanged(result.detail);
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "密码修改失败，请稍后重试。");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setError("");
+    try {
+      await onLogout();
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "退出失败，请稍后重试。");
+    }
+  };
+
+  return (
+    <main className={`password-layout ${forced ? "" : "within-shell"}`}>
+      {forced && <div className="password-brand"><Brand /></div>}
+      <section className="form-card password-card" aria-labelledby="password-title">
+        <div className="form-heading">
+          <p className="eyebrow">账号安全</p>
+          <h1 id="password-title">{forced ? "首次登录，请先修改密码" : "修改登录密码"}</h1>
+          <p>{forced ? "完成修改后，其他功能才会开放。" : "修改成功后，所有会话将失效并返回登录页。"}</p>
+        </div>
+        {error && <div className="notice error" role="alert">{error}</div>}
+        <form onSubmit={handleSubmit} noValidate>
+          <label htmlFor="old-password">当前密码</label>
+          <input
+            id="old-password"
+            type="password"
+            autoComplete="current-password"
+            value={oldPassword}
+            onChange={(event) => setOldPassword(event.target.value)}
+            required
+            autoFocus
+          />
+          <label htmlFor="new-password">新密码</label>
+          <input
+            id="new-password"
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            required
+          />
+          <label htmlFor="confirm-password">确认新密码</label>
+          <input
+            id="confirm-password"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            required
+          />
+          <button className="button primary full" type="submit" disabled={pending}>
+            {pending ? "正在提交…" : "确认修改"}
+          </button>
+        </form>
+        {forced && <button className="text-button" type="button" onClick={handleLogout}>退出当前账号</button>}
+      </section>
+    </main>
+  );
+}
+
+function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: () => Promise<void>; children: ReactNode }) {
+  const [logoutError, setLogoutError] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    setLogoutError("");
+    try {
+      await onLogout();
+    } catch (caught) {
+      setLogoutError(isApiError(caught) ? caught.message : "退出失败，请稍后重试。");
+      setLoggingOut(false);
+    }
+  };
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <Brand />
+        <nav className="account-nav" aria-label="账户导航">
+          <span className="account-name">{user.display_name || user.username}</span>
+          <AppLink href="/password">修改密码</AppLink>
+          {user.is_platform_admin && <a href="/admin/">Django Admin</a>}
+          <button type="button" className="text-button" onClick={handleLogout} disabled={loggingOut}>
+            {loggingOut ? "退出中…" : "退出登录"}
+          </button>
+        </nav>
+      </header>
+      {logoutError && <div className="global-alert" role="alert">{logoutError}</div>}
+      {children}
+    </div>
+  );
+}
+
+function StatusBadge({ module }: { module: PortalModule }) {
+  const meta = statusMeta[module.status];
+  return <span className={`status ${meta.tone}`}>{meta.label}</span>;
+}
+
+function ModuleGrid({ onBusinessAccess }: { onBusinessAccess: (allowed: boolean) => void }) {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ready"; modules: PortalModule[] }
+    | { kind: "error"; message: string }
+  >({ kind: "loading" });
+
+  const load = async () => {
+    setState({ kind: "loading" });
+    onBusinessAccess(false);
+    try {
+      const modules = await getModules();
+      setState({ kind: "ready", modules: Array.isArray(modules) ? modules : [] });
+      onBusinessAccess(Array.isArray(modules) && modules.some((module) =>
+        module.code === "business" && module.enabled && module.status !== "disabled" && module.status !== "pending"));
+    } catch (caught) {
+      setState({ kind: "error", message: isApiError(caught) ? caught.message : "模块列表加载失败。" });
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  if (state.kind === "loading") {
+    return (
+      <div className="module-grid" aria-busy="true" aria-label="正在加载业务模块">
+        {[0, 1, 2, 3].map((item) => <div className="module-card skeleton-card" key={item} />)}
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <div className="inline-state" role="alert">
+        <strong>业务模块加载失败</strong>
+        <p>{state.message}</p>
+        <button className="button secondary" type="button" onClick={load}>重试</button>
+      </div>
+    );
+  }
+
+  if (state.modules.length === 0) {
+    return (
+      <div className="inline-state empty">
+        <span className="state-symbol" aria-hidden="true">0</span>
+        <strong>暂无已授权模块</strong>
+        <p>当前账号尚未分配业务入口，请联系平台管理员。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="module-grid">
+      {state.modules.map((module) => (
+        <article className={`module-card ${!module.enabled || module.status === "disabled" ? "is-disabled" : ""}`} key={module.code}>
+          <div className="module-topline">
+            <span className="module-code">{module.code}</span>
+            <StatusBadge module={module} />
+          </div>
+          <div>
+            <h3>{module.name}</h3>
+            <p>{module.description || "暂无接入说明。"}</p>
+          </div>
+          <AppLink href={`/modules/${encodeURIComponent(module.code)}`} className="module-link">
+            查看接入详情 <span aria-hidden="true">→</span>
+          </AppLink>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function formatUpdatedAt(value?: string): string {
+  if (!value) return "接口未提供";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function BusinessSummaryPanel() {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ready"; summary: BusinessSummary }
+    | { kind: "disabled"; detail: string }
+    | { kind: "error"; message: string }
+  >({ kind: "loading" });
+
+  const load = async () => {
+    setState({ kind: "loading" });
+    try {
+      setState({ kind: "ready", summary: await getBusinessSummary() });
+    } catch (caught) {
+      if (isApiError(caught) && caught.status === 503 && caught.code === "integration_not_configured") {
+        setState({ kind: "disabled", detail: caught.message });
+      } else {
+        setState({ kind: "error", message: isApiError(caught) ? caught.message : "经营摘要加载失败。" });
+      }
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  if (state.kind === "loading") {
+    return <div className="summary-loading skeleton" aria-label="正在加载经营摘要" />;
+  }
+
+  if (state.kind === "disabled") {
+    return (
+      <div className="summary-state">
+        <span className="status muted">未接入 · 未验证</span>
+        <strong>经营摘要暂未接入</strong>
+        <p>{state.detail}</p>
+        <p>浏览器 SSO：未实现。旧系统保留原生账号登录与会话。</p>
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <div className="summary-state" role="alert">
+        <strong>经营摘要加载失败</strong>
+        <p>{state.message}</p>
+        <button className="button secondary" type="button" onClick={load}>重试</button>
+      </div>
+    );
+  }
+
+  const { projects, summary } = state.summary;
+  const metricKeys = (Object.keys(summaryLabels) as (keyof typeof summaryLabels)[])
+    .filter((key) => summary[key] !== undefined);
+  return (
+    <div className="summary-content">
+      <dl className="summary-meta">
+        <div><dt>数据来源</dt><dd>{state.summary.source || "接口未提供"}</dd></div>
+        <div><dt>更新时间</dt><dd>{formatUpdatedAt(state.summary.updated_at)}</dd></div>
+      </dl>
+      {metricKeys.length > 0 ? (
+        <dl className="metric-grid">
+          {metricKeys.map((key) => (
+            <div key={key}>
+              <dt>{summaryLabels[key]}</dt>
+              <dd>{summary[key] === "" ? "接口返回空值" : summary[key]}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="summary-empty">接口已启用，但暂无可展示的摘要项。</p>
+      )}
+      {metricKeys.some((key) => key !== "project_count") && (
+        <p className="integration-note">金额按接口原值展示；接口未提供币种或计量单位，不作换算。</p>
+      )}
+      <section className="project-section" aria-label="经营项目">
+        <h3>项目列表</h3>
+        {projects.length > 0 ? (
+          <ul className="project-list">
+            {projects.map((project, index) => (
+              <li key={`${project.id}-${index}`}>
+                <strong>{project.name || "项目名称为空"}</strong>
+                <span>项目编号：{project.id}</span>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="summary-empty">暂无项目数据。</p>}
+      </section>
+      <p className="integration-note">浏览器 SSO：未实现。此处仅展示后端只读数据，不代表浏览器已登录旧业务系统。</p>
+    </div>
+  );
+}
+
+function Workbench({ user }: { user: CurrentUser }) {
+  const [hasBusinessAccess, setBusinessAccess] = useState(false);
+  return (
+    <main className="workspace">
+      <section className="welcome-panel">
+        <div>
+          <p className="eyebrow">个人工作台</p>
+          <h1>{user.display_name || user.username}，欢迎回来</h1>
+          <p>平台仅展示当前账号已授权的业务模块，入口状态以服务端返回为准。</p>
+        </div>
+        <div className="identity-card" aria-label="当前用户信息">
+          <span className="avatar" aria-hidden="true">{(user.display_name || user.username).slice(0, 1)}</span>
+          <div>
+            <strong>{user.display_name || user.username}</strong>
+            <span>@{user.username}</span>
+          </div>
+          <div className="role-list" aria-label="当前角色">
+            {user.roles.length > 0 ? user.roles.map((role) => <span key={role.code}>{role.name}</span>) : <span>未分配角色</span>}
+          </div>
+        </div>
+      </section>
+
+      <section className="workspace-section" aria-labelledby="modules-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">四大业务中心</p>
+            <h2 id="modules-title">已授权业务入口</h2>
+          </div>
+          <p>待接入、导航接入、已验证集成与停用状态统一呈现。</p>
+        </div>
+        <ModuleGrid onBusinessAccess={setBusinessAccess} />
+      </section>
+
+      {hasBusinessAccess && <section className="workspace-section summary-section" aria-labelledby="summary-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">只读信息</p>
+            <h2 id="summary-title">经营摘要</h2>
+          </div>
+          <p>仅呈现接口真实返回，不补齐、不推断缺失数据。</p>
+        </div>
+        <BusinessSummaryPanel />
+      </section>}
+    </main>
+  );
+}
+
+function ModuleDetailPage({ code }: { code: string }) {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ready"; module: PortalModule }
+    | { kind: "error"; message: string }
+  >({ kind: "loading" });
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState("");
+
+  const load = async () => {
+    setState({ kind: "loading" });
+    try {
+      setState({ kind: "ready", module: await getModule(code) });
+    } catch (caught) {
+      setState({ kind: "error", message: isApiError(caught) ? caught.message : "模块详情加载失败。" });
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, [code]);
+
+  if (state.kind === "loading") return <PageLoading label="正在加载模块详情" />;
+  if (state.kind === "error") {
+    return (
+      <main className="workspace compact">
+        <AppLink href="/" className="back-link">← 返回工作台</AppLink>
+        <div className="inline-state" role="alert">
+          <strong>模块详情加载失败</strong>
+          <p>{state.message}</p>
+          <button className="button secondary" type="button" onClick={load}>重试</button>
+        </div>
+      </main>
+    );
+  }
+
+  const module = state.module;
+  const meta = statusMeta[module.status];
+  const unavailable = !module.enabled || module.status === "disabled";
+
+  const handleLaunch = async () => {
+    setLaunching(true);
+    setLaunchError("");
+    try {
+      window.location.assign(await launchModule(module.code));
+    } catch (caught) {
+      if (caught instanceof ApiError) {
+        const fallback = caught.status === 503
+          ? "目标系统当前离线。"
+          : caught.status === 403
+            ? "当前账号无权访问该模块。"
+            : caught.status === 409
+              ? "该模块仍在接入中。"
+              : "入口请求失败，请稍后重试。";
+        setLaunchError(caught.message || fallback);
+      } else {
+        setLaunchError("入口请求失败，请稍后重试。");
+      }
+      setLaunching(false);
+    }
+  };
+
+  return (
+    <main className="workspace compact">
+      <AppLink href="/" className="back-link">← 返回工作台</AppLink>
+      <article className="detail-card">
+        <div className="detail-header">
+          <div>
+            <span className="module-code">{module.code}</span>
+            <h1>{module.name}</h1>
+          </div>
+          <StatusBadge module={module} />
+        </div>
+        <p className="detail-description">{module.description || "暂无接入说明。"}</p>
+        <section className="access-panel" aria-labelledby="access-title">
+          <div>
+            <p className="eyebrow">接入说明</p>
+            <h2 id="access-title">{meta.label}</h2>
+            <p>{meta.detail}</p>
+          </div>
+          <button className="button primary" type="button" onClick={handleLaunch} disabled={unavailable || launching}>
+            {launching ? "正在确认入口…" : unavailable ? "入口不可用" : "进入业务系统"}
+          </button>
+        </section>
+        {launchError && <div className="notice error" role="alert">{launchError}</div>}
+        <div className="guardrail-note">
+          <strong>集成边界</strong>
+          <p>点击后平台会先向后端请求入口，不会由浏览器探测旧站。</p>
+          <dl className="boundary-list">
+            <div>
+              <dt>浏览器 SSO</dt>
+              <dd><span className="status muted">未实现</span>旧系统保留自身登录流程。</dd>
+            </div>
+            <div>
+              <dt>撤权生效范围</dt>
+              <dd>撤权仅影响门户及平台发起调用的下一次请求，不会注销旧系统原生账号会话。</dd>
+            </div>
+          </dl>
+        </div>
+      </article>
+    </main>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <main className="state-page">
+      <section className="state-card">
+        <span className="state-symbol" aria-hidden="true">404</span>
+        <h1>页面不存在</h1>
+        <p>请返回工作台继续访问已授权模块。</p>
+        <AppLink href="/" className="button primary">返回工作台</AppLink>
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  const pathname = usePathname();
+  const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [bootstrapError, setBootstrapError] = useState("");
+  const [loginNotice, setLoginNotice] = useState("");
+
+  const bootstrap = async () => {
+    setPhase("loading");
+    setBootstrapError("");
+    try {
+      setUser(await getMe());
+      setPhase("ready");
+    } catch (caught) {
+      if (isApiError(caught) && caught.status === 401) {
+        setUser(null);
+        setPhase("ready");
+      } else {
+        setBootstrapError(isApiError(caught) ? caught.message : "无法确认当前登录状态。请检查网络后重试。");
+        setPhase("error");
+      }
+    }
+  };
+
+  useEffect(() => {
+    void bootstrap();
+  }, []);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      clearApiSession();
+      setUser(null);
+      setLoginNotice("登录状态已过期，请重新登录。");
+      navigate("/login", true);
+    };
+    const handlePasswordRequired = () => {
+      setUser((current) => current ? { ...current, must_change_password: true } : current);
+      navigate("/password", true);
+    };
+    window.addEventListener(unauthorizedEvent, handleUnauthorized);
+    window.addEventListener(passwordChangeRequiredEvent, handlePasswordRequired);
+    return () => {
+      window.removeEventListener(unauthorizedEvent, handleUnauthorized);
+      window.removeEventListener(passwordChangeRequiredEvent, handlePasswordRequired);
+    };
+  }, []);
+
+  let requiredPath = "";
+  if (phase === "ready") {
+    if (!user && pathname !== "/login") requiredPath = "/login";
+    if (user?.must_change_password && pathname !== "/password") requiredPath = "/password";
+    if (user && !user.must_change_password && pathname === "/login") requiredPath = "/";
+  }
+
+  useEffect(() => {
+    if (requiredPath) navigate(requiredPath, true);
+  }, [requiredPath]);
+
+  if (phase === "loading" || requiredPath) return <PageLoading />;
+  if (phase === "error") return <ErrorPage message={bootstrapError} onRetry={bootstrap} />;
+
+  const handleAuthenticated = (currentUser: CurrentUser) => {
+    setUser(currentUser);
+    setLoginNotice("");
+    navigate(currentUser.must_change_password ? "/password" : "/", true);
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    clearApiSession();
+    setUser(null);
+    setLoginNotice("");
+    navigate("/login", true);
+  };
+
+  const handlePasswordChanged = (detail: string) => {
+    clearApiSession();
+    setUser(null);
+    setLoginNotice(detail || "密码已修改，请重新登录。");
+    navigate("/login", true);
+  };
+
+  if (!user) return <LoginPage notice={loginNotice} onAuthenticated={handleAuthenticated} />;
+
+  if (pathname === "/password") {
+    const page = <PasswordPage forced={user.must_change_password} onChanged={handlePasswordChanged} onLogout={handleLogout} />;
+    return user.must_change_password ? page : <AppShell user={user} onLogout={handleLogout}>{page}</AppShell>;
+  }
+
+  let content: ReactNode;
+  const moduleMatch = pathname.match(/^\/modules\/([^/]+)\/?$/);
+  if (pathname === "/") content = <Workbench user={user} />;
+  else if (moduleMatch) {
+    let code = "";
+    try {
+      code = decodeURIComponent(moduleMatch[1]);
+    } catch {
+      code = "";
+    }
+    content = isModuleCode(code) ? <ModuleDetailPage key={code} code={code} /> : (
+      <main className="workspace compact">
+        <div className="notice error" role="alert">模块参数无效，请从工作台重新选择入口。</div>
+        <AppLink href="/" className="back-link">返回工作台</AppLink>
+      </main>
+    );
+  }
+  else content = <NotFoundPage />;
+
+  return <AppShell user={user} onLogout={handleLogout}>{content}</AppShell>;
+}

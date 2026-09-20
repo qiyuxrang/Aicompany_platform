@@ -1,0 +1,24 @@
+Already up to date
+Done in 327ms using pnpm v11.10.0
+[36mvite v8.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 17 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.51 kB │ gzip:  0.33 kB
+dist/assets/index-DQJY6AHx.css   13.30 kB │ gzip:  3.84 kB
+dist/assets/index-Dn2euUd6.js   242.87 kB │ gzip: 75.55 kB
+
+[32m✓ built in 135ms[39m
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, portal, sessions
+Running migrations:
+  Applying portal.0002_integrationticket_grant_version_user_grant_version... OK
+基础模块与角色已就绪；没有创建默认账号或覆盖已有授权。
+
+0 static files copied to 'C:\Users\BJRunner\Desktop\ai智能体平台\staticfiles', 163 unmodified.
+System check identified no issues (0 silenced).
+���ط������ http://127.0.0.1:8100���� Ctrl+C ����ֹͣ��
+Checked 9 packages in 0.78ms
+$ tsc --noEmit && vite build
+INFO:waitress:Serving on http://127.0.0.1:8100

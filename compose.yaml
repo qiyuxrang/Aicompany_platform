@@ -1,0 +1,72 @@
+name: enterprise-portal-phase1
+
+services:
+  db:
+    image: postgres:17.5@sha256:aadf2c0696f5ef357aa7a68da995137f0cf17bad0bf6e1f17de06ae5c769b302
+    env_file:
+      - ${DB_ENV_FILE:-.runtime/postgres.env}
+    volumes:
+      - phase1_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enterprise-portal-phase1:local
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      PORTAL_DEBUG: "0"
+      PORTAL_HTTPS: "1"
+      PORTAL_BEHIND_PROXY: "1"
+      PORTAL_DB_HOST: db
+      PORTAL_DB_PORT: "5432"
+    command:
+      - sh
+      - -ceu
+      - |
+        python manage.py migrate --noinput
+        python manage.py collectstatic --noinput
+        exec waitress-serve \
+          --listen=0.0.0.0:8100 \
+          --threads=4 \
+          --trusted-proxy="$${WAITRESS_TRUSTED_PROXY:-*}" \
+          --trusted-proxy-count=1 \
+          --trusted-proxy-headers="x-forwarded-proto x-forwarded-for" \
+          --clear-untrusted-proxy-headers \
+          config.wsgi:application
+    ports:
+      - "127.0.0.1:${PORTAL_HTTP_PORT:-8100}:8100"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import http.client, os;
+          host=(os.environ.get('PORTAL_ALLOWED_HOSTS') or '127.0.0.1').split(',')[0].strip();
+          connection=http.client.HTTPConnection('127.0.0.1', 8100, timeout=3);
+          connection.request('GET', '/health/', headers={'Host': host, 'X-Forwarded-Proto': 'https', 'X-Forwarded-For': '127.0.0.1'});
+          response=connection.getresponse();
+          raise SystemExit(0 if response.status == 200 else 1)
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 40s
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  phase1_pg_data:
