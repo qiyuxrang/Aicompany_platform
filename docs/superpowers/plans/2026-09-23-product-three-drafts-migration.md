@@ -20,7 +20,7 @@
 
 ## Review Focus
 
-1. PPT Master 运行时缺少 WorkBuddy/确认门禁时必须停止该路径，不能悄悄降级为旧引擎；Task 4 负向测试。
+1. 简版 PPT 引擎必须明确标注引擎名称和限制；不得以 PPT Master 名义或绕过其门禁；Task 4 负向测试。
 2. 输入或报告变化后旧 PPT 只能作为注明过期的历史查看，不允许冒充当前有效草稿下载；Task 4/5 测试。
 3. 同名章节/块 ID 在两份报告间必须保留 `family:block_id`，不能覆盖；Task 3 测试。
 4. 报告/演示稿越权访问和文件路径跨目录必须由服务端拒绝；Task 3/5 测试。
@@ -31,7 +31,7 @@
 - 原实现入口：`backend/portal/product_models.py`、`product_service.py`、`product_worker.py`、`product_documents.py`、`product_storage.py`、`product_api.py`、`product_release.py`、`frontend/src/product/DocumentWorkspace.tsx` 与 `product-api.ts`。`product_api.py` 现已约 1000 行；新增结果端点放独立 `backend/portal/product_outputs.py`，仅在 `backend/config/urls.py` 挂载；不扩大原文件。
 - 新 `backend/portal/product_pair.py` 只负责两份内容及 PPT 来源/版本绑定；新 `backend/portal/product_presentation.py` 只负责本地 PPT 工具调用与产物校验。现有 `product_documents.py` 负责 family→冻结模板选择和 DOCX，不能变成第二个流程执行器。
 - 新迁移在 `backend/portal/migrations/0010_*.py`（以 `0009` 后实际迁移图核对）；前端只复用既有产品任务页面组件，避免重写工作台。
-- 旧 `skills/bj-docs/scripts/project_flow.py`、`pair_handoff.py`、`presentations.py` 和 `skills/bj-show/scripts/ppt-master.cjs` 先只读核对全部直接导入与许可；不得把源文件“复制过来”当成适配完成。首选复用已有已冻结脚本；若需新增依赖仅为文档运行时已知的 `python-pptx==1.0.2`，更新其固定清单并按许可证/哈希验证。PPT Master 若依赖未能脱离 WorkBuddy，阻断三成果整体完成，不改选另一引擎冒充原模式。
+- 旧 `skills/bj-docs/scripts/project_flow.py`、`pair_handoff.py`、`presentations.py` 和 `skills/bj-show/scripts/ppt-master.cjs` 先只读核对全部直接导入与许可；不得把源文件“复制过来”当成适配完成。首选复用已有已冻结脚本；若需新增依赖仅为文档运行时已知的 `python-pptx==1.0.2`，更新其固定清单并按许可证/哈希验证。用户已于后续对话明确批准替代路线：PPT Master 门禁不满足平台自动运行时，使用隔离文档运行时的 `python-pptx` 生成明确标注为「简版内容草稿引擎」的可编辑 PPTX；保留来源绑定、版本、权限和 Office 逐页验收，不宣称等价 PPT Master。
 - 每个任务开始时重读本任务触及文件与其调用方；检查 Git 状态并记录用户原有改动。每次改代码遵循 RED→GREEN，最后只提交本任务新增/修改路径。若新发现设计冲突（如源流程必须借助宿主才能运行），停止该受阻路径、记录证据并请求设计变更，不臆造一个等价引擎。
 
 ---
@@ -74,7 +74,7 @@
 **Interfaces:** `build_pair_handoff(task)` returns immutable source reference `family:block_id`/hash for both saved reports (all pending preserved, approval_inherited=False); `render_presentation_draft(task, pair)` returns private file path/hash/page/source metadata; `is_current_presentation(artifact)` checks latest input/report source hashes and access authorization. Task 5 consumes these as read-only outputs.
 
 - [ ] **Step 1: RED** — tests: duplicate IDs remain separately addressable by family; changed report/permission invalidates current PPT and current-download returns 409 while old file remains historical; oversized slide or untrusted source reference fails without registering artifact; missing PPT Master/host-only dependency yields explicit blocker and never silently calls `presentations.py` or `artifacts pptx`.
-- [ ] **Step 2: Choose verified tool path** — inspect full imports/licensing and read-only run of source `ppt-master.cjs` (no `--prepare`/download) to establish whether PPT Master 6.4.0 can run headless under platform process with actual integrity/design gates. If not, stop PPT implementation and record concrete blocker; request human design approval before alternative engine. If yes, freeze only required files, hashes, licenses and isolated runtime; transform pair source IDs to approved deck plan/selected content (not raw DOCX), export editable PPTX to new private path. Never copy client `模板文件/*.pptx`. This is an explicit decision gate: until this tool path is verified, executable PPT adapter steps cannot honestly be specified; do not invent an equivalent engine.
+- [ ] **Step 2: Use approved draft engine** — the read-only PPT Master binding did not verify its host/design gates; user approved `python-pptx` as the explicitly named simplified content-draft engine. Pin it to the isolated document runtime, generate editable slides only from persisted pair content with source IDs; no client PPTX, no external model/network, no representation as PPT Master.
 - [ ] **Step 3: GREEN & verify** — execute source-bound synthetic two-report handoff, construct short deck without padding to 22 slides, open/edit text and render every page with available PowerPoint. Verify no cut-off/garbling, slide IDs/refs, actual PPTX hash, stale download denial and retained history. Run focused tests + Office evidence script; commit only successful paths as `feat: derive review-only PPT from paired reports`. If tool unavailable, commit no misleading PPT success implementation; write blocker evidence under `qa/` and report partial completion.
 
 ### Task 5：现有产品页展示和端到端验收
@@ -90,4 +90,4 @@
 
 ## Self-review and execution gate
 
-Trace spec requirements: backup→Task 1; immutable Word→Task 2; double-report/data permissions→Task 3; PPT/version/integrity→Task 4; browser/quality/whole-suite→Task 5. Each Review Focus condition is covered by the owning task's RED test. Do not silently pass Task 4 if PPT Master cannot be validated: report partial result and propose an explicit design revision. Task 1 actual database restore is a destructive-risk operation on **new** resources; require non-overwrite checks and operator confirmation of target identity before execution. The tasks share interfaces; implement serially.
+Trace spec requirements: backup→Task 1; immutable Word→Task 2; double-report/data permissions→Task 3; PPT/version/integrity→Task 4; browser/quality/whole-suite→Task 5. Each Review Focus condition is covered by the owning task's RED test. The user explicitly approved a simplified python-pptx draft engine after PPT Master could not be validated. Never claim PPT Master equivalence; report real PPTX/Office results separately. Task 1 actual database restore is a destructive-risk operation on **new** resources; require non-overwrite checks and operator confirmation of target identity before execution. The tasks share interfaces; implement serially.
