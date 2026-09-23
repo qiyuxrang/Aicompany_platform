@@ -32,9 +32,9 @@
 | Branch | `feature/phase1-portal` |
 | HEAD | `7eec970764ad7be3b1e6eaa5e0bf4b414f811fdf`（T-G01 checkpoint 前基线） |
 | Working Tree | 已识别并保留启动前未提交成果；T-G01 仅更新本任务状态与 evidence |
-| Last Checkpoint | `PENDING_COMMIT`（证据与状态落盘后创建） |
-| Current Step | `CHECKPOINT` |
-| Next Action | 仅提交 `docs/product/T-G01/`，然后重读 SPEC + STATUS + Git 进入 T-P01 |
+| Last Checkpoint | `7200d81` (`docs: checkpoint T-G01 product baseline`) |
+| Current Step | `COMPLETE` |
+| Next Action | 重读 SPEC + STATUS + Git，进入 T-P01 |
 | Stop Reason | —（T-G01 盘点结论完成；真实依赖 blocker 已单独记录） |
 | 任务状态 | `COMPLETE` |
 
@@ -88,7 +88,7 @@
 | TEST | `PASS` | 迁移无漂移；产品核心 105 项：104 PASS，1 SKIP；为隔离技术测试，不代表真实依赖 PASS |
 | EVIDENCE | `PASS` | 五份必需证据已输出至 `docs/product/T-G01/evidence/` |
 | UPDATE STATUS | `PASS` | 本文件 |
-| CHECKPOINT | `NOT_RUN` | 待本次 evidence/status 落盘后立即创建独立本地 checkpoint |
+| CHECKPOINT | `PASS` | 本地 checkpoint `7200d81`；未 push/merge/deploy |
 
 ## 4. 必需证据产出（待生成）
 
@@ -113,3 +113,4 @@
 | 2026-09-23 | 完成 CHECK_GIT 与 RECOVER_STATE；保留启动前未提交成果，以 Git + Code + Test + Evidence 恢复真实现状 |
 | 2026-09-23 | 完成七类必需盘点、五份 evidence 和接口冻结；迁移无漂移；105 项产品核心隔离测试为 104 PASS / 1 SKIP |
 | 2026-09-23 | 真实模型、真实 RAGFlow、Browser E2E、正式母版/业务签认未冒充 PASS；分别记录入 evidence/BLOCKERS.md；T-G01 置 COMPLETE，进入 checkpoint |
+| 2026-09-23 | 创建独立本地 checkpoint 7200d81；CHECKPOINT → PASS；下一步按连续执行授权进入 T-P01 |
