@@ -12,7 +12,7 @@
 | 正式批准 | `BLOCKED`；正式批准请求返回 `formal_release_blocked`，未写入正式审批 |
 | 外部依赖 | RAGFlow=`BLOCKED_NOT_CONFIGURED`；模型=`NOT_VERIFIED_NOT_CONFIGURED`，调用数 0 |
 | Browser E2E | `NOT_RUN`（`FRONTEND_DEFERRED`） |
-| Checkpoint | 待创建 |
+| Checkpoint | `4daa940` (`docs: checkpoint T-P05 technical solution draft`) |
 | Next Action | 停止；不得自动进入 T-P06 |
 
 ## 执行记录
