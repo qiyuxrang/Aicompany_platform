@@ -30,7 +30,7 @@
 | --- | --- | --- | --- |
 | P0 技术基线 | 基线固化 | 进行中（历史引用） | — |
 | R1 接入与基线 | `T-G01`、`T-P01`、`T-P02` | `BLOCKED`（核心范围已验证；T-P01=D-02；T-P02=D-01/D-08） | `docs/product/T-G01/TASK_STATUS.md`、`docs/product/T-P01/TASK_STATUS.md`、`docs/product/T-P02/TASK_STATUS.md` |
-| R2 交互与治理 | `T-P03`、`T-P04`、`T-P07` | `IN_PROGRESS`（`T-P03`=`BLOCKED` / `CORE_PASS`；T-P04/T-P07 尚未完成） | `docs/product/T-P03/TASK_STATUS.md` |
+| R2 交互与治理 | `T-P03`、`T-P04`、`T-P07` | `IN_PROGRESS`（T-P03=`BLOCKED`/`CORE_PASS`；T-P04=`NOT_VERIFIED`/`CORE_PASS`/`FRONTEND_DEFERRED`；T-P07 未执行） | `docs/product/T-P03/TASK_STATUS.md`、`docs/product/T-P04/TASK_STATUS.md` |
 | R3 业务评估 | `T-P05`、`T-P06`、`T-P08`、`T-G04`、`T-R01` | `NOT_RUN` | 待建立 |
 | 项目中心 / 总经理视角 | B1 经营接入 | `NOT_RUN` | 待建立 |
 | HR | H1/JD、H2/转正 | `NOT_RUN` | 待建立 |
@@ -49,7 +49,8 @@
 | `T-P01` | `docs/product/T-P01/TASK_STATUS.md` | 2026-09-23 |
 | `T-P02` | `docs/product/T-P02/TASK_STATUS.md` | 2026-09-23 |
 | `T-P03` | `docs/product/T-P03/TASK_STATUS.md` | 2026-09-23 |
-| `T-P04`～`T-P08`、`T-G04`、`T-R01` | 尚未建立 | — |
+| `T-P04` | `docs/product/T-P04/TASK_STATUS.md` | 2026-09-23 |
+| `T-P05`～`T-P08`、`T-G04`、`T-R01` | 尚未建立 | — |
 | `T-H01`～`T-H04` | 尚未建立 | — |
 | `T-B01`～`T-B03` | 尚未建立 | — |
 | `T-E01`～`T-E03` | 尚未建立 | — |
@@ -123,3 +124,4 @@
 | 2026-09-23 | T-P01 核心文档基线完成 | 冻结资产、固定运行时和 Microsoft Word 8 页真实渲染已验证；D-02 正式母版/业务格式签认及 Browser E2E 未记 PASS |
 | 2026-09-23 | T-P02 内部来源与检索合同完成 | 48 项授权/撤权/错误语义测试通过；真实 RAGFlow 未配置，探针按 `retrieval_disabled` 阻断，未记真实依赖 PASS |
 | 2026-09-23 | T-P03 蓝图与审批核心合同完成 | 28 PASS / 1 SKIP；代表性审批绑定精确版本、hash、actor 和授权快照；正式人员签认仍由 D-03 阻塞 |
+| 2026-09-23 | T-P04 增量影响与恢复核心合同完成 | 51/51 通过；代表性影响记录持久化；Browser E2E 未执行，按 `FRONTEND_DEFERRED` 登记且未记 Task PASS |

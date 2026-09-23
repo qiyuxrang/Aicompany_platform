@@ -1,0 +1,22 @@
+{
+  "task_id": "6220ed44-7ccc-44eb-ac06-30edbfdd4a40",
+  "task_version": 17,
+  "state": "WAITING_REVIEW",
+  "stage": "FINAL_REVIEW",
+  "impact": {
+    "reason": "chapter_changed",
+    "scope": "all_checks",
+    "edited_chapter": "acceptance-control",
+    "chapters": [
+      "project-understanding",
+      "overall-design",
+      "implementation-plan",
+      "acceptance-control"
+    ],
+    "tables": ["INPUT_TABLE"],
+    "status": "requires_content_review",
+    "revision_id": "1317e0c8-9593-454f-b5d6-5ae7fab0acd3"
+  },
+  "source": ".runtime/product-p1-tech-20260923-v2.sqlite3",
+  "formal_database_modified": false
+}
