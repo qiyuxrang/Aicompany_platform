@@ -8,7 +8,7 @@
 | 核心结论 | 冻结资产 hash、固定 Python 运行时、可编辑 DOCX 和 Microsoft Word 目标环境渲染已验证 |
 | 阻塞 | D-02 正式母版、长样例及业务格式签认未批准；视觉验收未形成可登记 PASS |
 | Browser E2E | `NOT_RUN`（`FRONTEND_DEFERRED`） |
-| Checkpoint | 待创建 |
+| Checkpoint | `f99b03f` (`docs: checkpoint T-P01 document baseline`) |
 
 ## 执行记录
 
