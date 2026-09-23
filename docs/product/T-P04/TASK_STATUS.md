@@ -8,7 +8,7 @@
 | 核心结论 | 输入/分章变更影响范围、旧批准失效、旧版本不复活、Worker 恢复与 fencing 核心合同通过 |
 | 代表性 AT | 最后分章修改登记 `all_checks`、4 章和 `INPUT_TABLE` 均需复核；随后生成新 review/artifact 版本 |
 | Browser E2E | `NOT_RUN`（`FRONTEND_DEFERRED`），因此整个 Task 不记 PASS |
-| Checkpoint | 待创建 |
+| Checkpoint | `733be16` (`docs: checkpoint T-P04 impact baseline`) |
 
 ## 执行记录
 
