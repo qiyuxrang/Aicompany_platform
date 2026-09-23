@@ -1,5 +1,5 @@
 {
-  "schema": "BJ_PRODUCT_BJ_DOCS_FREEZE_V1",
+  "schema": "BJ_PRODUCT_BJ_DOCS_FREEZE_V2",
   "usage": "isolated_draft_only",
   "formal_business_confirmation": "blocked",
   "company_samples_copied": false,
@@ -99,6 +99,27 @@
       "sha256": "d0e079b76c79a55f3aa6a33a8402defb3ea5e381588c84738e955b20ad5cee97",
       "bytes": 11113,
       "source_status": " M skills/bj-docs/scripts/office_render.py"
+    },
+    {
+      "path": "assets/feasibility/template.docx",
+      "source": "skills/bj-docs/assets/feasibility/template.docx",
+      "sha256": "bd694f7b4feedf75963339034f9b5346b3da7addb5ecf994014444d70a2c550e",
+      "bytes": 26880,
+      "source_status": "clean"
+    },
+    {
+      "path": "assets/feasibility/profile.json",
+      "source": "skills/bj-docs/assets/feasibility/profile.json",
+      "sha256": "a694fe76b1b40f08af782bd6faeb222b33652d85f631759aa187a99e456f9670",
+      "bytes": 44772,
+      "source_status": "clean"
+    },
+    {
+      "path": "assets/feasibility/prototypes.xml",
+      "source": "skills/bj-docs/assets/feasibility/prototypes.xml",
+      "sha256": "254ccfbdf5ea4be9ca42eb73f6a41d0ab4c18e2dcac205918209d931c1179933",
+      "bytes": 1347114,
+      "source_status": "clean"
     }
   ]
 }

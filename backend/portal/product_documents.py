@@ -20,7 +20,9 @@ class DocumentError(Exception):
         super().__init__(code)
 
 
-def frozen_pack():
+def frozen_pack(family="technical-solution"):
+    if family not in {"technical-solution", "feasibility"}:
+        raise DocumentError("template_unavailable")
     try:
         manifest = json.loads((PACK / "manifest.json").read_text(encoding="utf-8"))
         for entry in manifest["files"]:
@@ -32,7 +34,9 @@ def frozen_pack():
         raise DocumentError("template_unavailable") from None
 
 
-def content_document(task, input_revision, blueprint, chapters):
+def content_document(task, input_revision, blueprint, chapters, family="technical-solution"):
+    if family not in {"technical-solution", "feasibility"}:
+        raise DocumentError("template_unavailable")
     if blueprint.payload.get("template_version") != "frozen-original-v1":
         raise DocumentError("template_unavailable")
     facts = input_revision.payload
@@ -60,8 +64,14 @@ def content_document(task, input_revision, blueprint, chapters):
     if facts.get("items"):
         rows = [[str(item.get(key, "")).strip() or "待确认" for key in ("row_id", "name", "quantity", "unit")]
                 + [str(item.get("source_id", "人工录入"))] for item in facts["items"]]
-        blocks.append({"id": "INPUT_TABLE", "type": "table", "prototype": "table6", "columns": ["原行号", "设备名称", "数量", "单位", "来源"],
-                       "units": ["不适用"] * 5, "rows": rows, "caption": "表1 输入设备清单（待核）", "source_ids": ["SINPUT"], "requirement_ids": requirement_ids})
+        if family == "feasibility":
+            for index, row in enumerate(rows, start=1):
+                blocks.append({"id": f"INPUT_ITEM{index}", "type": "paragraph",
+                               "text": f"输入清单（待核）：{row[1]}，数量 {row[2]} {row[3]}；原行号 {row[0]}；来源 {row[4]}。",
+                               "source_ids": ["SINPUT"], "requirement_ids": requirement_ids})
+        else:
+            blocks.append({"id": "INPUT_TABLE", "type": "table", "prototype": "table6", "columns": ["原行号", "设备名称", "数量", "单位", "来源"],
+                           "units": ["不适用"] * 5, "rows": rows, "caption": "表1 输入设备清单（待核）", "source_ids": ["SINPUT"], "requirement_ids": requirement_ids})
     pending = ["正式模板与样例、内容及格式批准尚未完成；本件始终为待核草稿。"]
     pending.extend(blueprint.payload.get("missing", []))
     pending.extend(blueprint.payload.get("conflicts", []))
@@ -70,7 +80,7 @@ def content_document(task, input_revision, blueprint, chapters):
     blocks.append({"id": "PENDING_HEADING", "type": "heading", "level": 1, "text": "待确认事项", "source_ids": ["SINPUT"], "requirement_ids": []})
     for index, value in enumerate(pending, start=1):
         blocks.append({"id": f"PENDING_TEXT{index}", "type": "paragraph", "text": value, "source_ids": ["SINPUT"], "requirement_ids": []})
-    return {"version": 1, "family": "technical-solution",
+    return {"version": 1, "family": family,
             "metadata": {"id": "T" + str(task.pk).replace("-", ""), "title": task.title, "subtitle": "待核草稿 · 未获正式发布批准",
                          "date": timezone.localdate().isoformat(), "organization": "编制单位待确认", "status": "draft"},
             "sources": sources, "requirements": requirements,
@@ -110,7 +120,7 @@ def _render_document(task, chapters, manifest, runtime, document, filename, stat
             raise DocumentError("document_validation_failed")
     except (OSError, subprocess.TimeoutExpired):
         raise DocumentError("document_render_failed") from None
-    template = next(entry for entry in manifest["files"] if entry["path"] == "assets/technical-solution/template.docx")
+    template = next(entry for entry in manifest["files"] if entry["path"] == f"assets/{document['family']}/template.docx")
     evidence = {"status": status, "verified": False,
                 "structural_generation": "completed", "office_render": "not_run", "visual_review": "not_run", "business_approval": business_approval,
                 "manifest_sha256": hashlib.sha256((PACK / "manifest.json").read_bytes()).hexdigest(),
@@ -120,11 +130,15 @@ def _render_document(task, chapters, manifest, runtime, document, filename, stat
             "template_hash": template["sha256"], "render_evidence": evidence}
 
 
-def render_draft(task, input_revision, blueprint, chapters):
-    manifest = frozen_pack()
+def render_report_draft(task, input_revision, blueprint, chapters, family):
+    manifest = frozen_pack(family)
     runtime = _document_runtime()
-    document = content_document(task, input_revision, blueprint, chapters)
+    document = content_document(task, input_revision, blueprint, chapters, family)
     return _render_document(task, chapters, manifest, runtime, document, "draft.docx", "draft_unverified", "blocked")
+
+
+def render_draft(task, input_revision, blueprint, chapters):
+    return render_report_draft(task, input_revision, blueprint, chapters, "technical-solution")
 
 
 def _template_approval(manifest):

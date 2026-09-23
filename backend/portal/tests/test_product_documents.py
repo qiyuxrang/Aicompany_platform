@@ -8,7 +8,7 @@ from zipfile import ZipFile
 
 from django.test import SimpleTestCase, override_settings
 
-from portal.product_documents import DocumentError, content_document, frozen_pack, render_candidate, render_draft
+from portal.product_documents import DocumentError, content_document, frozen_pack, render_candidate, render_draft, render_report_draft
 
 
 class ProductDocumentTests(SimpleTestCase):
@@ -24,6 +24,20 @@ class ProductDocumentTests(SimpleTestCase):
         manifest = frozen_pack()
         self.assertFalse(manifest["company_samples_copied"])
         self.assertEqual(manifest["formal_business_confirmation"], "blocked")
+
+    def test_feasibility_is_separate_draft_and_uses_its_own_template(self):
+        content = content_document(self.task, self.input_revision, self.blueprint, [self.chapter], family="feasibility")
+        self.assertEqual(content["family"], "feasibility")
+        self.assertEqual(content["metadata"]["status"], "draft")
+        with tempfile.TemporaryDirectory() as directory, override_settings(PRODUCT_STORAGE_ROOT=directory):
+            artifact = render_report_draft(self.task, self.input_revision, self.blueprint, [self.chapter], "feasibility")
+            self.assertNotEqual(artifact["template_hash"], frozen_pack()["files"][0]["sha256"])
+            with ZipFile(Path(directory) / artifact["path"]) as archive:
+                self.assertIn("待核草稿", archive.read("word/document.xml").decode())
+
+    def test_invalid_family_fails_closed(self):
+        with self.assertRaises(DocumentError):
+            content_document(self.task, self.input_revision, self.blueprint, [self.chapter], family="../escape")
 
     def test_content_has_draft_notice_and_preserves_input_quantity(self):
         content = content_document(self.task, self.input_revision, self.blueprint, [self.chapter])
