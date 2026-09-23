@@ -46,7 +46,7 @@ def _guard(task_id, fence):
         raise ExecutionError("permission_changed")
     if task.pending_action != "retrieve" and not input_authorized(task, current_revision(task, "input")):
         raise ExecutionError("retrieval_authorization_required")
-    if task.pending_action in {"write", "render", "candidate"} and approved_blueprint(task) is None:
+    if task.pending_action in {"write", "render", "candidate", "three_drafts"} and approved_blueprint(task) is None:
         raise ExecutionError("blueprint_approval_required")
     return task
 
@@ -174,9 +174,9 @@ def _finish(task_id, fence, attempt_id, state, stage, error_code=""):
     return True
 
 
-def current_chapters(task, input_hash, blueprint_hash):
+def current_chapters(task, input_hash, blueprint_hash, family="technical-solution"):
     found = {}
-    for revision in DocumentRevision.objects.filter(task=task, kind="chapter", input_hash=input_hash, blueprint_hash=blueprint_hash).order_by("version"):
+    for revision in DocumentRevision.objects.filter(task=task, kind="chapter", family=family, input_hash=input_hash, blueprint_hash=blueprint_hash).order_by("version"):
         found[revision.payload.get("chapter_id")] = revision
     return found
 
@@ -331,6 +331,9 @@ def execute_claim(task_id, fence, attempt_id):
         if (blueprint is None or blueprint.input_hash != input_revision.sha256
                 or not DocumentApproval.objects.filter(task=task, revision=blueprint, decision="approve", sha256=blueprint.sha256).exists()):
             raise ExecutionError("blueprint_approval_required")
+        if task.pending_action == "three_drafts":
+            from .product_three_drafts import generate_three_drafts
+            return generate_three_drafts(task, fence, attempt_id, input_revision, blueprint)
         if task.pending_action not in ("write", "render", "candidate"):
             raise ExecutionError("invalid_action")
         chapters = current_chapters(task, input_revision.sha256, blueprint.sha256)
@@ -376,7 +379,7 @@ def execute_claim(task_id, fence, attempt_id):
                    "retrieval_disabled", "retrieval_authorization_required", "retrieval_auth_failed", "retrieval_unavailable", "retrieval_invalid_response", "retrieval_source_conflict",
                    "model_call_limit", "attempt_limit", "output_truncated", "lease_lost", "permission_changed", "invalid_model_output",
                    "rate_limited", "timeout", "gateway_unavailable", "target_not_allowed", "missing_key", "forbidden", "disabled", "execution_failed",
-                   "unconfigured", "invalid_response", "request_too_large", "response_too_large", "document_validation_failed", "document_render_failed"}
+                   "unconfigured", "invalid_response", "request_too_large", "response_too_large", "document_validation_failed", "document_render_failed", "stale_pair", "invalid_report", "presentation_unavailable"}
         if code not in allowed:
             code = "execution_failed"
         state = "WAITING_INPUT" if code in {"model_authorization_required", "input_required", "template_unavailable", "model_call_limit", "attempt_limit", "unconfigured", "missing_key",

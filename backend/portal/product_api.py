@@ -181,9 +181,10 @@ def _task_actions(task, user, input_revision, blueprint):
                 actions.append("save_chapter")
             if _chapters_complete(task, input_revision, approved):
                 actions.extend(["queue_render", "queue_candidate"])
+            actions.append("queue_three_drafts")
         if (task.state in {DocumentTask.State.FAILED, DocumentTask.State.WAITING_INPUT}
                 and task.attempt_count < int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8))
-                and task.pending_action in {"blueprint", "write", "render"}):
+                and task.pending_action in {"blueprint", "write", "render", "three_drafts"}):
             actions.append("retry")
         if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended):
             actions.extend(["assign_reviewer", "add_statement"])
@@ -659,7 +660,7 @@ def _queue(task, action):
         if _input_revision(task) is None:
             raise ProductError("input_required", "请先保存输入。", 409)
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
-    elif action in {"write", "render", "candidate"}:
+    elif action in {"write", "render", "candidate", "three_drafts"}:
         blueprint_revision = approved_blueprint(task)
         if blueprint_revision is None:
             raise ProductError("blueprint_approval_required", "当前蓝图尚未获有效批准。", 409)
@@ -668,6 +669,15 @@ def _queue(task, action):
             input_revision = _input_revision(task)
             if not _chapters_complete(task, input_revision, blueprint_revision):
                 raise ProductError("chapters_incomplete", "当前蓝图章节尚未完整保存。", 409)
+        if action == "three_drafts":
+            current = _input_revision(task)
+            required = {chapter["id"] for chapter in blueprint_revision.payload["chapters"]}
+            for family in ("technical-solution", "feasibility"):
+                found = {record.payload.get("chapter_id") for record in task.revisions.filter(
+                    kind="chapter", family=family, input_hash=current.sha256, blueprint_hash=blueprint_revision.sha256)
+                    if record.payload.get("paragraphs")}
+                if not required <= found:
+                    raise ProductError("chapters_incomplete", f"{family} 报告章节尚未完整保存。", 409)
     else:
         raise ProductError("invalid_action", "任务动作无效。")
     task.pending_action = action
@@ -814,7 +824,7 @@ def retry(request, task_id):
             raise ProductError("invalid_state", "当前状态不能重试。", 409)
         if task.attempt_count >= int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8)):
             raise ProductError("attempt_limit", "已达到隔离环境安全重试上限。", 409)
-        if task.pending_action not in {"blueprint", "write", "render"}:
+        if task.pending_action not in {"blueprint", "write", "render", "three_drafts"}:
             raise ProductError("invalid_action", "没有可重试的持久动作。", 409)
         blocked = task.pending_action in {"blueprint", "write"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
         task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
@@ -842,7 +852,7 @@ def sources(request, task_id):
 @api_view(["POST"])
 @product_endpoint
 def chapters(request, task_id):
-    body = _body(request, {"expected_version", "chapter_id", "title", "paragraphs", "source_ids"})
+    body = _body(request, {"expected_version", "chapter_id", "title", "paragraphs", "source_ids"}, {"family"})
     with transaction.atomic():
         task = task_for(request.user, task_id, write=True)
         require_owner(task, request.user)
@@ -861,9 +871,12 @@ def chapters(request, task_id):
         if not set(payload["source_ids"]).issubset(set(blueprint_chapter["source_ids"])):
             raise ProductError("invalid_source_scope", "章节引用超出当前批准蓝图范围。")
         input_revision = _input_revision(task)
+        family = body.get("family", "technical-solution")
+        if family not in {"technical-solution", "feasibility"}:
+            raise ProductError("invalid_family", "报告类型无效。")
         revision = append_revision(
             task, DocumentRevision.Kind.CHAPTER, payload,
-            input_hash=input_revision.sha256, blueprint_hash=blueprint_revision.sha256, actor=request.user,
+            input_hash=input_revision.sha256, blueprint_hash=blueprint_revision.sha256, actor=request.user, family=family,
         )
         task.checkpoint = {**task.checkpoint, "impact": {
             "reason": "chapter_changed", "scope": "all_checks", "edited_chapter": payload["chapter_id"],

@@ -35,12 +35,13 @@ def current_revision(task, kind):
 
 
 @transaction.atomic
-def append_revision(task, kind, payload, input_hash="", blueprint_hash="", actor=None):
+def append_revision(task, kind, payload, input_hash="", blueprint_hash="", actor=None, family="technical-solution"):
     locked = DocumentTask.objects.select_for_update().get(pk=task.pk)
-    version = locked.revisions.filter(kind=kind).aggregate(value=Max("version"))["value"] or 0
+    version = locked.revisions.filter(kind=kind, family=family).aggregate(value=Max("version"))["value"] or 0
     return DocumentRevision.objects.create(
         task=locked,
         kind=kind,
+        family=family,
         version=version + 1,
         payload=payload,
         sha256=digest(payload),

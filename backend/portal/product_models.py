@@ -58,10 +58,12 @@ class DocumentRevision(models.Model):
         BLUEPRINT = "blueprint", "蓝图"
         CHAPTER = "chapter", "章节"
         REVIEW = "review", "审查"
+        REPORT = "report", "报告内容"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     task = models.ForeignKey(DocumentTask, on_delete=models.CASCADE, related_name="revisions")
     kind = models.CharField(max_length=16, choices=Kind)
+    family = models.CharField(max_length=32, default="technical-solution")
     version = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     payload = models.JSONField()
     sha256 = models.CharField(max_length=64)
@@ -72,7 +74,7 @@ class DocumentRevision(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["task", "kind", "version"], name="product_revision_kind_ver_uq"),
+            models.UniqueConstraint(fields=["task", "kind", "family", "version"], name="product_revision_family_ver_uq"),
             models.CheckConstraint(condition=Q(version__gt=0), name="product_revision_ver_gt0_ck"),
         ]
 
@@ -120,6 +122,7 @@ class DocumentArtifact(models.Model):
     version = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     path = models.CharField(max_length=500)
     sha256 = models.CharField(max_length=64)
+    family = models.CharField(max_length=32, default="technical-solution")
     blueprint_hash = models.CharField(max_length=64)
     input_hash = models.CharField(max_length=64)
     review = models.ForeignKey(DocumentRevision, on_delete=models.PROTECT, null=True, blank=True, related_name="artifacts")
