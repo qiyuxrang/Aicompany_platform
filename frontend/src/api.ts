@@ -29,6 +29,27 @@ export interface BusinessSummary {
   updated_at: string;
 }
 
+export interface WorkSummaryItem {
+  id: string;
+  title: string;
+  status: string;
+  href: string;
+  updated_at: string;
+  kind: string;
+}
+
+export interface WorkSummarySection {
+  available: boolean;
+  count: number | null;
+  items: WorkSummaryItem[];
+  reason?: string;
+}
+
+export interface WorkSummary {
+  modules: Record<"product" | "hr", { available: boolean; reason?: string }>;
+  sections: Record<"my_tasks" | "pending_reviews" | "recent_results", WorkSummarySection>;
+}
+
 export const summaryLabels = {
   project_count: "项目数量",
   contract_amount: "合同金额",
@@ -51,6 +72,40 @@ function isBusinessSummary(value: unknown): value is BusinessSummary {
       && (typeof metric === "string" || (typeof metric === "number" && Number.isFinite(metric))));
 }
 
+function isWorkSummaryItem(value: unknown): value is WorkSummaryItem {
+  return isRecord(value)
+    && typeof value.id === "string"
+    && typeof value.title === "string"
+    && typeof value.status === "string"
+    && typeof value.href === "string"
+    && /^\/(?!\/)[^\s\\]*$/.test(value.href)
+    && typeof value.updated_at === "string"
+    && Number.isFinite(Date.parse(value.updated_at))
+    && typeof value.kind === "string";
+}
+
+function isWorkSummarySection(value: unknown): value is WorkSummarySection {
+  if (!isRecord(value) || typeof value.available !== "boolean" || !Array.isArray(value.items)
+    || !value.items.every(isWorkSummaryItem)) return false;
+  if (value.reason !== undefined && typeof value.reason !== "string") return false;
+  return value.available
+    ? typeof value.count === "number" && Number.isInteger(value.count) && value.count >= value.items.length
+    : value.count === null && value.items.length === 0;
+}
+
+function isWorkSummary(value: unknown): value is WorkSummary {
+  if (!isRecord(value) || !isRecord(value.modules) || !isRecord(value.sections)) return false;
+  const modules = value.modules;
+  const sections = value.sections;
+  const moduleValid = ["product", "hr"].every((code) => {
+    const module = modules[code];
+    return isRecord(module) && typeof module.available === "boolean"
+      && (module.reason === undefined || typeof module.reason === "string");
+  });
+  return moduleValid && ["my_tasks", "pending_reviews", "recent_results"]
+    .every((code) => isWorkSummarySection(sections[code]));
+}
+
 export function isModuleCode(code: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(code);
 }
@@ -71,6 +126,7 @@ let csrfRequest: Promise<string> | null = null;
 
 export const unauthorizedEvent = "portal:unauthorized";
 export const passwordChangeRequiredEvent = "portal:password-change-required";
+export const opsPermissionRevokedEvent = "portal:ops-permission-revoked";
 
 export class ApiError extends Error {
   constructor(
@@ -129,7 +185,7 @@ interface RequestOptions {
   signalAuth?: boolean;
 }
 
-async function apiRequest<T>(
+export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
   options: RequestOptions = {},
@@ -147,7 +203,7 @@ async function apiRequest<T>(
       throw error;
     }
   }
-  if (init.body && !headers.has("Content-Type")) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -165,6 +221,9 @@ async function apiRequest<T>(
       if (error.status === 401) window.dispatchEvent(new Event(unauthorizedEvent));
       if (error.status === 403 && error.code === "password_change_required") {
         window.dispatchEvent(new Event(passwordChangeRequiredEvent));
+      }
+      if (path.startsWith("/api/ops/") && error.status === 403 && error.code === "ops_forbidden") {
+        window.dispatchEvent(new Event(opsPermissionRevokedEvent));
       }
     }
     throw error;
@@ -257,5 +316,11 @@ export async function launchModule(code: string): Promise<string> {
 export async function getBusinessSummary(): Promise<BusinessSummary> {
   const result = await apiRequest<unknown>("/api/business/summary/");
   if (!isBusinessSummary(result)) throw new ApiError(502, "经营摘要返回格式无效，未展示不可信数据。");
+  return result;
+}
+
+export async function getWorkSummary(): Promise<WorkSummary> {
+  const result = await apiRequest<unknown>("/api/work/summary/");
+  if (!isWorkSummary(result)) throw new ApiError(502, "工作摘要返回格式无效，未展示不可信数据。");
   return result;
 }

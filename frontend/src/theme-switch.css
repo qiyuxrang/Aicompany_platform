@@ -1,0 +1,6 @@
+.theme-switch { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; width:44px; height:44px; padding:10px; border:1px solid var(--line); border-radius:9px; background:var(--raised); color:var(--ink); cursor:pointer; }
+.theme-switch:hover { color:var(--accent); background:var(--surface); }
+.auth-brand-row { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.password-brand .theme-switch { margin-top:20px; }
+@media(max-width:1180px) { .topbar { flex-wrap:wrap; } .account-nav { flex-wrap:wrap; } }
+@media(max-width:580px) { .account-nav .theme-switch { grid-column:1/-1; justify-self:end; } .auth-brand-row { gap:16px; } }

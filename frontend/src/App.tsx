@@ -1,14 +1,16 @@
-import { FormEvent, MouseEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   BusinessSummary,
   CurrentUser,
   PortalModule,
+  WorkSummary,
   summaryLabels,
   isModuleCode,
   changePassword,
   clearApiSession,
   getBusinessSummary,
+  getWorkSummary,
   getMe,
   getModule,
   getModules,
@@ -16,9 +18,15 @@ import {
   launchModule,
   login,
   logout,
+  opsPermissionRevokedEvent,
   passwordChangeRequiredEvent,
   unauthorizedEvent,
 } from "./api";
+import OpsWorkspace from "./ops/OpsWorkspace";
+import Icon from "./Icon";
+import ThemeSwitch from "./ThemeSwitch";
+import CenterWorkspace from "./centers/CenterWorkspace";
+import { centers, isCenterCode } from "./centers/config";
 
 const statusMeta = {
   pending: { label: "待接入", tone: "warning", detail: "入口尚在准备中，开放时间以平台通知为准。" },
@@ -28,19 +36,30 @@ const statusMeta = {
 } as const;
 
 function navigate(path: string, replace = false): void {
-  if (window.location.pathname === path) return;
+  if (`${window.location.pathname}${window.location.search}${window.location.hash}` === path) return;
   window.history[replace ? "replaceState" : "pushState"]({}, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-function usePathname(): string {
-  const [pathname, setPathname] = useState(window.location.pathname);
+export const navigationGuardEvent = "portal:navigation-guard";
+
+function useLocation(): { pathname: string; search: string } {
+  const [location, setLocation] = useState(() => ({ pathname: window.location.pathname, search: window.location.search }));
+  const accepted = useRef(`${window.location.pathname}${window.location.search}${window.location.hash}`);
   useEffect(() => {
-    const update = () => setPathname(window.location.pathname);
+    const update = () => {
+      const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (!window.dispatchEvent(new CustomEvent(navigationGuardEvent, { cancelable: true, detail: { from: accepted.current, to: next } }))) {
+        window.history.replaceState({}, "", accepted.current);
+        return;
+      }
+      accepted.current = next;
+      setLocation({ pathname: window.location.pathname, search: window.location.search });
+    };
     window.addEventListener("popstate", update);
     return () => window.removeEventListener("popstate", update);
   }, []);
-  return pathname;
+  return location;
 }
 
 function AppLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
@@ -59,10 +78,10 @@ function AppLink({ href, className, children }: { href: string; className?: stri
 function Brand() {
   return (
     <AppLink href="/" className="brand" aria-label="企业统一门户首页">
-      <span className="brand-mark" aria-hidden="true">企</span>
+      <span className="brand-mark" aria-hidden="true"><Icon name="portal" /></span>
       <span>
         <strong>企业统一门户</strong>
-        <small>Enterprise Workspace</small>
+        <small>统一入口 · 安全协同</small>
       </span>
     </AppLink>
   );
@@ -127,11 +146,14 @@ function LoginPage({
   return (
     <main className="auth-layout">
       <section className="auth-intro" aria-labelledby="login-title">
-        <Brand />
+        <div className="auth-brand-row"><Brand /><ThemeSwitch /></div>
         <div>
           <p className="eyebrow">统一身份 · 授权访问</p>
           <h1 id="login-title">欢迎回来</h1>
           <p className="auth-lead">从一个入口访问已授权的业务系统，权限与可用状态均由平台后端确认。</p>
+          <div className="auth-capabilities" aria-label="平台能力">
+            <span><b>01</b>统一入口</span><span><b>02</b>按角色授权</span><span><b>03</b>独立运行</span>
+          </div>
         </div>
         <p className="security-note">身份信息仅用于当前会话，不在浏览器本地保存。</p>
       </section>
@@ -223,7 +245,7 @@ function PasswordPage({
 
   return (
     <main className={`password-layout ${forced ? "" : "within-shell"}`}>
-      {forced && <div className="password-brand"><Brand /></div>}
+      {forced && <div className="password-brand"><Brand /><ThemeSwitch /></div>}
       <section className="form-card password-card" aria-labelledby="password-title">
         <div className="form-heading">
           <p className="eyebrow">账号安全</p>
@@ -291,11 +313,15 @@ function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: (
         <Brand />
         <nav className="account-nav" aria-label="账户导航">
           <span className="account-name">{user.display_name || user.username}</span>
+          {user.is_platform_admin && <AppLink href="/ops">运维工作台</AppLink>}
+          {user.is_platform_admin && <AppLink href="/workspace">员工视图</AppLink>}
+          {user.is_platform_admin && <AppLink href="/preview/product">业务页面预览</AppLink>}
           <AppLink href="/password">修改密码</AppLink>
-          {user.is_platform_admin && <a href="/admin/">Django Admin</a>}
+          {user.is_platform_admin && <a href="/admin/">管理后台</a>}
           <button type="button" className="text-button" onClick={handleLogout} disabled={loggingOut}>
             {loggingOut ? "退出中…" : "退出登录"}
           </button>
+          <ThemeSwitch />
         </nav>
       </header>
       {logoutError && <div className="global-alert" role="alert">{logoutError}</div>}
@@ -366,13 +392,14 @@ function ModuleGrid({ onBusinessAccess }: { onBusinessAccess: (allowed: boolean)
       {state.modules.map((module) => (
         <article className={`module-card ${!module.enabled || module.status === "disabled" ? "is-disabled" : ""}`} key={module.code}>
           <div className="module-topline">
-            <span className="module-code">{module.code}</span>
+            <span className="module-code">业务入口</span>
             <StatusBadge module={module} />
           </div>
           <div>
-            <h3>{module.name}</h3>
-            <p>{module.description || "暂无接入说明。"}</p>
+            <h3>{isCenterCode(module.code) ? centers[module.code].name : module.name}</h3>
+            <p>{isCenterCode(module.code) ? centers[module.code].description : module.description || "暂无接入说明。"}</p>
           </div>
+          {isCenterCode(module.code) && module.enabled && module.status !== "disabled" && <AppLink href={`/centers/${module.code}`} className="button secondary">打开工作台</AppLink>}
           <AppLink href={`/modules/${encodeURIComponent(module.code)}`} className="module-link">
             查看接入详情 <span aria-hidden="true">→</span>
           </AppLink>
@@ -430,7 +457,7 @@ function BusinessSummaryPanel() {
         <span className="status muted">未接入 · 未验证</span>
         <strong>经营摘要暂未接入</strong>
         <p>{state.detail}</p>
-        <p>浏览器 SSO：未实现。旧系统保留原生账号登录与会话。</p>
+        <p>浏览器单点登录：未实现。旧系统保留原生账号登录与会话。</p>
       </div>
     );
   }
@@ -451,7 +478,7 @@ function BusinessSummaryPanel() {
   return (
     <div className="summary-content">
       <dl className="summary-meta">
-        <div><dt>数据来源</dt><dd>{state.summary.source || "接口未提供"}</dd></div>
+        <div><dt>数据来源</dt><dd>{state.summary.source === "legacy-ledger:authorized-projects" ? "原经营系统 · 授权项目查询" : state.summary.source || "接口未提供"}</dd></div>
         <div><dt>更新时间</dt><dd>{formatUpdatedAt(state.summary.updated_at)}</dd></div>
       </dl>
       {metricKeys.length > 0 ? (
@@ -482,9 +509,67 @@ function BusinessSummaryPanel() {
           </ul>
         ) : <p className="summary-empty">暂无项目数据。</p>}
       </section>
-      <p className="integration-note">浏览器 SSO：未实现。此处仅展示后端只读数据，不代表浏览器已登录旧业务系统。</p>
+      <p className="integration-note">浏览器单点登录：未实现。此处仅展示后端只读数据，不代表浏览器已登录旧业务系统。</p>
     </div>
   );
+}
+
+const workSectionMeta = {
+  my_tasks: { title: "我的任务", empty: "当前没有进行中的个人任务。" },
+  pending_reviews: { title: "待我审批", empty: "当前没有待处理审批。" },
+  recent_results: { title: "最近成果", empty: "当前没有已确认成果。" },
+} as const;
+
+function WorkSummaryPanel() {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ready"; summary: WorkSummary }
+    | { kind: "error"; message: string }
+  >({ kind: "loading" });
+
+  const load = async () => {
+    setState({ kind: "loading" });
+    try {
+      setState({ kind: "ready", summary: await getWorkSummary() });
+    } catch (caught) {
+      setState({ kind: "error", message: isApiError(caught) ? caught.message : "工作摘要加载失败。" });
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  if (state.kind === "loading") {
+    return <div className="work-summary-grid" aria-busy="true" aria-label="正在加载工作摘要">
+      {[0, 1, 2].map((item) => <div className="work-summary-card skeleton-card" key={item} />)}
+    </div>;
+  }
+  if (state.kind === "error") {
+    return <div className="inline-state" role="alert">
+      <strong>工作摘要加载失败</strong><p>{state.message}</p>
+      <button className="button secondary" type="button" onClick={load}>重试</button>
+    </div>;
+  }
+
+  return <div className="work-summary-grid">
+    {(Object.keys(workSectionMeta) as (keyof typeof workSectionMeta)[]).map((code) => {
+      const section = state.summary.sections[code];
+      const meta = workSectionMeta[code];
+      return <article className="work-summary-card" key={code}>
+        <div className="work-summary-heading">
+          <h3>{meta.title}</h3>
+          <strong>{section.available ? section.count : "—"}</strong>
+        </div>
+        {section.reason && <p className="work-summary-reason">{section.reason}</p>}
+        {!section.available ? <p className="summary-empty">当前权限下暂不可汇总。</p>
+          : section.items.length === 0 ? <p className="summary-empty">{meta.empty}</p>
+            : <ul className="work-summary-list">{section.items.map((item) => <li key={`${item.kind}-${item.id}`}>
+              <AppLink href={item.href}><strong>{item.title}</strong><span>{item.status} · {formatUpdatedAt(item.updated_at)}</span></AppLink>
+            </li>)}</ul>}
+      </article>;
+    })}
+  </div>;
 }
 
 function Workbench({ user }: { user: CurrentUser }) {
@@ -509,13 +594,24 @@ function Workbench({ user }: { user: CurrentUser }) {
         </div>
       </section>
 
+      <section className="workspace-section" aria-labelledby="work-summary-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">个人待办</p>
+            <h2 id="work-summary-title">工作摘要</h2>
+          </div>
+          <p>仅汇总当前账号在已授权模块中可见的真实任务、审批与成果。</p>
+        </div>
+        <WorkSummaryPanel />
+      </section>
+
       <section className="workspace-section" aria-labelledby="modules-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">四大业务中心</p>
+            <p className="eyebrow">部门与经营工作台</p>
             <h2 id="modules-title">已授权业务入口</h2>
           </div>
-          <p>待接入、导航接入、已验证集成与停用状态统一呈现。</p>
+          <p>前端准备页可先使用；业务接入状态独立展示，不代表生成或审批已可用。</p>
         </div>
         <ModuleGrid onBusinessAccess={setBusinessAccess} />
       </section>
@@ -534,7 +630,7 @@ function Workbench({ user }: { user: CurrentUser }) {
   );
 }
 
-function ModuleDetailPage({ code }: { code: string }) {
+function ModuleDetailPage({ code, backHref }: { code: string; backHref: string }) {
   const [state, setState] = useState<
     | { kind: "loading" }
     | { kind: "ready"; module: PortalModule }
@@ -560,7 +656,7 @@ function ModuleDetailPage({ code }: { code: string }) {
   if (state.kind === "error") {
     return (
       <main className="workspace compact">
-        <AppLink href="/" className="back-link">← 返回工作台</AppLink>
+        <AppLink href={backHref} className="back-link">← 返回工作台</AppLink>
         <div className="inline-state" role="alert">
           <strong>模块详情加载失败</strong>
           <p>{state.message}</p>
@@ -572,9 +668,10 @@ function ModuleDetailPage({ code }: { code: string }) {
 
   const module = state.module;
   const meta = statusMeta[module.status];
-  const unavailable = !module.enabled || module.status === "disabled";
+  const unavailable = !module.enabled || module.status === "disabled" || module.status === "pending";
 
   const handleLaunch = async () => {
+    if (unavailable || launching) return;
     setLaunching(true);
     setLaunchError("");
     try {
@@ -598,11 +695,11 @@ function ModuleDetailPage({ code }: { code: string }) {
 
   return (
     <main className="workspace compact">
-      <AppLink href="/" className="back-link">← 返回工作台</AppLink>
+      <AppLink href={backHref} className="back-link">← 返回工作台</AppLink>
       <article className="detail-card">
         <div className="detail-header">
           <div>
-            <span className="module-code">{module.code}</span>
+            <span className="module-code">业务入口</span>
             <h1>{module.name}</h1>
           </div>
           <StatusBadge module={module} />
@@ -615,7 +712,7 @@ function ModuleDetailPage({ code }: { code: string }) {
             <p>{meta.detail}</p>
           </div>
           <button className="button primary" type="button" onClick={handleLaunch} disabled={unavailable || launching}>
-            {launching ? "正在确认入口…" : unavailable ? "入口不可用" : "进入业务系统"}
+            {launching ? "正在确认入口…" : module.status === "pending" ? "待接入，暂不可进入" : unavailable ? "入口不可用" : "进入业务系统"}
           </button>
         </section>
         {launchError && <div className="notice error" role="alert">{launchError}</div>}
@@ -624,7 +721,7 @@ function ModuleDetailPage({ code }: { code: string }) {
           <p>点击后平台会先向后端请求入口，不会由浏览器探测旧站。</p>
           <dl className="boundary-list">
             <div>
-              <dt>浏览器 SSO</dt>
+              <dt>浏览器单点登录</dt>
               <dd><span className="status muted">未实现</span>旧系统保留自身登录流程。</dd>
             </div>
             <div>
@@ -651,14 +748,33 @@ function NotFoundPage() {
   );
 }
 
+function ForbiddenPage() {
+  return (
+    <main className="state-page">
+      <section className="state-card" role="alert">
+        <span className="state-symbol" aria-hidden="true">403</span>
+        <h1>无运维访问权限</h1>
+        <p>运维页面仅向平台管理员开放，后端仍会独立校验每次请求。</p>
+        <AppLink href="/" className="button primary">返回工作台</AppLink>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [bootstrapError, setBootstrapError] = useState("");
   const [loginNotice, setLoginNotice] = useState("");
+  const identityRefreshInFlight = useRef(false);
 
-  const bootstrap = async () => {
+  const bootstrap = async (clearIdentity = false) => {
+    if (clearIdentity && identityRefreshInFlight.current) return;
+    if (clearIdentity) {
+      identityRefreshInFlight.current = true;
+      setUser(null);
+    }
     setPhase("loading");
     setBootstrapError("");
     try {
@@ -672,6 +788,8 @@ export default function App() {
         setBootstrapError(isApiError(caught) ? caught.message : "无法确认当前登录状态。请检查网络后重试。");
         setPhase("error");
       }
+    } finally {
+      if (clearIdentity) identityRefreshInFlight.current = false;
     }
   };
 
@@ -690,11 +808,16 @@ export default function App() {
       setUser((current) => current ? { ...current, must_change_password: true } : current);
       navigate("/password", true);
     };
+    const handleOpsPermissionRevoked = () => {
+      void bootstrap(true);
+    };
     window.addEventListener(unauthorizedEvent, handleUnauthorized);
     window.addEventListener(passwordChangeRequiredEvent, handlePasswordRequired);
+    window.addEventListener(opsPermissionRevokedEvent, handleOpsPermissionRevoked);
     return () => {
       window.removeEventListener(unauthorizedEvent, handleUnauthorized);
       window.removeEventListener(passwordChangeRequiredEvent, handlePasswordRequired);
+      window.removeEventListener(opsPermissionRevokedEvent, handleOpsPermissionRevoked);
     };
   }, []);
 
@@ -702,7 +825,10 @@ export default function App() {
   if (phase === "ready") {
     if (!user && pathname !== "/login") requiredPath = "/login";
     if (user?.must_change_password && pathname !== "/password") requiredPath = "/password";
-    if (user && !user.must_change_password && pathname === "/login") requiredPath = "/";
+    if (user && !user.must_change_password && pathname === "/login") requiredPath = user.is_platform_admin ? "/ops" : "/";
+    if (user?.is_platform_admin && !user.must_change_password && pathname === "/") requiredPath = "/ops";
+    if (user && ["/centers/product/solution", "/centers/product/feasibility", "/centers/product/slides"].includes(pathname)) requiredPath = "/centers/product/documents";
+    if (user?.is_platform_admin && ["/preview/product/solution", "/preview/product/feasibility", "/preview/product/slides"].includes(pathname)) requiredPath = "/preview/product/documents";
   }
 
   useEffect(() => {
@@ -710,12 +836,12 @@ export default function App() {
   }, [requiredPath]);
 
   if (phase === "loading" || requiredPath) return <PageLoading />;
-  if (phase === "error") return <ErrorPage message={bootstrapError} onRetry={bootstrap} />;
+  if (phase === "error") return <ErrorPage message={bootstrapError} onRetry={() => void bootstrap()} />;
 
   const handleAuthenticated = (currentUser: CurrentUser) => {
     setUser(currentUser);
     setLoginNotice("");
-    navigate(currentUser.must_change_password ? "/password" : "/", true);
+    navigate(currentUser.must_change_password ? "/password" : currentUser.is_platform_admin ? "/ops" : "/", true);
   };
 
   const handleLogout = async () => {
@@ -742,7 +868,14 @@ export default function App() {
 
   let content: ReactNode;
   const moduleMatch = pathname.match(/^\/modules\/([^/]+)\/?$/);
-  if (pathname === "/") content = <Workbench user={user} />;
+  const centerMatch = pathname.match(/^\/(centers|preview)\/([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?\/?$/);
+  if (pathname === "/" || (user.is_platform_admin && pathname === "/workspace")) content = <Workbench user={user} />;
+  else if (pathname === "/ops" || pathname.startsWith("/ops/")) {
+    content = user.is_platform_admin ? <OpsWorkspace user={user} pathname={pathname} /> : <ForbiddenPage />;
+  }
+  else if (centerMatch && isCenterCode(centerMatch[2])) {
+    content = <CenterWorkspace key={`${centerMatch[1]}-${centerMatch[2]}-${centerMatch[3] || "overview"}`} code={centerMatch[2]} section={centerMatch[3] || "overview"} user={user} preview={centerMatch[1] === "preview"} businessPanel={<BusinessSummaryPanel />} />;
+  }
   else if (moduleMatch) {
     let code = "";
     try {
@@ -750,7 +883,7 @@ export default function App() {
     } catch {
       code = "";
     }
-    content = isModuleCode(code) ? <ModuleDetailPage key={code} code={code} /> : (
+    content = isModuleCode(code) ? <ModuleDetailPage key={code} code={code} backHref={user.is_platform_admin ? "/workspace" : "/"} /> : (
       <main className="workspace compact">
         <div className="notice error" role="alert">模块参数无效，请从工作台重新选择入口。</div>
         <AppLink href="/" className="back-link">返回工作台</AppLink>

@@ -6,6 +6,15 @@
     <meta name="theme-color" content="#f4f7fb" />
     <meta name="description" content="企业统一门户" />
     <title>企业统一门户</title>
+    <style>html{background:#f4f7fb;color-scheme:light}html[data-theme="dark"]{background:#101927;color-scheme:dark}</style>
+    <script>
+      (() => {
+        let theme = "light";
+        try { if (localStorage.getItem("theme") === "dark") theme = "dark"; } catch {}
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", theme === "dark" ? "#101927" : "#f4f7fb");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

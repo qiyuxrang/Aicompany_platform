@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import userEvent from "@testing-library/user-event";
@@ -27,6 +27,23 @@ const validSummary = {
   updated_at: "2026-09-20T08:00:00Z",
 };
 
+const validWorkSummary = {
+  modules: { product: { available: true }, hr: { available: false, reason: "未获授权访问人事模块。" } },
+  sections: {
+    my_tasks: {
+      available: true,
+      count: 1,
+      items: [{
+        id: "12", title: "技术方案", status: "draft", href: "/centers/product/documents?task=12",
+        updated_at: "2026-09-22T08:00:00Z", kind: "product_task",
+      }],
+      reason: "仅汇总已授权模块；未授权模块不计入数量。",
+    },
+    pending_reviews: { available: true, count: 0, items: [], reason: "仅汇总已授权模块；未授权模块不计入数量。" },
+    recent_results: { available: true, count: 0, items: [], reason: "仅汇总已授权模块；未授权模块不计入数量。" },
+  },
+};
+
 function mockSummary(body: unknown, status = 200) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     if (String(input) === "/api/me/") return Promise.resolve(json(baseUser));
@@ -34,6 +51,7 @@ function mockSummary(body: unknown, status = 200) {
       { code: "business", name: "项目经营中心", description: "测试入口", status: "navigation", enabled: true },
     ]));
     if (String(input) === "/api/business/summary/") return Promise.resolve(json(body, status));
+    if (String(input) === "/api/work/summary/") return Promise.resolve(json(validWorkSummary));
     return Promise.resolve(json({ detail: "未找到" }, 404));
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -49,6 +67,26 @@ describe("portal routing", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it("待接入模块禁止启动并保留返回工作台", async () => {
+    window.history.replaceState({}, "", "/modules/product");
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/me/") return Promise.resolve(json(baseUser));
+      if (String(input) === "/api/modules/product/") return Promise.resolve(json({
+        code: "product", name: "产品方案中心", description: "待接入", status: "pending", enabled: true,
+      }));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    const launch = await screen.findByRole("button", { name: "待接入，暂不可进入" });
+    expect((launch as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(launch);
+    expect(fetchMock.mock.calls.some(([path]) => String(path).includes("launch"))).toBe(false);
+    expect(screen.getByRole("link", { name: "← 返回工作台" }).getAttribute("href")).toBe("/");
+    expect(screen.queryByText("Enterprise Workspace")).toBeNull();
+    expect(screen.getByText("浏览器单点登录")).toBeTruthy();
   });
 
   it("强制首次改密用户不能进入工作台", async () => {
@@ -92,6 +130,102 @@ describe("portal routing", () => {
     expect(screen.getByText(/接口未提供币种或计量单位/)).toBeTruthy();
   });
 
+  it("工作摘要展示真实数量、对象链接及部分授权说明", async () => {
+    mockSummary(validSummary);
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "工作摘要" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "我的任务" })).toBeTruthy();
+    const task = await screen.findByRole("link", { name: /技术方案/ });
+    expect(task.getAttribute("href")).toBe("/centers/product/documents?task=12");
+    expect(screen.getAllByText("仅汇总已授权模块；未授权模块不计入数量。")).toHaveLength(3);
+    expect(screen.getByText("当前没有待处理审批。")).toBeTruthy();
+  });
+
+  it("仅查询参数变化及前后退会重新定位准确产品任务", async () => {
+    const details = (id: string, title: string) => ({
+      id, title, state: "DRAFT", stage: "INTAKE", version: 1, input_version: 1, blueprint_version: 0,
+      input: { project: title, requirements: "需求", background: "", items: [], conditions: [] }, blueprint: null,
+      chapters: [], artifacts: [], sources: [], approvals: [], issues: [], error_code: "", actions: [], blockers: {}, reviewer_id: null, owner_id: 1, input_issues: [], impact: {},
+    });
+    window.history.replaceState({}, "", "/centers/product/documents?task=one");
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/me/") return Promise.resolve(json(baseUser));
+      if (path === "/api/modules/product/") return Promise.resolve(json({ code: "product", name: "产品", description: "", status: "verified", enabled: true }));
+      if (path === "/api/modules/") return Promise.resolve(json([{ code: "product", name: "产品", description: "", status: "verified", enabled: true }]));
+      if (path === "/api/product/tasks/") return Promise.resolve(json([{ id: "one", title: "第一任务", state: "DRAFT", stage: "INTAKE", version: 1 }, { id: "two", title: "第二任务", state: "DRAFT", stage: "INTAKE", version: 1 }]));
+      if (path === "/api/product/tasks/one/") return Promise.resolve(json(details("one", "第一任务")));
+      if (path === "/api/product/tasks/two/") return Promise.resolve(json(details("two", "第二任务")));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    }));
+    render(<App />);
+    expect((await screen.findByLabelText("草稿标题") as HTMLInputElement).value).toBe("第一任务");
+    window.history.pushState({}, "", "/centers/product/documents?task=two");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => expect((screen.getByLabelText("草稿标题") as HTMLInputElement).value).toBe("第二任务"));
+    window.history.replaceState({}, "", "/centers/product/documents?task=one");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => expect((screen.getByLabelText("草稿标题") as HTMLInputElement).value).toBe("第一任务"));
+  });
+
+  it("同一 App 实例响应 JD query 变化，并在未保存正文时阻止前后退", async () => {
+    const hrUser = { ...baseUser, roles: [{ code: "hr", name: "人事" }] };
+    const job = (id: string, title: string, body: string) => ({
+      id, owner_id: 1, title, department: "人事部", objective: "目标", responsibilities: "职责", requirements: "要求",
+      state: "generated", version: 1, input_version: 1, missing_fields: [], current_revision: { id: `rev-${id}`, version: 1, input_version: 1, kind: "generated", body, parent_id: null, created_by_id: 1, confirmed_by_id: null, confirmed_at: null, created_at: "2026-09-23T00:00:00Z" },
+      official_revision: null, current_revision_stale: false, revisions: [], updated_at: "2026-09-23T00:00:00Z",
+    });
+    const jobs = [job("job-1", "第一岗位", "第一正文"), job("job-2", "第二岗位", "第二正文")];
+    window.history.replaceState({}, "", "/centers/hr/job?task=job-1");
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/me/") return Promise.resolve(json(hrUser));
+      if (path === "/api/modules/hr/") return Promise.resolve(json({ code: "hr", name: "人事", description: "", status: "verified", enabled: true }));
+      if (path === "/api/modules/") return Promise.resolve(json([{ code: "hr", name: "人事", description: "", status: "verified", enabled: true }]));
+      if (path === "/api/hr/jobs/") return Promise.resolve(json(jobs));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    }));
+    render(<App />);
+    expect((await screen.findByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("第一正文");
+    window.history.pushState({}, "", "/centers/hr/job?task=job-2");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => expect((screen.getByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("第二正文"));
+    fireEvent.change(screen.getByLabelText("JD正文"), { target: { value: "未保存第二正文" } });
+    await userEvent.click(screen.getByRole("link", { name: "转正工作流" }));
+    expect(window.location.pathname).toBe("/centers/hr/job");
+    expect(window.location.search).toBe("?task=job-2");
+    expect((screen.getByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("未保存第二正文");
+    window.history.pushState({}, "", "/centers/hr/job?task=job-1");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(window.location.search).toBe("?task=job-2");
+    expect((screen.getByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("未保存第二正文");
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("未保存修改"));
+  });
+
+  it("同一 App 实例响应转正 case query 变化，普通经理仅获得本人审批链", async () => {
+    const probation = (id: string, name: string) => ({ id, owner_id: 9, assigned_manager_id: 1, employee_name: name, position: "工程师", materials: [], notes: "", manager_opinion: "", hr_conclusion: "", state: "manager_pending", version: 3, actions: ["manager_approve"], assistant_enabled: false, assistant_mode: "manual", assistant_reason: "model_not_authorized", updated_at: "2026-09-23T00:00:00Z", transitions: [], revisions: [] });
+    const cases = [probation("case-1", "第一员工"), probation("case-2", "第二员工")];
+    window.history.replaceState({}, "", "/centers/hr/probation?case=case-1");
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/me/") return Promise.resolve(json(baseUser));
+      if (path === "/api/modules/hr/") return Promise.resolve(json({ code: "hr", name: "人事", description: "", status: "verified", enabled: true }));
+      if (path === "/api/modules/") return Promise.resolve(json([{ code: "hr", name: "人事", description: "", status: "verified", enabled: true }]));
+      if (path === "/api/hr/probations/") return Promise.resolve(json(cases));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: /第一员工/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "主管批准" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "创建转正事项" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "岗位说明" })).toBeNull();
+    expect(fetchMock.mock.calls.some(([path]) => String(path) === "/api/hr/jobs/")).toBe(false);
+    window.history.pushState({}, "", "/centers/hr/probation?case=case-2");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByRole("heading", { name: /第二员工/ })).toBeTruthy();
+  });
+
   it("无经营授权不渲染摘要也不发送经营请求", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       if (String(input) === "/api/me/") return Promise.resolve(json(baseUser));
@@ -117,7 +251,7 @@ describe("portal routing", () => {
     mockSummary({ detail: "集成尚未配置", code: "integration_not_configured" }, 503);
     render(<App />);
     expect(await screen.findByText("未接入 · 未验证")).toBeTruthy();
-    expect(screen.getByText(/浏览器 SSO：未实现/)).toBeTruthy();
+    expect(screen.getByText(/浏览器单点登录：未实现/)).toBeTruthy();
     expect(screen.queryByText("经营摘要加载失败")).toBeNull();
   });
 

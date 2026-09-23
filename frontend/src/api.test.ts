@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  apiRequest,
   clearApiSession,
   changePassword,
   getModule,
@@ -8,6 +9,7 @@ import {
   getModules,
   login,
   logout,
+  opsPermissionRevokedEvent,
   passwordChangeRequiredEvent,
 } from "./api";
 
@@ -19,6 +21,20 @@ function json(body: unknown, status = 200): Response {
 }
 
 describe("API client", () => {
+  it("上传资料使用浏览器的 multipart 边界并保留 CSRF", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ csrfToken: "upload-token" }))
+      .mockResolvedValueOnce(json({ saved: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const body = new FormData();
+    body.append("file", new File(["合成资料"], "test.txt", { type: "text/plain" }));
+    await apiRequest("/product/tasks/test/sources/", { method: "POST", body });
+    const options = fetchMock.mock.calls[1][1] as RequestInit;
+    expect(new Headers(options.headers).has("Content-Type")).toBe(false);
+    expect(new Headers(options.headers).get("X-CSRFToken")).toBe("upload-token");
+    expect(options.body).toBe(body);
+  });
+
   beforeEach(() => {
     clearApiSession();
   });
@@ -79,6 +95,33 @@ describe("API client", () => {
       expect(listener).toHaveBeenCalledTimes(1);
     } finally {
       window.removeEventListener(unauthorizedEvent, listener);
+    }
+  });
+
+  it("仅运维接口的 ops_forbidden 广播撤权事件", async () => {
+    const listener = vi.fn();
+    window.addEventListener(opsPermissionRevokedEvent, listener);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(json({ detail: "运维权限已撤销", code: "ops_forbidden" }, 403))
+      .mockResolvedValueOnce(json({ detail: "普通业务拒绝", code: "ops_forbidden" }, 403)));
+    try {
+      await expect(apiRequest("/api/ops/modules/")).rejects.toMatchObject({ status: 403, code: "ops_forbidden" });
+      await expect(apiRequest("/api/modules/")).rejects.toMatchObject({ status: 403, code: "ops_forbidden" });
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(opsPermissionRevokedEvent, listener);
+    }
+  });
+
+  it("普通 CSRF 403 不广播运维撤权事件", async () => {
+    const listener = vi.fn();
+    window.addEventListener(opsPermissionRevokedEvent, listener);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({ detail: "CSRF 校验失败", code: "csrf_failed" }, 403)));
+    try {
+      await expect(logout()).rejects.toMatchObject({ status: 403, code: "csrf_failed" });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(opsPermissionRevokedEvent, listener);
     }
   });
 
