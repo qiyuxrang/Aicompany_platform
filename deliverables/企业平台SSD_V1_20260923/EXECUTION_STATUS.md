@@ -29,7 +29,7 @@
 | 批次 | 包含任务 | 状态 | 任务级状态文件 |
 | --- | --- | --- | --- |
 | P0 技术基线 | 基线固化 | 进行中（历史引用） | — |
-| R1 接入与基线 | `T-G01`、`T-P01`、`T-P02` | `IN_PROGRESS`（`T-G01` = `COMPLETE`；`T-P01` = `BLOCKED` / `CORE_PASS`；T-P02 尚未完成） | `docs/product/T-G01/TASK_STATUS.md`、`docs/product/T-P01/TASK_STATUS.md` |
+| R1 接入与基线 | `T-G01`、`T-P01`、`T-P02` | `BLOCKED`（核心范围已验证；T-P01=D-02；T-P02=D-01/D-08） | `docs/product/T-G01/TASK_STATUS.md`、`docs/product/T-P01/TASK_STATUS.md`、`docs/product/T-P02/TASK_STATUS.md` |
 | R2 交互与治理 | `T-P03`、`T-P04`、`T-P07` | `NOT_RUN` | 待建立 |
 | R3 业务评估 | `T-P05`、`T-P06`、`T-P08`、`T-G04`、`T-R01` | `NOT_RUN` | 待建立 |
 | 项目中心 / 总经理视角 | B1 经营接入 | `NOT_RUN` | 待建立 |
@@ -47,7 +47,8 @@
 | --- | --- | --- |
 | `T-G01` | `docs/product/T-G01/TASK_STATUS.md` | 2026-09-23 |
 | `T-P01` | `docs/product/T-P01/TASK_STATUS.md` | 2026-09-23 |
-| `T-P02`～`T-P08`、`T-G04`、`T-R01` | 尚未建立 | — |
+| `T-P02` | `docs/product/T-P02/TASK_STATUS.md` | 2026-09-23 |
+| `T-P03`～`T-P08`、`T-G04`、`T-R01` | 尚未建立 | — |
 | `T-H01`～`T-H04` | 尚未建立 | — |
 | `T-B01`～`T-B03` | 尚未建立 | — |
 | `T-E01`～`T-E03` | 尚未建立 | — |
@@ -119,3 +120,4 @@
 | 2026-09-23 | 补入前端延期规则 | 按 `docs/SPEC.md` 第 7 节「前端延期规则」，§0 登记规则第 3 条补充分范围结论标记 `CORE_PASS` / `FRONTEND_DEFERRED`；据此不得将 Browser E2E 或整个 P1 记为 `PASS` |
 | 2026-09-23 | T-G01 完成可信基线、差距映射与接口冻结 | 任务级状态与五份证据见 docs/product/T-G01/；真实模型、真实 RAGFlow、Browser E2E 和业务签认仍按 blocker 单列，未记 PASS |
 | 2026-09-23 | T-P01 核心文档基线完成 | 冻结资产、固定运行时和 Microsoft Word 8 页真实渲染已验证；D-02 正式母版/业务格式签认及 Browser E2E 未记 PASS |
+| 2026-09-23 | T-P02 内部来源与检索合同完成 | 48 项授权/撤权/错误语义测试通过；真实 RAGFlow 未配置，探针按 `retrieval_disabled` 阻断，未记真实依赖 PASS |
