@@ -9,7 +9,7 @@
 | 代表性 AT | 独立代表性审核账号批准当前蓝图；审批记录绑定 actor、revision、SHA-256 与授权快照 |
 | 阻塞 | D-03 正式人员、对象范围与例外策略未批准；代表性账号不得冒充业务签认 |
 | Browser E2E | `NOT_RUN`（`FRONTEND_DEFERRED`） |
-| Checkpoint | 待创建 |
+| Checkpoint | `9a9f532` (`docs: checkpoint T-P03 approval baseline`) |
 
 ## 执行记录
 
