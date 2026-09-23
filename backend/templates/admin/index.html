@@ -1,0 +1,67 @@
+{% extends "admin/index.html" %}
+{% load log static %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'portal/admin-home.css' %}">{% endblock %}
+
+{% block bodyclass %}{{ block.super }} portal-admin-home{% endblock %}
+{% block coltype %}colM{% endblock %}
+
+{% block content_title %}
+<header class="admin-home-heading">
+  <p class="admin-home-eyebrow">平台配置中心</p>
+  <h1>账号、授权与接入配置</h1>
+  <p>选择需要管理的事项。日常配置在这里完成，运行状态请前往运维总览。</p>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="admin-home-layout">
+  <section class="admin-home-main" aria-label="管理功能">
+    {% for app in app_list %}
+    <div class="admin-home-section-heading"><h2>{{ app.name }}</h2><span>按事项选择入口</span></div>
+    <div class="admin-home-grid">
+      {% for model in app.models %}
+      <article class="admin-home-card{% if model.view_only %} admin-home-card-readonly{% endif %}">
+        <div class="admin-home-card-top"><span class="admin-home-category">{{ model.category }}</span><span class="admin-home-access">{% if model.view_only %}只读查询{% else %}配置管理{% endif %}</span></div>
+        <h3>{{ model.name }}</h3>
+        <p>{{ model.description }}</p>
+        <div class="admin-home-card-actions">
+          {% if model.admin_url %}<a class="admin-home-button" href="{{ model.admin_url }}">{{ model.action_label }}<span aria-hidden="true"> →</span></a>{% endif %}
+          {% if model.add_url %}<a class="admin-home-secondary" href="{{ model.add_url }}">{{ model.add_label }}</a>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% empty %}
+    <p class="admin-home-empty">当前没有可管理的事项，请联系平台管理员核对权限。</p>
+    {% endfor %}
+    <p class="admin-home-boundary">管理权限不等于业务资料权限；业务模块仍按账号的实际授权开放。</p>
+  </section>
+  <aside class="admin-home-aside" aria-label="操作帮助与最近修改">
+    <section class="admin-home-panel">
+      <h2>首次配置怎么做</h2>
+      <ol class="admin-home-steps">
+        <li><strong>创建账号</strong><p>每人使用独立账号，首次登录修改初始密码。</p></li>
+        <li><strong>分配角色</strong><p>先核对角色的模块授权，再给账号分配角色。</p></li>
+        <li><strong>确认入口</strong><p>核对模块地址及接入状态，未接入的模块保持待接入。</p></li>
+      </ol>
+    </section>
+    <section class="admin-home-panel">
+      <h2>我的最近修改</h2>
+      <p class="admin-home-caption">仅显示当前账号在管理后台的最近操作，不代替完整审计。</p>
+      {% get_admin_log 5 as admin_log for_user user %}
+      {% if admin_log %}
+      <ul class="admin-home-recent">
+        {% for entry in admin_log %}
+        <li><span>{% if entry.is_addition %}新增{% elif entry.is_change %}修改{% elif entry.is_deletion %}删除{% else %}操作{% endif %}</span><strong>{{ entry.object_repr }}</strong><time datetime="{{ entry.action_time|date:'c' }}">{{ entry.action_time|date:"m月d日 H:i" }}</time></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="admin-home-empty"><strong>暂无修改记录</strong><p>完成后台操作后，记录会显示在这里。</p></div>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}

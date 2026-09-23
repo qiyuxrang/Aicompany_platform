@@ -1,0 +1,7 @@
+{% extends "admin/change_form.html" %}
+
+{% block form_top %}
+  {% if not is_popup %}
+    <p class="admin-guidance">创建账号时请分配角色。保存成功后，账号首次登录必须修改初始密码。</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'portal/admin-tech.css' %}">
+{% endblock %}
+
+{% block header %}
+{{ block.super }}
+{% if has_permission %}
+<nav class="breadcrumbs admin-workbench-nav" aria-label="工作台导航">
+  <a href="{{ operations_return_url }}">← {{ operations_return_label }}</a>
+  {% if operations_return_url != "/ops" %}
+  <a class="admin-overview-link" href="/ops">运维总览</a>
+  {% endif %}
+</nav>
+{% endif %}
+{% endblock %}
