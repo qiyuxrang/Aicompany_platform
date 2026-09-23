@@ -68,5 +68,24 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  model-gateway:
+    profiles: [models]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enterprise-portal-phase1:local
+    working_dir: /app
+    env_file:
+      - ${MODEL_GATEWAY_ENV_FILE:-.runtime/model-gateway.env}
+    command: [python, -m, uvicorn, model_gateway.app:app, --host, 0.0.0.0, --port, "18410", --workers, "1", --limit-concurrency, "16", --timeout-keep-alive, "5", --no-access-log]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18410/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 70s
+
 volumes:
   phase1_pg_data:

@@ -83,7 +83,7 @@ class RoleAndModuleAuthorizationTests(PortalTestCase):
             dist = root / "frontend" / "dist"
             dist.mkdir(parents=True)
             (dist / "index.html").write_text("portal", encoding="utf-8")
-            with override_settings(BASE_DIR=root):
+            with override_settings(BASE_DIR=root, PORTAL_FRONTEND_DIST=dist):
                 anonymous = self.client.get("/modules/product/")
                 self.assertEqual(anonymous.status_code, 302)
                 self.assertEqual(anonymous.headers["Location"], "/login")

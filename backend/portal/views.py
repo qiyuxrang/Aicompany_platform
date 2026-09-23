@@ -6,7 +6,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.http import FileResponse, JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect
@@ -21,6 +21,15 @@ from rest_framework.response import Response
 
 from .models import LoginAttempt, Module, User
 from .security import audit, authorized_modules
+
+
+def _portal_modules(user):
+    result = authorized_modules(user)
+    if user.is_active and not user.must_change_password:
+        from .hr_models import ProbationCase
+        if ProbationCase.objects.filter(assigned_manager=user).exists():
+            result = Module.objects.filter(Q(pk__in=result.values("pk")) | Q(code="hr", enabled=True)).distinct()
+    return result
 
 
 def user_data(user):
@@ -131,12 +140,12 @@ def change_password(request):
 
 @api_view(["GET"])
 def modules(request):
-    return Response([module_data(module) for module in authorized_modules(request.user).order_by("id")])
+    return Response([module_data(module) for module in _portal_modules(request.user).order_by("id")])
 
 
 @api_view(["GET"])
 def module_detail(request, code):
-    module = get_object_or_404(authorized_modules(request.user), code=code)
+    module = get_object_or_404(_portal_modules(request.user), code=code)
     if not module.enabled:
         return Response({"detail": "模块已停用。"}, status=403)
     return Response(module_data(module))
@@ -169,14 +178,26 @@ def health(request):
 
 @require_GET
 def frontend(request, path=""):
-    if path.startswith("modules/"):
+    if path in {"ops", "preview"} or path.startswith(("ops/", "preview/")):
+        if not request.user.is_authenticated:
+            return redirect("/login")
+        if request.user.must_change_password:
+            return redirect("/password")
+        if not request.user.is_platform_admin:
+            return JsonResponse({"detail": "仅平台管理员可访问此管理页面。"}, status=403)
+    if path.startswith(("modules/", "centers/")):
         if not request.user.is_authenticated:
             return redirect("/login")
         if request.user.must_change_password:
             return redirect("/password")
         code = path.split("/")[1]
-        get_object_or_404(authorized_modules(request.user).filter(enabled=True), code=code)
-    root = settings.BASE_DIR / "frontend" / "dist"
+        modules = _portal_modules(request.user).filter(enabled=True)
+        if (code == "hr" and modules.filter(code="hr").exists()
+                and not authorized_modules(request.user).filter(code="hr", enabled=True).exists()):
+            if path.rstrip("/") not in {"centers/hr", "centers/hr/probation"}:
+                return JsonResponse({"detail": "仅可访问已分配的转正审批。"}, status=403)
+        get_object_or_404(modules, code=code)
+    root = settings.PORTAL_FRONTEND_DIST
     target = (root / path).resolve() if path.startswith("assets/") else root / "index.html"
     if not target.is_relative_to(root.resolve()) or not target.is_file():
         return JsonResponse({"detail": "前端尚未构建，请运行 pnpm build。"}, status=404)

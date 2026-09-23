@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -14,10 +15,10 @@ if not DEBUG and not HTTPS:
 ALLOWED_HOSTS = os.environ.get("PORTAL_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 CSRF_TRUSTED_ORIGINS = list(filter(None, os.environ.get("PORTAL_CSRF_TRUSTED_ORIGINS", "").split(",")))
 INSTALLED_APPS = ["django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles", "rest_framework", "portal"]
-MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware", "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware", "django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware", "portal.middleware.SessionPolicyMiddleware", "django.contrib.messages.middleware.MessageMiddleware", "django.middleware.clickjacking.XFrameOptionsMiddleware"]
+MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware", "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware", "django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware", "portal.middleware.SessionPolicyMiddleware", "portal.ops_metrics.ApiMetricsMiddleware", "django.contrib.messages.middleware.MessageMiddleware", "django.middleware.clickjacking.XFrameOptionsMiddleware"]
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
-TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True, "OPTIONS": {"context_processors": ["django.template.context_processors.request", "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
+TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "backend" / "templates"], "APP_DIRS": True, "OPTIONS": {"context_processors": ["django.template.context_processors.request", "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
 if os.environ.get("PORTAL_DB_NAME"):
     DATABASES = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ["PORTAL_DB_NAME"], "USER": os.environ["PORTAL_DB_USER"], "PASSWORD": os.environ["PORTAL_DB_PASSWORD"], "HOST": os.environ.get("PORTAL_DB_HOST", "db"), "PORT": os.environ.get("PORTAL_DB_PORT", "5432"), "CONN_MAX_AGE": 0}}
 else:
@@ -36,6 +37,8 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+_frontend_dist = Path(os.environ.get("PORTAL_FRONTEND_DIST", BASE_DIR / "frontend" / "dist"))
+PORTAL_FRONTEND_DIST = _frontend_dist if _frontend_dist.is_absolute() else BASE_DIR / _frontend_dist
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_NAME = "enterprise_portal_session"
@@ -66,3 +69,44 @@ LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_IP_LIMIT = 30
 LOGIN_WINDOW_SECONDS = 900
 TICKET_TTL_SECONDS = 30
+MODEL_GATEWAY_URL = os.environ.get("PORTAL_MODEL_GATEWAY_URL", "")
+MODEL_GATEWAY_TOKEN = os.environ.get("PORTAL_MODEL_GATEWAY_TOKEN", "")
+MODEL_GATEWAY_ALLOWED_URLS = tuple(filter(None, os.environ.get("PORTAL_MODEL_GATEWAY_ALLOWED_URLS", "http://127.0.0.1:18410,http://model-gateway:18410").split(",")))
+PRODUCT_P1_ENABLED = os.environ.get("PORTAL_PRODUCT_P1_ENABLED") == "1"
+PRODUCT_MODEL_CALLS_ALLOWED = os.environ.get("PORTAL_PRODUCT_MODEL_CALLS_ALLOWED") == "1"
+PRODUCT_FORMAL_RELEASE_ENABLED = os.environ.get("PORTAL_PRODUCT_FORMAL_RELEASE_ENABLED") == "1"
+PRODUCT_REVIEWER_IDS = tuple(int(value) for value in os.environ.get("PORTAL_PRODUCT_REVIEWER_IDS", "").split(",") if value.isdigit())
+PRODUCT_STORAGE_ROOT = Path(os.environ.get("PORTAL_PRODUCT_STORAGE_ROOT", BASE_DIR / ".runtime" / "product-private"))
+PRODUCT_IMPORT_ROOTS = tuple(Path(value) for value in os.environ.get("PORTAL_PRODUCT_IMPORT_ROOTS", "").split(os.pathsep) if value)
+PRODUCT_UPLOAD_MAX_BYTES = 1048576
+PRODUCT_MAX_ATTEMPTS = 8
+PRODUCT_MAX_MODEL_CALLS = 24
+PRODUCT_LEASE_SECONDS = 180
+PRODUCT_BLUEPRINT_ROUTE = os.environ.get("PORTAL_PRODUCT_BLUEPRINT_ROUTE", "product_blueprint")
+PRODUCT_WRITING_ROUTE = os.environ.get("PORTAL_PRODUCT_WRITING_ROUTE", "product_writing")
+PRODUCT_REVIEW_ROUTE = os.environ.get("PORTAL_PRODUCT_REVIEW_ROUTE", "product_review")
+PRODUCT_DOCUMENT_PYTHON = Path(os.environ.get("PORTAL_PRODUCT_DOCUMENT_PYTHON", BASE_DIR / ".runtime" / "product-documents-python" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")))
+
+
+def _product_configuration(name):
+    try:
+        raw = os.environ.get(name, "{}")
+        if len(raw) > 65536:
+            raise ValueError
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError
+        return value
+    except (ValueError, TypeError):
+        raise ImproperlyConfigured(f"{name} 必须为有效配置对象") from None
+
+
+PRODUCT_TEMPLATE_APPROVAL = _product_configuration("PORTAL_PRODUCT_TEMPLATE_APPROVAL")
+PRODUCT_COST_POLICY = _product_configuration("PORTAL_PRODUCT_COST_POLICY")
+PRODUCT_OFFICE_RENDER_ENABLED = os.environ.get("PORTAL_PRODUCT_OFFICE_RENDER_ENABLED") == "1"
+PRODUCT_REVIEW_POLICY_REVISION = os.environ.get("PORTAL_PRODUCT_REVIEW_POLICY_REVISION", "")
+PRODUCT_RETRIEVAL_ENABLED = os.environ.get("PORTAL_PRODUCT_RETRIEVAL_ENABLED") == "1"
+PRODUCT_RETRIEVAL_URL = os.environ.get("PORTAL_PRODUCT_RETRIEVAL_URL", "")
+PRODUCT_RETRIEVAL_ALLOWED_URLS = tuple(filter(None, os.environ.get("PORTAL_PRODUCT_RETRIEVAL_ALLOWED_URLS", "").split(",")))
+PRODUCT_RETRIEVAL_TOKEN_ENV = os.environ.get("PORTAL_PRODUCT_RETRIEVAL_TOKEN_ENV", "")
+PRODUCT_RETRIEVAL_AUTHORIZATIONS = _product_configuration("PORTAL_PRODUCT_RETRIEVAL_AUTHORIZATIONS")

@@ -1,0 +1,443 @@
+{
+  "family": "technical-solution",
+  "source_sha256": "fe9238c448c6674c71932faf7311a306e1d8e49fac06924ad0ab3d8f4ad3f05b",
+  "compiler_version": 2,
+  "paragraphs": {
+    "paragraph": {
+      "effective": {
+        "spacing": {
+          "after": "120",
+          "line": "360",
+          "lineRule": "auto"
+        },
+        "rFonts": {
+          "cstheme": "minorBidi",
+          "ascii": "Times New Roman",
+          "eastAsia": "宋体",
+          "hAnsi": "Times New Roman"
+        },
+        "sz": {
+          "val": "24"
+        },
+        "szCs": {
+          "val": "22"
+        },
+        "lang": {
+          "val": "en-US",
+          "eastAsia": "zh-CN",
+          "bidi": "ar-SA"
+        },
+        "ind": {
+          "firstLine": "480"
+        },
+        "rPr": {
+          "lang": {
+            "eastAsia": "zh-CN"
+          }
+        }
+      },
+      "source_body_index": 8,
+      "style_id": "",
+      "automatic_numbering": false,
+      "manual_numbering": null
+    },
+    "figure": {
+      "effective": {
+        "spacing": {
+          "after": "120",
+          "line": "360",
+          "lineRule": "auto"
+        },
+        "rFonts": {
+          "cstheme": "minorBidi",
+          "ascii": "Times New Roman",
+          "eastAsia": "宋体",
+          "hAnsi": "Times New Roman"
+        },
+        "sz": {
+          "val": "24"
+        },
+        "szCs": {
+          "val": "22"
+        },
+        "lang": {
+          "val": "en-US",
+          "eastAsia": "zh-CN",
+          "bidi": "ar-SA"
+        },
+        "ind": {
+          "firstLine": "480"
+        },
+        "rPr": {
+          "lang": {
+            "eastAsia": "zh-CN"
+          }
+        }
+      },
+      "source_body_index": 8,
+      "style_id": "",
+      "automatic_numbering": false,
+      "manual_numbering": null
+    },
+    "heading1": {
+      "effective": {
+        "spacing": {
+          "after": "0",
+          "line": "360",
+          "lineRule": "auto",
+          "before": "480"
+        },
+        "rFonts": {
+          "cstheme": "majorBidi",
+          "ascii": "Times New Roman",
+          "eastAsia": "黑体",
+          "hAnsi": "Times New Roman"
+        },
+        "sz": {
+          "val": "32"
+        },
+        "szCs": {
+          "val": "28"
+        },
+        "lang": {
+          "val": "en-US",
+          "eastAsia": "zh-CN",
+          "bidi": "ar-SA"
+        },
+        "keepNext": {},
+        "keepLines": {},
+        "outlineLvl": {
+          "val": "0"
+        },
+        "b": {},
+        "bCs": {},
+        "color": {
+          "val": "000000"
+        },
+        "pStyle": {
+          "val": "1"
+        },
+        "jc": {
+          "val": "center"
+        },
+        "rPr": {
+          "rFonts": {
+            "hint": "eastAsia"
+          },
+          "lang": {
+            "eastAsia": "zh-CN"
+          }
+        }
+      },
+      "source_body_index": 6,
+      "style_id": "1",
+      "automatic_numbering": false,
+      "manual_numbering": "chapter"
+    },
+    "heading2": {
+      "effective": {
+        "spacing": {
+          "after": "0",
+          "line": "360",
+          "lineRule": "auto",
+          "before": "200"
+        },
+        "rFonts": {
+          "cstheme": "majorBidi",
+          "ascii": "Times New Roman",
+          "eastAsia": "黑体",
+          "hAnsi": "Times New Roman"
+        },
+        "sz": {
+          "val": "28"
+        },
+        "szCs": {
+          "val": "26"
+        },
+        "lang": {
+          "val": "en-US",
+          "eastAsia": "zh-CN",
+          "bidi": "ar-SA"
+        },
+        "keepNext": {},
+        "keepLines": {},
+        "outlineLvl": {
+          "val": "1"
+        },
+        "b": {},
+        "bCs": {},
+        "color": {
+          "val": "000000"
+        },
+        "pStyle": {
+          "val": "21"
+        },
+        "rPr": {
+          "lang": {
+            "eastAsia": "zh-CN"
+          }
+        }
+      },
+      "source_body_index": 7,
+      "style_id": "21",
+      "automatic_numbering": false,
+      "manual_numbering": "decimal"
+    },
+    "heading3": {
+      "effective": {
+        "spacing": {
+          "after": "0",
+          "line": "360",
+          "lineRule": "auto",
+          "before": "200"
+        },
+        "rFonts": {
+          "cstheme": "majorBidi",
+          "ascii": "Times New Roman",
+          "eastAsia": "宋体",
+          "hAnsi": "Times New Roman"
+        },
+        "sz": {
+          "val": "24"
+        },
+        "szCs": {
+          "val": "22"
+        },
+        "lang": {
+          "val": "en-US",
+          "eastAsia": "zh-CN",
+          "bidi": "ar-SA"
+        },
+        "keepNext": {},
+        "keepLines": {},
+        "outlineLvl": {
+          "val": "2"
+        },
+        "b": {},
+        "bCs": {},
+        "color": {
+          "val": "000000"
+        },
+        "pStyle": {
+          "val": "31"
+        },
+        "rPr": {
+          "lang": {
+            "eastAsia": "zh-CN"
+          }
+        }
+      },
+      "source_body_index": 12,
+      "style_id": "31",
+      "automatic_numbering": false,
+      "manual_numbering": "decimal"
+    },
+    "caption": {
+      "effective": {
+        "spacing": {
+          "after": "200",
+          "line": "276",
+          "lineRule": "auto"
+        },
+        "rFonts": {
+          "cstheme": "minorBidi",
+          "ascii": "Times New Roman",
+          "eastAsia": "黑体",
+          "hAnsi": "Times New Roman"
+        },
+        "sz": {
+          "val": "21"
+        },
+        "szCs": {
+          "val": "22"
+        },
+        "lang": {
+          "val": "en-US",
+          "eastAsia": "zh-CN",
+          "bidi": "ar-SA"
+        },
+        "jc": {
+          "val": "center"
+        },
+        "rPr": {
+          "lang": {
+            "eastAsia": "zh-CN"
+          }
+        },
+        "b": {}
+      },
+      "source_body_index": 21,
+      "style_id": "",
+      "automatic_numbering": false,
+      "manual_numbering": null
+    },
+    "list": {
+      "effective": {
+        "spacing": {
+          "after": "120",
+          "line": "360",
+          "lineRule": "auto"
+        },
+        "rFonts": {
+          "cstheme": "minorBidi",
+          "ascii": "Times New Roman",
+          "eastAsia": "宋体",
+          "hAnsi": "Times New Roman"
+        },
+        "sz": {
+          "val": "24"
+        },
+        "szCs": {
+          "val": "22"
+        },
+        "lang": {
+          "val": "en-US",
+          "eastAsia": "zh-CN",
+          "bidi": "ar-SA"
+        },
+        "ind": {
+          "firstLine": "480"
+        },
+        "rPr": {
+          "lang": {
+            "eastAsia": "zh-CN"
+          }
+        }
+      },
+      "source_body_index": 8,
+      "style_id": "",
+      "automatic_numbering": false,
+      "manual_numbering": null
+    }
+  },
+  "tables": {
+    "table0": {
+      "columns": 2,
+      "rows": 24,
+      "variable_rows": true,
+      "source_body_index": 22,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table1": {
+      "columns": 2,
+      "rows": 23,
+      "variable_rows": true,
+      "source_body_index": 42,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table2": {
+      "columns": 3,
+      "rows": 6,
+      "variable_rows": true,
+      "source_body_index": 49,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table3": {
+      "columns": 2,
+      "rows": 10,
+      "variable_rows": true,
+      "source_body_index": 115,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table4": {
+      "columns": 2,
+      "rows": 7,
+      "variable_rows": true,
+      "source_body_index": 118,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table5": {
+      "columns": 2,
+      "rows": 6,
+      "variable_rows": true,
+      "source_body_index": 121,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table6": {
+      "columns": 5,
+      "rows": 6,
+      "variable_rows": true,
+      "source_body_index": 133,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table7": {
+      "columns": 4,
+      "rows": 11,
+      "variable_rows": true,
+      "source_body_index": 136,
+      "role": "body",
+      "width_twips": 8352
+    },
+    "table8": {
+      "columns": 4,
+      "rows": 14,
+      "variable_rows": true,
+      "source_body_index": 177,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table9": {
+      "columns": 2,
+      "rows": 7,
+      "variable_rows": true,
+      "source_body_index": 241,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table10": {
+      "columns": 3,
+      "rows": 6,
+      "variable_rows": true,
+      "source_body_index": 244,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table11": {
+      "columns": 3,
+      "rows": 6,
+      "variable_rows": true,
+      "source_body_index": 252,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table12": {
+      "columns": 3,
+      "rows": 9,
+      "variable_rows": true,
+      "source_body_index": 279,
+      "role": "body",
+      "width_twips": 8842
+    },
+    "table13": {
+      "columns": 4,
+      "rows": 11,
+      "variable_rows": true,
+      "source_body_index": 810,
+      "role": "body",
+      "width_twips": 8842
+    }
+  },
+  "limitations": [
+    "No source list prototype: explicit textual list markers use body paragraph formatting.",
+    "Source prose, figures, contacts, metadata and cached TOC results removed; header text neutralized.",
+    "Source section variants retained in prototypes, not replayed at old content offsets.",
+    "No claim of original page count or cross-renderer pixel identity."
+  ],
+  "sections": 1,
+  "default_section": 0,
+  "toc": true,
+  "template_sha256": "d0abeec68f4f9aafd23d32619bfdcb5fc1b8c8b59206b020915a179752041730",
+  "prototypes_sha256": "7a84052daba89cd4112a65059a4846fd84bd51f94f7d4d47bbd968b4cb5bd5b4",
+  "preserved_parts": [
+    "word/theme/theme1.xml"
+  ],
+  "prototypes_format": "shared-xml-v2",
+  "prototypes_expanded_sha256": "7a0a03148666124e67d23b9f4cafd78ae7b5f746f857b98e313763cd8e9789ef"
+}

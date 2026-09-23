@@ -1,11 +1,13 @@
 import hashlib
 import hmac
 import json
-import re
 import secrets
+from http.client import HTTPException
 from threading import BoundedSemaphore
+from time import monotonic
 from datetime import timedelta
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from django.conf import settings
@@ -72,8 +74,10 @@ def redeem(request):
         return JsonResponse({"detail": "服务端身份校验失败。"}, status=403)
     try:
         body = json.loads(request.body)
+        if not isinstance(body, dict) or set(body) != {"ticket", "audience", "purpose"}:
+            raise ValueError
         token = body.get("ticket")
-        if not isinstance(token, str) or len(token) > 128 or body.get("audience") != "business" or body.get("purpose") != "read_summary":
+        if not isinstance(token, str) or not token or len(token) > 128 or body.get("audience") != "business" or body.get("purpose") != "read_summary":
             raise ValueError
     except (ValueError, AttributeError, UnicodeDecodeError):
         return JsonResponse({"detail": "兑换请求无效。"}, status=400)
@@ -94,7 +98,7 @@ def redeem(request):
 def validate_summary(data):
     if not isinstance(data, dict) or set(data) != {"projects", "summary", "source", "updated_at"}:
         raise ValueError("response schema")
-    if not isinstance(data["source"], str) or not data["source"] or len(data["source"]) > 100:
+    if data["source"] != "legacy-ledger:authorized-projects":
         raise ValueError("source")
     updated_at = parse_datetime(data["updated_at"]) if isinstance(data["updated_at"], str) else None
     if updated_at is None or timezone.is_naive(updated_at):
@@ -106,14 +110,11 @@ def validate_summary(data):
                 or not isinstance(project["id"], (str, int)) or isinstance(project["id"], bool)
                 or not isinstance(project["name"], str) or len(project["name"]) > 200):
             raise ValueError("project")
-    if not isinstance(data["summary"], dict) or not set(data["summary"]).issubset({"project_count", "contract_amount", "received_amount", "receivable_amount"}):
+    if not isinstance(data["summary"], dict) or set(data["summary"]) != {"project_count"}:
         raise ValueError("summary")
-    for key, value in data["summary"].items():
-        if key == "project_count":
-            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-                raise ValueError("project count")
-        elif not isinstance(value, str) or not re.fullmatch(r"-?\d{1,20}(?:\.\d{1,2})?", value):
-            raise ValueError("summary value")
+    count = data["summary"]["project_count"]
+    if not isinstance(count, int) or isinstance(count, bool) or count != len(data["projects"]):
+        raise ValueError("project count")
     return data
 
 
@@ -126,25 +127,37 @@ def summary(request):
         return Response({"detail": "可信身份与只读数据接入尚未启用；导航入口仍保留原系统登录。", "code": "integration_not_configured"}, status=503)
     try:
         validate_module_url(settings.BUSINESS_SUMMARY_URL)
-        token = issue_ticket(request.user)
-    except PermissionError as error:
-        audit(request.user, "business_read", "business", "mapping_denied")
-        return Response({"detail": str(error)}, status=403)
+        target = urlsplit(settings.BUSINESS_SUMMARY_URL)
+        if target.path != "/api/portal-bridge/summary/" or target.query or target.fragment:
+            raise ValidationError("Unapproved bridge endpoint")
     except ValidationError:
         return Response({"detail": "经营服务端目标未获信任。"}, status=503)
-    upstream = Request(settings.BUSINESS_SUMMARY_URL, method="POST",
-        data=json.dumps({"ticket": token, "audience": "business", "purpose": "read_summary"}).encode(),
-        headers={"Content-Type": "application/json", "Authorization": "Bearer " + settings.INTEGRATION_SECRET})
     if not summary_slots.acquire(blocking=False):
         audit(request.user, "business_read", "business", "busy")
         return Response({"detail": "经营查询繁忙，请稍后重试。"}, status=503)
     try:
+        try:
+            token = issue_ticket(request.user)
+        except PermissionError as error:
+            audit(request.user, "business_read", "business", "mapping_denied")
+            return Response({"detail": str(error)}, status=403)
+        upstream = Request(settings.BUSINESS_SUMMARY_URL, method="POST",
+            data=json.dumps({"ticket": token, "audience": "business", "purpose": "read_summary"}).encode(),
+            headers={"Content-Type": "application/json", "Authorization": "Bearer " + settings.INTEGRATION_SECRET})
+        deadline = monotonic() + 3
         with open_fixed(upstream) as response:
             if response.status != 200:
                 raise ValueError("upstream status")
-            raw = response.read(262145)
-            if len(raw) > 262144:
-                raise ValueError("response too large")
+            raw = bytearray()
+            while True:
+                if monotonic() >= deadline:
+                    raise TimeoutError("upstream response deadline exceeded")
+                chunk = response.read1(min(65536, 262145 - len(raw)))
+                if not chunk:
+                    break
+                raw.extend(chunk)
+                if len(raw) > 262144:
+                    raise ValueError("response too large")
             data = validate_summary(json.loads(raw))
         ticket = IntegrationTicket.objects.select_related("user", "mapping").get(digest=hashlib.sha256(token.encode()).hexdigest())
         if not ticket.consumed_at or not current_ticket_authorized(ticket):
@@ -155,7 +168,7 @@ def summary(request):
     except HTTPError as error:
         audit(request.user, "business_read", "business", "upstream_denied" if error.code == 403 else "upstream_error")
         return Response({"detail": "原系统拒绝访问或暂不可用。"}, status=403 if error.code == 403 else 503)
-    except (URLError, OSError, ValueError, TypeError, UnicodeDecodeError):
+    except (HTTPException, URLError, OSError, ValueError, TypeError, UnicodeDecodeError):
         audit(request.user, "business_read", "business", "upstream_error")
         return Response({"detail": "原系统离线、超时或返回无效数据；未使用缓存或替代数据。"}, status=503)
     finally:

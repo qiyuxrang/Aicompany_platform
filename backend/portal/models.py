@@ -43,6 +43,59 @@ class Module(models.Model):
         return self.name
 
 
+class ModuleCheck(models.Model):
+    class State(models.TextChoices):
+        REACHABLE = "reachable", "可访问"
+        UNAVAILABLE = "unavailable", "不可访问"
+        NOT_CONFIGURED = "not_configured", "未配置"
+        DISABLED = "disabled", "已停用"
+        ERROR = "error", "检查异常"
+
+    module = models.OneToOneField(Module, primary_key=True, on_delete=models.CASCADE, related_name="latest_check")
+    state = models.CharField(max_length=20, choices=State)
+    checked_at = models.DateTimeField()
+    next_check_at = models.DateTimeField()
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    message = models.CharField(max_length=200)
+    config_digest = models.CharField(max_length=64)
+
+
+class OperationalIssue(models.Model):
+    class Severity(models.TextChoices):
+        WARNING = "warning", "警告"
+        CRITICAL = "critical", "严重"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "待处理"
+        INVESTIGATING = "investigating", "处理中"
+        CLOSED = "closed", "已人工关闭"
+        RECOVERED = "recovered", "已恢复"
+
+    module = models.OneToOneField(Module, on_delete=models.CASCADE, related_name="operational_issue")
+    severity = models.CharField(max_length=20, choices=Severity)
+    title = models.CharField(max_length=120)
+    status = models.CharField(max_length=20, choices=Status, default=Status.OPEN)
+    first_seen = models.DateTimeField()
+    last_seen = models.DateTimeField()
+    occurrences = models.PositiveIntegerField(default=1)
+    evidence = models.CharField(max_length=200)
+    checked_at = models.DateTimeField()
+    notes = models.JSONField(default=list)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    recovered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-last_seen", "-id"]
+        indexes = [
+            models.Index(fields=["status", "last_seen"], name="portal_issue_status_time"),
+            models.Index(fields=["severity", "last_seen"], name="portal_issue_sev_time"),
+        ]
+
+    @property
+    def health_state(self):
+        return "recovered" if self.recovered_at and self.recovered_at >= self.last_seen else "unresolved"
+
+
 class Role(models.Model):
     code = models.SlugField(unique=True)
     name = models.CharField("角色", max_length=80)
@@ -113,6 +166,10 @@ class AuditEvent(models.Model):
 
     class Meta:
         ordering = ["-id"]
+        indexes = [
+            models.Index(fields=["action", "result", "created_at"], name="portal_audit_act_res_time"),
+            models.Index(fields=["actor", "created_at"], name="portal_audit_actor_time"),
+        ]
 
 
 class LoginAttempt(models.Model):
@@ -141,3 +198,9 @@ class IntegrationTicket(models.Model):
     purpose = models.CharField(max_length=50, default="read_summary")
     expires_at = models.DateTimeField()
     consumed_at = models.DateTimeField(null=True)
+
+
+from .model_config import GatewayModel, ModelCallLog, ModelRoute, Provider
+from .product_models import (DocumentApproval, DocumentArtifact, DocumentAttempt,
+                             DocumentRevision, DocumentSource, DocumentTask, DocumentReviewPolicy)
+from .hr_models import HrJobRevision, HrJobTask, ProbationCase, ProbationTransition

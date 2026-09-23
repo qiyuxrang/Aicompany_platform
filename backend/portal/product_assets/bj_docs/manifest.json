@@ -1,0 +1,104 @@
+{
+  "schema": "BJ_PRODUCT_BJ_DOCS_FREEZE_V1",
+  "usage": "isolated_draft_only",
+  "formal_business_confirmation": "blocked",
+  "company_samples_copied": false,
+  "source": {
+    "repo": "C:\\Git_projects\\bj_device_company",
+    "head": "f4f5a92d6415910e244e90ebadc7c3e39fb910c6",
+    "branch": "feat/company-server-foundation",
+    "dirty": true,
+    "dirty_counts": {
+      "modified": 35,
+      "untracked": 125
+    },
+    "dirty_source_paths": [
+      "skills/bj-docs/scripts/artifacts.py",
+      "skills/bj-docs/scripts/contract.py",
+      "skills/bj-docs/scripts/ooxml.py",
+      "skills/bj-docs/scripts/handoff.py",
+      "skills/bj-docs/scripts/strict_json.py",
+      "skills/bj-docs/scripts/office_render.py"
+    ]
+  },
+  "runtime": {
+    "python": "3.12.x",
+    "lxml": "6.0.2",
+    "python_docx": "1.2.0",
+    "pymupdf": "1.26.4",
+    "pywin32": "311",
+    "network_or_model_calls": false
+  },
+  "files": [
+    {
+      "path": "assets/technical-solution/template.docx",
+      "source": "skills/bj-docs/assets/technical-solution/template.docx",
+      "sha256": "d0abeec68f4f9aafd23d32619bfdcb5fc1b8c8b59206b020915a179752041730",
+      "bytes": 25277,
+      "source_status": "clean"
+    },
+    {
+      "path": "assets/technical-solution/profile.json",
+      "source": "skills/bj-docs/assets/technical-solution/profile.json",
+      "sha256": "b50065ecd48b4ded36a8a30cfe695385f80ef7f82bc4f7fa70e8ae343a3d4d86",
+      "bytes": 10352,
+      "source_status": "clean"
+    },
+    {
+      "path": "assets/technical-solution/prototypes.xml",
+      "source": "skills/bj-docs/assets/technical-solution/prototypes.xml",
+      "sha256": "7a84052daba89cd4112a65059a4846fd84bd51f94f7d4d47bbd968b4cb5bd5b4",
+      "bytes": 87203,
+      "source_status": "clean"
+    },
+    {
+      "path": "scripts/artifacts.py",
+      "source": "skills/bj-docs/scripts/artifacts.py",
+      "sha256": "7057f8055cc9b4045af6d1e6fe1f2716d4927c59e7a3f8b1ef1b2e4cdf2cc146",
+      "bytes": 15302,
+      "source_status": " M skills/bj-docs/scripts/artifacts.py"
+    },
+    {
+      "path": "scripts/contract.py",
+      "source": "skills/bj-docs/scripts/contract.py",
+      "sha256": "a559c5e74327ffed6f2bd3d59a6d6b0fbde56ee723b0646109d1bca768673e0f",
+      "bytes": 6033,
+      "source_status": " M skills/bj-docs/scripts/contract.py"
+    },
+    {
+      "path": "scripts/ooxml.py",
+      "source": "skills/bj-docs/scripts/ooxml.py",
+      "sha256": "9f900bd8c92e6af34916948a938fc3bdfaa431baec186350f176a0cb30b103c4",
+      "bytes": 12569,
+      "source_status": " M skills/bj-docs/scripts/ooxml.py"
+    },
+    {
+      "path": "scripts/prototypes.py",
+      "source": "skills/bj-docs/scripts/prototypes.py",
+      "sha256": "f42da4d1ffaa2a1e4c4b1a39526d0cf71dcd9eb447da969baf005f8567237ef8",
+      "bytes": 7707,
+      "source_status": "clean"
+    },
+    {
+      "path": "scripts/handoff.py",
+      "source": "skills/bj-docs/scripts/handoff.py",
+      "sha256": "174d8d05f5043aedb1577944ac7da55ef0ee83ac0e33f04bee74590dd14b2695",
+      "bytes": 5735,
+      "source_status": "?? skills/bj-docs/scripts/handoff.py"
+    },
+    {
+      "path": "scripts/strict_json.py",
+      "source": "skills/bj-docs/scripts/strict_json.py",
+      "sha256": "33b62e0178763225a9ef51dc6b6e5619ecfc28e6ea556d6ae1ddcb5fac08244e",
+      "bytes": 1004,
+      "source_status": "?? skills/bj-docs/scripts/strict_json.py"
+    },
+    {
+      "path": "scripts/office_render.py",
+      "source": "skills/bj-docs/scripts/office_render.py",
+      "sha256": "d0e079b76c79a55f3aa6a33a8402defb3ea5e381588c84738e955b20ad5cee97",
+      "bytes": 11113,
+      "source_status": " M skills/bj-docs/scripts/office_render.py"
+    }
+  ]
+}

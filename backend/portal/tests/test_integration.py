@@ -1,5 +1,6 @@
 import hashlib
 import json
+from http.client import BadStatusLine, IncompleteRead
 from datetime import timedelta
 from urllib.error import HTTPError
 from unittest.mock import patch
@@ -15,7 +16,7 @@ from .base import PortalTestCase
 
 
 INTEGRATION_SECRET = "integration-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-SUMMARY_URL = "https://business.example/api/summary"
+SUMMARY_URL = "https://business.example/api/portal-bridge/summary/"
 
 
 @override_settings(
@@ -48,6 +49,15 @@ class IntegrationTestCase(PortalTestCase):
 
 
 class TicketIssuanceTests(IntegrationTestCase):
+    def test_redemption_rejects_extra_identity_fields_without_consuming_ticket(self):
+        token = issue_ticket(self.user)
+        response = self.client.post("/api/integration/redeem/", data=json.dumps({
+            "ticket": token, "audience": "business", "purpose": "read_summary", "user_id": 999,
+        }), content_type="application/json", HTTP_AUTHORIZATION="Bearer " + INTEGRATION_SECRET)
+        self.assertEqual(response.status_code, 400)
+        self.assertIsNone(IntegrationTicket.objects.get().consumed_at)
+        self.assertEqual(self.redeem(token).status_code, 200)
+
     def test_issue_ticket_binds_mapping_version_and_stores_only_digest(self):
         token = issue_ticket(self.user)
 
@@ -261,6 +271,10 @@ class FakeUpstreamResponse:
     def read(self, limit):
         return self.payload
 
+    def read1(self, limit):
+        chunk, self.payload = self.payload[:limit], self.payload[limit:]
+        return chunk
+
 
 class PortalBusinessProtocolTests(IntegrationTestCase):
     """Synthetic portal-side protocol tests; these do not validate a real business system."""
@@ -274,11 +288,8 @@ class PortalBusinessProtocolTests(IntegrationTestCase):
             "projects": [{"id": "P-1", "name": "只读示例项目"}],
             "summary": {
                 "project_count": 1,
-                "contract_amount": "100.00",
-                "received_amount": "40",
-                "receivable_amount": "60.0",
             },
-            "source": "mocked-contract",
+            "source": "legacy-ledger:authorized-projects",
             "updated_at": timezone.now().isoformat(),
         }
 
@@ -305,12 +316,41 @@ class PortalBusinessProtocolTests(IntegrationTestCase):
             "Bearer " + INTEGRATION_SECRET,
         )
 
-    @patch("portal.integration.open_fixed", side_effect=TimeoutError)
-    def test_mocked_timeout_is_classified_as_upstream_unavailable(self, open_fixed):
-        response = self.client.get("/api/business/summary/")
+    @patch("portal.integration.open_fixed")
+    def test_mocked_transport_failures_are_classified_as_upstream_unavailable(self, open_fixed):
+        for error in (TimeoutError(), BadStatusLine("invalid"), IncompleteRead(b"")):
+            with self.subTest(error=type(error).__name__):
+                open_fixed.side_effect = error
+                response = self.client.get("/api/business/summary/")
+                self.assertEqual(response.status_code, 503)
+                self.assertIn("离线、超时或返回无效数据", response.json()["detail"])
 
-        self.assertEqual(response.status_code, 503)
-        self.assertIn("离线、超时或返回无效数据", response.json()["detail"])
+    @patch("portal.integration.open_fixed")
+    def test_only_approved_endpoint_receives_credentials(self, open_fixed):
+        for target in ("https://business.example/api/other/", SUMMARY_URL + "?next=other", SUMMARY_URL + "#other"):
+            with self.subTest(target=target), override_settings(BUSINESS_SUMMARY_URL=target):
+                self.assertEqual(self.client.get("/api/business/summary/").status_code, 503)
+        open_fixed.assert_not_called()
+        self.assertFalse(IntegrationTicket.objects.exists())
+
+    @patch("portal.integration.open_fixed")
+    def test_mapping_denial_releases_slot_without_issuing_tickets(self, open_fixed):
+        self.mapping.enabled = False
+        self.mapping.save()
+        for attempt in range(3):
+            self.assertEqual(self.client.get("/api/business/summary/").status_code, 403)
+        self.assertFalse(IntegrationTicket.objects.exists())
+        open_fixed.assert_not_called()
+
+    @patch("portal.integration.monotonic", side_effect=[0, 0, 4])
+    @patch("portal.integration.open_fixed")
+    def test_continuous_body_cannot_hold_a_summary_slot(self, open_fixed, clock):
+        open_fixed.return_value = FakeUpstreamResponse(b"x")
+        self.assertEqual(self.client.get("/api/business/summary/").status_code, 503)
+        self.assertTrue(integration.summary_slots.acquire(blocking=False))
+        self.assertTrue(integration.summary_slots.acquire(blocking=False))
+        integration.summary_slots.release()
+        integration.summary_slots.release()
 
     @patch("portal.integration.open_fixed")
     def test_synthetic_full_summary_slots_reject_without_upstream_wait(self, open_fixed):
@@ -325,6 +365,7 @@ class PortalBusinessProtocolTests(IntegrationTestCase):
             self.assertEqual(response.status_code, 503)
             self.assertIn("繁忙", response.json()["detail"])
             open_fixed.assert_not_called()
+            self.assertFalse(IntegrationTicket.objects.exists())
             self.assertTrue(
                 AuditEvent.objects.filter(
                     actor=self.user,
@@ -417,11 +458,8 @@ class SummarySchemaTests(PortalTestCase):
             "projects": [{"id": 1, "name": "项目"}],
             "summary": {
                 "project_count": 1,
-                "contract_amount": "123.45",
-                "received_amount": "23",
-                "receivable_amount": "100.45",
             },
-            "source": "mocked-unit-contract",
+            "source": "legacy-ledger:authorized-projects",
             "updated_at": "2026-09-20T10:00:00+08:00",
         }
 
@@ -430,7 +468,12 @@ class SummarySchemaTests(PortalTestCase):
 
         self.assertIs(validate_summary(contract), contract)
 
-    def test_amounts_must_be_plain_decimal_strings(self):
+    def test_source_and_complete_count_are_required(self):
+        for changes in ({"source": "other"}, {"summary": {}}, {"summary": {"project_count": 1, "extra": 0}}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                validate_summary({**self.valid_contract(), **changes})
+
+    def test_financial_fields_are_outside_approved_contract(self):
         invalid_values = (1, 1.5, True, "1e3", "1.234", "NaN", "")
         for key in ("contract_amount", "received_amount", "receivable_amount"):
             for value in invalid_values:
@@ -441,7 +484,7 @@ class SummarySchemaTests(PortalTestCase):
                         validate_summary(contract)
 
     def test_project_count_must_be_a_non_negative_integer(self):
-        for value in (-1, True, 1.0, "1"):
+        for value in (-1, True, 1.0, "1", 0, 2):
             with self.subTest(value=value):
                 contract = self.valid_contract()
                 contract["summary"]["project_count"] = value
@@ -454,4 +497,4 @@ class SummarySchemaTests(PortalTestCase):
                 contract = self.valid_contract()
                 contract["updated_at"] = value
                 with self.assertRaises(ValueError):
-                    validate_summary(contract)
+                        validate_summary(contract)

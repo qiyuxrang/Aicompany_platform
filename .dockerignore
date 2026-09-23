@@ -3,6 +3,10 @@
 !uv.lock
 !backend/
 !backend/**
+!model_gateway/
+!model_gateway/**
+model_gateway/tests/
+model_gateway/.env*
 !frontend/
 !frontend/package.json
 !frontend/pnpm-lock.yaml
