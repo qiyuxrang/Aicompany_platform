@@ -7,6 +7,7 @@ recorded as blocked while the independent manual-content path continues.
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -90,12 +91,13 @@ def main():
     call_command("migrate", interactive=False, verbosity=0)
     call_command("seed_portal", verbosity=0)
     role = Role.objects.get(code="product")
+    password = secrets.token_urlsafe(32)
     owner = User.objects.create_user(
-        username="p1_tech_owner", password="Representative-only-password-2026!",
+        username="p1_tech_owner", password=password,
         display_name="P1 技术方案代表性输入所有人", must_change_password=False,
     )
     reviewer = User.objects.create_user(
-        username="p1_tech_reviewer", password="Representative-only-password-2026!",
+        username="p1_tech_reviewer", password=password,
         display_name="P1 技术方案代表性输入审核人", must_change_password=False,
     )
     owner.roles.add(role)
@@ -103,11 +105,11 @@ def main():
     settings.PRODUCT_REVIEWER_IDS = (reviewer.pk,)
     owner_client, reviewer_client = Client(), Client()
     expect(owner_client.post(
-        "/api/login/", data=json.dumps({"username": owner.username, "password": "Representative-only-password-2026!"}),
+        "/api/login/", data=json.dumps({"username": owner.username, "password": password}),
         content_type="application/json",
     ), 200)
     expect(reviewer_client.post(
-        "/api/login/", data=json.dumps({"username": reviewer.username, "password": "Representative-only-password-2026!"}),
+        "/api/login/", data=json.dumps({"username": reviewer.username, "password": password}),
         content_type="application/json",
     ), 200)
 

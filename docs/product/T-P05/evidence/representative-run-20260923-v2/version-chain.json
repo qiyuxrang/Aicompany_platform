@@ -1,0 +1,443 @@
+{
+  "recorded_at": "2026-09-23T11:14:02.339791+00:00",
+  "authority": "docs/SPEC.md",
+  "boundary": {
+    "database": ".runtime\\product-p1-tech-20260923-v2.sqlite3",
+    "storage": ".runtime\\product-p1-tech-private-20260923-v2",
+    "representative_input_only": true,
+    "formal_database_modified": false,
+    "real_customer_data_used": false,
+    "mock_model_used": false,
+    "mock_ragflow_used": false
+  },
+  "external_dependencies": {
+    "ragflow": {
+      "status": "BLOCKED_NOT_CONFIGURED",
+      "probe_state": "WAITING_INPUT",
+      "error_code": "retrieval_disabled"
+    },
+    "model": {
+      "status": "NOT_VERIFIED_NOT_CONFIGURED",
+      "calls": 0
+    }
+  },
+  "task": {
+    "id": "6220ed44-7ccc-44eb-ac06-30edbfdd4a40",
+    "state": "WAITING_REVIEW",
+    "stage": "FINAL_REVIEW",
+    "version": 17
+  },
+  "sources": [
+    {
+      "id": "5cd7c60d-6b6a-4a76-8769-e00af2e0c58b",
+      "name": "代表性需求说明.txt",
+      "sha256": "ab52ed6213a939c73439b21b622c2824927bee1b111e3399fad6d1334554472d",
+      "size": 178,
+      "parsed": {
+        "background": "代表性项目要求部署2台安全接入网关和1套集中审计节点。\r\n计划实施窗口为2026-10-15至2026-10-18。\r\n核心业务连续性要求是不停机切换。\r\n"
+      }
+    },
+    {
+      "id": "9cefbf94-75ec-4fb3-846e-c2a535788c33",
+      "name": "代表性现网约束.txt",
+      "sha256": "88653b16e6c51f431c6cf6cd8b8cc991d80babb7917562fc0ad8cfe4e06104cd",
+      "size": 192,
+      "parsed": {
+        "background": "代表性现网边界由双链路组成。\r\n运维责任人和最终IP地址尚未确认。\r\n日志留存要求一处记载为180天，另一处记载为不少于6个月，口径待统一。\r\n"
+      }
+    }
+  ],
+  "representative_input_files": [
+    {
+      "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/inputs/代表性需求说明.txt",
+      "sha256": "ab52ed6213a939c73439b21b622c2824927bee1b111e3399fad6d1334554472d",
+      "bytes": 178
+    },
+    {
+      "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/inputs/代表性现网约束.txt",
+      "sha256": "88653b16e6c51f431c6cf6cd8b8cc991d80babb7917562fc0ad8cfe4e06104cd",
+      "bytes": 192
+    }
+  ],
+  "statements": [
+    {
+      "category": "fact",
+      "text": "资料明确要求部署2台安全接入网关和1套集中审计节点。",
+      "source_ids": [
+        "5cd7c60d-6b6a-4a76-8769-e00af2e0c58b"
+      ],
+      "actor_id": 1
+    },
+    {
+      "category": "inference",
+      "text": "基于双链路和不停机约束，建议并行建设并分步切换；该内容属于方案推断。",
+      "source_ids": [
+        "5cd7c60d-6b6a-4a76-8769-e00af2e0c58b",
+        "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+      ],
+      "actor_id": 1
+    },
+    {
+      "category": "conflict",
+      "text": "日志留存存在180天与不少于6个月两种口径，正式实施前须统一。",
+      "source_ids": [
+        "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+      ],
+      "actor_id": 1
+    },
+    {
+      "category": "missing",
+      "text": "运维责任人和最终IP地址未提供，当前不得补造。",
+      "source_ids": [
+        "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+      ],
+      "actor_id": 1
+    }
+  ],
+  "issue_history": [
+    {
+      "issue_hash": "0d40360432e3a4b425a147c66da5a7e0245e8ccfa16499437ea1024d1d74b730",
+      "category": "fact",
+      "reason": "审核确认分类和引用来源正确；冲突或缺项仅确认存在，不代表已解决。",
+      "source_ids": [
+        "5cd7c60d-6b6a-4a76-8769-e00af2e0c58b"
+      ],
+      "issue": {
+        "code": "statement_review_required",
+        "category": "fact",
+        "text": "资料明确要求部署2台安全接入网关和1套集中审计节点。",
+        "source_ids": [
+          "5cd7c60d-6b6a-4a76-8769-e00af2e0c58b"
+        ],
+        "actor_id": 1
+      },
+      "actor_id": 2,
+      "input_hash": "875592580143f51bc37bff49fba7d9d93d45f11010df321a24460e5835af8142",
+      "input_version": 7
+    },
+    {
+      "issue_hash": "0f43d55b326da98951f943b2ab81bb7d1372770a3f87c9e7862296032be3511a",
+      "category": "inference",
+      "reason": "审核确认分类和引用来源正确；冲突或缺项仅确认存在，不代表已解决。",
+      "source_ids": [
+        "5cd7c60d-6b6a-4a76-8769-e00af2e0c58b",
+        "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+      ],
+      "issue": {
+        "code": "statement_review_required",
+        "category": "inference",
+        "text": "基于双链路和不停机约束，建议并行建设并分步切换；该内容属于方案推断。",
+        "source_ids": [
+          "5cd7c60d-6b6a-4a76-8769-e00af2e0c58b",
+          "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+        ],
+        "actor_id": 1
+      },
+      "actor_id": 2,
+      "input_hash": "875592580143f51bc37bff49fba7d9d93d45f11010df321a24460e5835af8142",
+      "input_version": 7
+    },
+    {
+      "issue_hash": "d0852c530a2712bdb15362fe892d964407dfa7a977391dcabb726745a68eb310",
+      "category": "conflict",
+      "reason": "审核确认分类和引用来源正确；冲突或缺项仅确认存在，不代表已解决。",
+      "source_ids": [
+        "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+      ],
+      "issue": {
+        "code": "statement_review_required",
+        "category": "conflict",
+        "text": "日志留存存在180天与不少于6个月两种口径，正式实施前须统一。",
+        "source_ids": [
+          "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+        ],
+        "actor_id": 1
+      },
+      "actor_id": 2,
+      "input_hash": "875592580143f51bc37bff49fba7d9d93d45f11010df321a24460e5835af8142",
+      "input_version": 7
+    },
+    {
+      "issue_hash": "f846ede5fc76f6358a80baea1628e93a608be4c6b878332b81c775e759bd2f9b",
+      "category": "missing",
+      "reason": "审核确认分类和引用来源正确；冲突或缺项仅确认存在，不代表已解决。",
+      "source_ids": [
+        "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+      ],
+      "issue": {
+        "code": "statement_review_required",
+        "category": "missing",
+        "text": "运维责任人和最终IP地址未提供，当前不得补造。",
+        "source_ids": [
+          "9cefbf94-75ec-4fb3-846e-c2a535788c33"
+        ],
+        "actor_id": 1
+      },
+      "actor_id": 2,
+      "input_hash": "875592580143f51bc37bff49fba7d9d93d45f11010df321a24460e5835af8142",
+      "input_version": 7
+    }
+  ],
+  "versions": [
+    {
+      "id": "184ebfaf-a1dc-4859-8df1-bd854a90cf8a",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 1,
+      "sha256": "a5779efed702a1718a80005ccbf187b970652c26dc7ea4b4c07e8f950efc3e96",
+      "input_hash": "",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "a6410b45-48fe-4f23-b61c-7dd4bb6640ed",
+      "kind": "blueprint",
+      "family": "technical-solution",
+      "version": 1,
+      "sha256": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19",
+      "input_hash": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "4fa73cac-8d96-4773-9181-ee7fc34fc0a2",
+      "kind": "chapter",
+      "family": "technical-solution",
+      "version": 1,
+      "sha256": "79638e840e979a01439909c4b846eed59dcd060289f28f2f5796f71bdd01fb41",
+      "input_hash": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+      "blueprint_hash": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19"
+    },
+    {
+      "id": "4e508397-ca16-4aec-84a5-6a4223396412",
+      "kind": "review",
+      "family": "technical-solution",
+      "version": 1,
+      "sha256": "781e2d99d906c52aa5d6338911476e7d496db645a95183b3dd73c287eb730802",
+      "input_hash": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+      "blueprint_hash": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19"
+    },
+    {
+      "id": "e94b5cc2-c8c2-4c12-8c73-0bb23d11c522",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 2,
+      "sha256": "b93c73a6b83e4546fe4d3bbab84501906c189e6a317c1c8851a5a93bf92f251d",
+      "input_hash": "",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "4f07e49a-5d7e-42f1-b67d-8f36775e7935",
+      "kind": "chapter",
+      "family": "technical-solution",
+      "version": 2,
+      "sha256": "98f75297dc9faf9c83497b4311035bf666bddb2bdc8a3ec8f99a1f9602222d64",
+      "input_hash": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+      "blueprint_hash": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19"
+    },
+    {
+      "id": "29cff5b9-5171-496b-b7ce-878be0305b33",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 3,
+      "sha256": "b73604884d26e26e1ffb09905a17fca75bb220623f0610555e50370ad4cda455",
+      "input_hash": "",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "ce39464e-cfc1-4883-8257-b7f892a78ca1",
+      "kind": "chapter",
+      "family": "technical-solution",
+      "version": 3,
+      "sha256": "1324242c4cbf74b2164e09b9d0c33c7425a6eba204a23303edb3d3148e742321",
+      "input_hash": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+      "blueprint_hash": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19"
+    },
+    {
+      "id": "e10875d0-1ac9-4e1f-880e-140c11d16170",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 4,
+      "sha256": "fc80e2971a7da77da7692b338813086854fab8de8bda1d4a0b10324f449cf816",
+      "input_hash": "",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "1317e0c8-9593-454f-b5d6-5ae7fab0acd3",
+      "kind": "chapter",
+      "family": "technical-solution",
+      "version": 4,
+      "sha256": "3119307cb493b1d63f5c2bb0497fd9373e8b83f8479c4269577e7089b2695c32",
+      "input_hash": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+      "blueprint_hash": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19"
+    },
+    {
+      "id": "e537154e-0f85-4061-baa9-68fa6048eee1",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 5,
+      "sha256": "0eb77db1e4528958941f5487e7604be17c1ec9ee87cbf2f86b5bbb41c171fde1",
+      "input_hash": "",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "14f9cda7-14e4-438c-9f7c-c8a66d4f6b60",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 6,
+      "sha256": "7b15b1447833fe72751549d70e97a51a4be4658cd6ef7e1b12fcf10fabb7a6a6",
+      "input_hash": "",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "663cae21-8767-4554-8214-1ca757c04fbb",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 7,
+      "sha256": "875592580143f51bc37bff49fba7d9d93d45f11010df321a24460e5835af8142",
+      "input_hash": "",
+      "blueprint_hash": ""
+    },
+    {
+      "id": "6c90f78e-1f47-4b22-af44-72df103f85e2",
+      "kind": "input",
+      "family": "technical-solution",
+      "version": 8,
+      "sha256": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+      "input_hash": "",
+      "blueprint_hash": ""
+    }
+  ],
+  "blueprint_approval": {
+    "id": "165f0c94-205f-4f27-88d5-dc666b6c747f",
+    "revision_id": "a6410b45-48fe-4f23-b61c-7dd4bb6640ed",
+    "actor_id": 2,
+    "decision": "approve",
+    "sha256": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19",
+    "authorization": {
+      "owner_grant_version": 2,
+      "actor_grant_version": 2,
+      "policy_version": 1,
+      "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+    }
+  },
+  "review": {
+    "id": "4e508397-ca16-4aec-84a5-6a4223396412",
+    "sha256": "781e2d99d906c52aa5d6338911476e7d496db645a95183b3dd73c287eb730802",
+    "payload": {
+      "passed": false,
+      "issues": [
+        {
+          "code": "unresolved_blueprint_items"
+        }
+      ],
+      "program_checks_complete": true,
+      "model_review": {
+        "status": "not_run"
+      },
+      "human_review": "required",
+      "chapter_hashes": {
+        "project-understanding": "79638e840e979a01439909c4b846eed59dcd060289f28f2f5796f71bdd01fb41",
+        "overall-design": "98f75297dc9faf9c83497b4311035bf666bddb2bdc8a3ec8f99a1f9602222d64",
+        "implementation-plan": "1324242c4cbf74b2164e09b9d0c33c7425a6eba204a23303edb3d3148e742321",
+        "acceptance-control": "3119307cb493b1d63f5c2bb0497fd9373e8b83f8479c4269577e7089b2695c32"
+      }
+    }
+  },
+  "worker_attempt": {
+    "id": "d34f5203-7d0b-469d-9da6-eb706307c8cb",
+    "action": "render",
+    "status": "done",
+    "model_calls": 0,
+    "fence": 9,
+    "error_code": ""
+  },
+  "artifact": {
+    "id": "b675a2b6-e467-4a0b-9e60-7ace926f4154",
+    "version": 1,
+    "path": "6220ed44-7ccc-44eb-ac06-30edbfdd4a40/artifacts/a8845e65a59940f498810713e38f9f5d/draft.docx",
+    "sha256": "d189d956a7f7d8402e3f44221f532276d24e3d215b1f4e0f5715009b514abcba",
+    "input_hash": "0a33d4d06f21f64997558594f02026330c7fef81c6568e59bce5386dcac9c3c9",
+    "blueprint_hash": "7695c36328936977c183d00049c16d2f854fb3e422eced717916fb0b69d1ac19",
+    "review_id": "4e508397-ca16-4aec-84a5-6a4223396412",
+    "template_hash": "d0abeec68f4f9aafd23d32619bfdcb5fc1b8c8b59206b020915a179752041730",
+    "generation_hash": "da8616fba1a7b5a77393979c43b8cefa5bda670676810854d412df458d6d1d74",
+    "approved": false,
+    "formal_approval_attempt": {
+      "detail": "缺少正式发布许可、渲染证据或通过的内容审查。",
+      "code": "formal_release_blocked",
+      "request_id": "b13b545d9e5d40f3ae5aada486b68a1f"
+    },
+    "delivered_copy": {
+      "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/artifacts/园区安全接入与集中审计技术方案-代表性草稿-v1.docx",
+      "sha256": "d189d956a7f7d8402e3f44221f532276d24e3d215b1f4e0f5715009b514abcba",
+      "bytes": 27465
+    }
+  },
+  "word_render": {
+    "renderer": "Microsoft Word",
+    "status": "rendered",
+    "verified": false,
+    "generation_sha256": "d189d956a7f7d8402e3f44221f532276d24e3d215b1f4e0f5715009b514abcba",
+    "rendered_docx": {
+      "path": "office-renders/a1f495ea841742de8fb3e6ed99242c3d/reviewed.docx",
+      "sha256": "8faa83fa2690a3f6d24442ff4250e3c04f698c498f40d8246e9339eed0077b7a",
+      "differs_from_input": true
+    },
+    "page_count": 8,
+    "pdf": {
+      "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/园区安全接入与集中审计技术方案-代表性草稿-v1.pdf",
+      "sha256": "691d62b3aae27d44df2bdca70737148bb0f669d887a977072e0e45ff96f9e181",
+      "bytes": 233096
+    },
+    "pages": [
+      {
+        "page": 1,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-001.png",
+        "sha256": "cef3c652ebc15083f35866a8d4387aa28f730c3377411eab3526affd09cbd889",
+        "bytes": 20284
+      },
+      {
+        "page": 2,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-002.png",
+        "sha256": "c449be8e72323c22ebba4db719e02810fdcca6d9fc6afc3fdc3d63ce769ebd6f",
+        "bytes": 25585
+      },
+      {
+        "page": 3,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-003.png",
+        "sha256": "a99c5b8527cde94064e1ce9de789fc4e238cd9db52e0536de06289ce2a120e9f",
+        "bytes": 16241
+      },
+      {
+        "page": 4,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-004.png",
+        "sha256": "a4d217d3ec02d85c81be514186f908adb7cface9ea0993391fcdb026e7eb88e1",
+        "bytes": 34733
+      },
+      {
+        "page": 5,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-005.png",
+        "sha256": "45e9e52fc0364a2c5bea1cc114213cc815b00345e2f945e68612438061d62311",
+        "bytes": 30066
+      },
+      {
+        "page": 6,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-006.png",
+        "sha256": "a23b3a306879a710f20aa8eaa11c6777ae90a152b25760fc84f7be9d3201fad7",
+        "bytes": 32835
+      },
+      {
+        "page": 7,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-007.png",
+        "sha256": "3c18c374444ae7151c08875359e216f8396e16b7f2fa426c6f69c16c273fbb4b",
+        "bytes": 47407
+      },
+      {
+        "page": 8,
+        "path": "docs/product/T-P05/evidence/representative-run-20260923-v2/word-render/page-008.png",
+        "sha256": "fdb0cfbf0f1b0c6950f082b546bae3b3b60b2ab291c531c00959639cb367b16b",
+        "bytes": 28144
+      }
+    ],
+    "visual_review": "pending_manual_inspection"
+  }
+}
