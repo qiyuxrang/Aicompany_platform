@@ -9,7 +9,7 @@
 | 真实 RAGFlow | `BLOCKED_NOT_CONFIGURED`；隔离探针=`WAITING_INPUT/retrieval_disabled` |
 | 真实模型 | `NOT_VERIFIED_NOT_CONFIGURED`；调用数 0 |
 | Browser E2E | `NOT_RUN`（`FRONTEND_DEFERRED`） |
-| Checkpoint | 待创建 |
+| Checkpoint | `65a7909` (`docs: checkpoint T-P02 retrieval baseline`) |
 
 ## 执行记录
 
