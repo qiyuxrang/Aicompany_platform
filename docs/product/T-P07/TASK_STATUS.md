@@ -9,7 +9,7 @@
 | 外部上传边界 | 记录实际上传人和所收文件 hash；内容作者固定为 `unverified`，不冒充完整编辑史 |
 | 修改/删除边界 | 普通业务 API 仅 GET；PATCH/DELETE 返回 405；后台审计模型继续只读管理 |
 | Browser E2E | `NOT_RUN`（`FRONTEND_DEFERRED`），因此整个 Task 不记 PASS |
-| Checkpoint | 待本次本地 checkpoint 后回填 |
+| Checkpoint | `0355aaa` (`feat: add product version lineage history`) |
 
 ## 执行记录
 
