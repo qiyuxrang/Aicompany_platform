@@ -302,19 +302,12 @@ def approved_blueprint(task):
     if not task.blueprint_version:
         return None
     revision = task.revisions.filter(kind=DocumentRevision.Kind.BLUEPRINT, version=task.blueprint_version).first()
-    if not revision:
-        return None
     current_input = task.revisions.filter(kind=DocumentRevision.Kind.INPUT, version=task.input_version).first()
-    if not current_input or revision.input_hash != current_input.sha256:
+    if not revision or not current_input or revision.input_hash != current_input.sha256:
         return None
-    latest = DocumentApproval.objects.filter(
-        task=task,
-        revision=revision,
-        actor_id=task.reviewer_id,
-    ).select_related("actor").order_by("-created_at").first()
+    latest = revision.approvals.filter(actor_id=task.owner_id).select_related("actor").order_by("-created_at").first()
     return revision if (latest and latest.decision == DocumentApproval.Decision.APPROVE
-                        and task.owner_id != latest.actor_id and reviewer_allowed(latest.actor)
-                        and approval_current(task, latest)) else None
+                        and product_user_allowed(latest.actor) and approval_current(task, latest)) else None
 
 
 def approval_authorization(task, actor):
@@ -325,7 +318,8 @@ def approval_authorization(task, actor):
     except ProductRulesError:
         raise ProductError("product_rules_unavailable", "文档规则包不可用，暂停批准。", 409) from None
     versions = dict(User.objects.filter(pk__in=[task.owner_id, actor.pk]).values_list("pk", "grant_version"))
-    return {"owner_grant_version": versions.get(task.owner_id), "actor_grant_version": versions.get(actor.pk), "policy_version": review_policy_version(), "rules_hash": current_rules}
+    return {"owner_grant_version": versions.get(task.owner_id), "actor_grant_version": versions.get(actor.pk),
+            "policy_version": "single-owner-blueprint-v1", "rules_hash": current_rules}
 
 
 def approval_current(task, approval):

@@ -176,36 +176,15 @@ def _task_actions(task, user, input_revision, blueprint):
             actions.append("cancel")
         if queueable and input_revision is not None:
             actions.extend(["queue_retrieve", "queue_blueprint"])
-        if queueable and approved is not None:
-            actions.append("queue_write")
-            if task.state != DocumentTask.State.QUEUED:
-                actions.append("save_chapter")
-            if _chapters_complete(task, input_revision, approved):
-                actions.extend(["queue_render", "queue_candidate"])
-            actions.append("queue_three_drafts")
-            try:
-                pair_snapshot(task)
-            except ProductError:
-                pass
-            else:
-                actions.append("queue_presentation")
+        if (queueable and task.state == DocumentTask.State.WAITING_REVIEW
+                and task.stage == DocumentTask.Stage.BLUEPRINT and blueprint is not None):
+            actions.append("confirm_blueprint")
         if (task.state in {DocumentTask.State.FAILED, DocumentTask.State.WAITING_INPUT}
                 and task.attempt_count < int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8))
-                and task.pending_action in {"blueprint", "write", "render", "three_drafts", "presentation"}):
+                and task.pending_action in {"blueprint", "generate_outputs"}):
             actions.append("retry")
         if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended):
-            actions.extend(["assign_reviewer", "add_statement"])
-
-    if task.reviewer_id == user.pk and task.owner_id != user.pk and reviewer_allowed(user):
-        reviewable = task.state == DocumentTask.State.WAITING_REVIEW and task.lease_until is None
-        if reviewable and task.stage == DocumentTask.Stage.BLUEPRINT and blueprint is not None:
-            actions.append("review_blueprint")
-        if reviewable and task.stage == DocumentTask.Stage.FINAL_REVIEW and task.artifacts.exists():
-            actions.extend(["review_artifact", "verify_artifact"])
-        if reviewable and task.stage == DocumentTask.Stage.FINAL_REVIEW and task.revisions.filter(kind=DocumentRevision.Kind.REPORT).exists():
-            actions.append("review_report")
-        if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended) and input_revision.payload.get("issues"):
-            actions.append("review_input")
+            actions.append("add_statement")
     return actions
 
 
@@ -316,7 +295,8 @@ def _task_detail(task, user):
         "input": input_revision.payload if input_revision else None,
         "blueprint": _revision_data(blueprint), "chapters": chapters, "reports": reports, "artifacts": artifacts,
         "sources": sources, "approvals": approvals, "issues": issues,
-        "error_code": task.error_code, "actions": actions, "blockers": _task_blockers(actions),
+        "error_code": task.error_code, "pending_action": task.pending_action,
+        "actions": actions, "blockers": _task_blockers(actions),
         "reviewer_id": task.reviewer_id, "owner_id": task.owner_id,
         "input_issues": [{**issue, "issue_hash": digest(issue)} for issue in (input_revision.payload.get("issues", []) if input_revision else [])],
         "impact": task.checkpoint.get("impact", {}),
@@ -756,7 +736,11 @@ def decisions(request, task_id):
     if body["decision"] not in DocumentApproval.Decision.values or not isinstance(body["comment"], str) or len(body["comment"]) > 10000:
         raise ProductError("invalid_request", "审核决定格式无效。")
     with transaction.atomic():
-        task = task_for(request.user, task_id, write=True, review=True)
+        if body["target"] == "blueprint":
+            task = task_for(request.user, task_id, write=True)
+            require_owner(task, request.user)
+        else:
+            task = task_for(request.user, task_id, write=True, review=True)
         target = _decision_target(task, body["target"], body["target_id"])
         if not isinstance(body["sha256"], str) or target.sha256 != body["sha256"]:
             raise ProductError("stale_target", "审核目标版本或哈希已变化。", 409)
@@ -801,11 +785,12 @@ def decisions(request, task_id):
             task.pending_action = ""
             task.error_code = "revision_requested"
         elif body["target"] == "blueprint":
-            task.pending_action = "write"
+            task.pending_action = "generate_outputs"
             task.stage = DocumentTask.Stage.WRITING
             blocked = not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
             task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
             task.error_code = "model_authorization_required" if blocked else ""
+            task.fence += 1
         elif body["target"] == "report":
             task.state = DocumentTask.State.WAITING_REVIEW
             task.stage = DocumentTask.Stage.FINAL_REVIEW
