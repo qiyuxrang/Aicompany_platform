@@ -25,7 +25,7 @@ from .product_service import (ProductError, append_revision, approved_blueprint,
                               validate_chapter, validate_input)
 from .product_storage import StorageError, remove_relative, verified_artifact
 from .product_release import CONTENT_CHECKS, candidate_current, evidence_file, public_evidence
-from .product_pair import effective_report_approval, latest_report_content, output_current, pair_snapshot, report_current
+from .product_pair import latest_report_content, output_current, pair_snapshot, report_current
 from .security import audit
 from .models import User
 
@@ -239,7 +239,7 @@ def _task_detail(task, user):
         "id": str(record.pk), "family": record.family, "version": record.version, "sha256": record.sha256,
         "input_hash": record.input_hash, "blueprint_hash": record.blueprint_hash,
         "current": report_current(task, record),
-        "approved": effective_report_approval(record) is not None, "created_at": record.created_at.isoformat(),
+        "approved": False, "created_at": record.created_at.isoformat(),
     } for record in task.revisions.filter(kind=DocumentRevision.Kind.REPORT).order_by("family", "version")
         if input_access.get(record.input_hash, False)]
     artifacts = []
@@ -656,7 +656,7 @@ def _queue(task, action):
         if _input_revision(task) is None:
             raise ProductError("input_required", "请先保存输入。", 409)
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
-    elif action in {"write", "render", "candidate", "three_drafts", "presentation"}:
+    elif action in {"write", "render", "candidate", "three_drafts", "presentation", "generate_outputs"}:
         blueprint_revision = approved_blueprint(task)
         if blueprint_revision is None:
             raise ProductError("blueprint_approval_required", "当前蓝图尚未获有效批准。", 409)
@@ -837,9 +837,9 @@ def retry(request, task_id):
             raise ProductError("invalid_state", "当前状态不能重试。", 409)
         if task.attempt_count >= int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8)):
             raise ProductError("attempt_limit", "已达到隔离环境安全重试上限。", 409)
-        if task.pending_action not in {"blueprint", "write", "render", "three_drafts", "presentation"}:
+        if task.pending_action not in {"blueprint", "write", "render", "three_drafts", "presentation", "generate_outputs"}:
             raise ProductError("invalid_action", "没有可重试的持久动作。", 409)
-        blocked = task.pending_action in {"blueprint", "write"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
+        blocked = task.pending_action in {"blueprint", "write", "generate_outputs"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
         task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
         task.error_code = "model_authorization_required" if blocked else ""
         task.version += 1

@@ -20,7 +20,7 @@ def main():
     presentation.slide_width, presentation.slide_height = Inches(13.333), Inches(7.5)
     source_by_family = {item["family"]: item for item in data.get("sources", [])}
     provenance = "\n".join(
-        f"{item['family']} v{item['version']} | SHA256={item['sha256']} | approval={item['approval_id']}"
+        f"{item['family']} v{item['version']} | SHA256={item['sha256']}"
         for item in data.get("sources", [])
     )
     slides = [(data["title"], "待人工审核草稿\n简版内容草稿引擎；非 PPT Master",
@@ -33,7 +33,7 @@ def main():
             text = "\n\n".join(item["text"][:300] for item in chunk)
             refs = "内容块：" + "、".join(item["ref"] for item in chunk)
             source = source_by_family[family]
-            provenance = f"{family} v{source['version']} | SHA256={source['sha256']} | approval={source['approval_id']}"
+            provenance = f"{family} v{source['version']} | SHA256={source['sha256']}"
             slides.append((f"{title} · {index // 3 + 1}", text, refs + "\n来源版本：" + provenance))
     if len(slides) < 3:
         raise ValueError("both report families must contribute slides")

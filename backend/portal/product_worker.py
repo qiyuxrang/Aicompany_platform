@@ -49,7 +49,7 @@ def _guard(task_id, fence):
         raise ExecutionError("permission_changed")
     if task.pending_action != "retrieve" and not input_authorized(task, current_revision(task, "input")):
         raise ExecutionError("retrieval_authorization_required")
-    if task.pending_action in {"write", "render", "candidate", "three_drafts", "presentation"} and approved_blueprint(task) is None:
+    if task.pending_action in {"write", "render", "candidate", "three_drafts", "presentation", "generate_outputs"} and approved_blueprint(task) is None:
         raise ExecutionError("blueprint_approval_required")
     return task
 
@@ -146,10 +146,10 @@ def _model(task_id, fence, attempt_id, route, payload):
 
 
 @transaction.atomic
-def _store(task_id, fence, kind, payload, input_hash, blueprint_hash=""):
+def _store(task_id, fence, kind, payload, input_hash, blueprint_hash="", family="technical-solution"):
     task = _guard(task_id, fence)
     record = append_revision(task, kind, payload, input_hash=input_hash, blueprint_hash=blueprint_hash,
-                             reason=f"worker_{kind}")
+                             family=family, reason=f"worker_{kind}")
     task.checkpoint = {**task.checkpoint, "last_revision": str(record.pk), "input_hash": input_hash, "blueprint_hash": blueprint_hash}
     task.lease_until = timezone.now() + timedelta(seconds=settings.PRODUCT_LEASE_SECONDS)
     if kind == "blueprint":
@@ -169,7 +169,7 @@ def _finish(task_id, fence, attempt_id, state, stage, error_code=""):
     task.state, task.stage, task.error_code = state, stage, error_code
     task.lease_until = None
     task.version += 1
-    if state in {"WAITING_REVIEW", "DRAFT"}:
+    if state in {"WAITING_REVIEW", "DRAFT", "COMPLETED"}:
         task.pending_action = ""
     task.save()
     DocumentAttempt.objects.filter(pk=attempt_id).update(status="done" if not error_code else "failed", error_code=error_code, finished_at=timezone.now())
@@ -182,6 +182,34 @@ def current_chapters(task, input_hash, blueprint_hash, family="technical-solutio
     for revision in DocumentRevision.objects.filter(task=task, kind="chapter", family=family, input_hash=input_hash, blueprint_hash=blueprint_hash).order_by("version"):
         found[revision.payload.get("chapter_id")] = revision
     return found
+
+
+def _generate_family(task_id, fence, attempt_id, task, input_revision, blueprint, family):
+    from .product_service import validate_chapter
+
+    chapters = current_chapters(task, input_revision.sha256, blueprint.sha256, family)
+    for chapter in blueprint.payload["chapters"]:
+        if chapter["id"] in chapters:
+            continue
+        payload = _model(task_id, fence, attempt_id, settings.PRODUCT_WRITING_ROUTE, {
+            "action": "chapter", "family": family,
+            "approved_blueprint": {"purpose": blueprint.payload["purpose"], "audience": blueprint.payload["audience"],
+                                   "conditions": blueprint.payload["conditions"], "chapter": chapter},
+            "input": model_input(task, input_revision.payload, chapter["source_ids"]), "chapter": chapter,
+            "schema": {"chapter_id": chapter["id"], "title": chapter["title"],
+                       "paragraphs": ["string"], "source_ids": []},
+        })
+        if payload.get("chapter_id") != chapter["id"] or payload.get("title") != chapter["title"]:
+            raise ExecutionError("invalid_model_output")
+        validate_chapter(payload)
+        if not set(payload["source_ids"]) <= set(chapter["source_ids"]):
+            raise ExecutionError("invalid_model_output")
+        chapters[chapter["id"]] = _store(task_id, fence, "chapter", payload, input_revision.sha256,
+                                          blueprint.sha256, family=family)
+    ordered = [chapters.get(item["id"]) for item in blueprint.payload["chapters"]]
+    if not ordered or any(item is None for item in ordered):
+        raise ExecutionError("chapters_incomplete")
+    return ordered
 
 
 def model_input(task, payload, source_ids=None):
@@ -334,6 +362,32 @@ def execute_claim(task_id, fence, attempt_id):
         if (blueprint is None or blueprint.input_hash != input_revision.sha256
                 or not DocumentApproval.objects.filter(task=task, revision=blueprint, decision="approve", sha256=blueprint.sha256).exists()):
             raise ExecutionError("blueprint_approval_required")
+        if task.pending_action == "generate_outputs":
+            from .product_three_drafts import generate_presentation_artifact, generate_report_drafts
+
+            for family in ("technical-solution", "feasibility"):
+                chapters = _generate_family(task_id, fence, attempt_id, task, input_revision, blueprint, family)
+                checked = content_checks(input_revision.payload, blueprint.payload, chapters)
+                reviewer = _model(task_id, fence, attempt_id, settings.PRODUCT_REVIEW_ROUTE, {
+                    "action": "independent_review", "family": family,
+                    "input": model_input(task, input_revision.payload,
+                        [source for chapter in blueprint.payload["chapters"] for source in chapter["source_ids"]]),
+                    "conditions": blueprint.payload["conditions"],
+                    "chapters": [chapter.payload for chapter in chapters],
+                    "schema": {"passed": "boolean", "issues": ["string"]},
+                })
+                if (set(reviewer) != {"passed", "issues"} or type(reviewer["passed"]) is not bool
+                        or not isinstance(reviewer["issues"], list) or len(reviewer["issues"]) > 100
+                        or any(not isinstance(issue, str) or len(issue) > 2000 for issue in reviewer["issues"])):
+                    raise ExecutionError("invalid_model_output")
+                checked["model_review"] = {"status": "passed" if reviewer["passed"] and not reviewer["issues"] else "issues_found",
+                                           "issues": reviewer["issues"]}
+                checked["chapter_hashes"] = {chapter.payload["chapter_id"]: chapter.sha256 for chapter in chapters}
+                checked["passed"] = not checked["issues"] and checked["model_review"]["status"] == "passed"
+                _store(task_id, fence, "review", checked, input_revision.sha256, blueprint.sha256, family=family)
+            generate_report_drafts(task, fence, attempt_id, input_revision, blueprint)
+            generate_presentation_artifact(task, fence, attempt_id, input_revision, blueprint)
+            return _finish(task_id, fence, attempt_id, "COMPLETED", "FINAL_REVIEW")
         if task.pending_action == "three_drafts":
             from .product_three_drafts import generate_three_drafts
             return generate_three_drafts(task, fence, attempt_id, input_revision, blueprint)

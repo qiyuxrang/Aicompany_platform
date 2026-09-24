@@ -3,9 +3,9 @@ from pathlib import Path
 
 from django.test import override_settings
 
-from portal.product_models import DocumentApproval, DocumentArtifact
+from portal.product_models import DocumentArtifact
 from portal.product_pair import pair_snapshot, save_report_content
-from portal.product_service import ProductError, append_revision, approval_authorization, digest
+from portal.product_service import ProductError, append_revision, digest
 from portal.product_storage import verified_artifact
 from .test_product_api import ProductApiTests
 from .base import PortalTestCase
@@ -36,15 +36,10 @@ class PairDraftTests(PortalTestCase):
                 template_hash="a" * 64, generation_hash=generation_hash, render_evidence={"report_id": str(report.pk)})
             reports.append(report)
         first, second = reports
-        with self.assertRaises(ProductError) as caught:
-            pair_snapshot(task)
-        self.assertEqual(caught.exception.code, "report_approval_required")
-        for report in (first, second):
-            DocumentApproval.objects.create(task=task, revision=report, actor=self.reviewer, decision="approve",
-                                            sha256=report.sha256, authorization=approval_authorization(task, self.reviewer))
         snapshot = pair_snapshot(task)
         self.assertEqual({block["ref"] for block in snapshot["blocks"]}, {"technical-solution:same", "feasibility:same"})
-        self.assertTrue(all(source["approval_id"] for source in snapshot["sources"]))
+        self.assertTrue(all(source["id"] and source["sha256"] and source["created_at"] for source in snapshot["sources"]))
+        self.assertTrue(all("approval_id" not in source for source in snapshot["sources"]))
         self.assertEqual(snapshot["pending"], [{"text": "同一待确认事项",
                                                 "refs": ["technical-solution:P1", "feasibility:P2"],
                                                 "families": ["technical-solution", "feasibility"]}])
