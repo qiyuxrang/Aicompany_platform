@@ -11,7 +11,7 @@
 | 正式审核 | `BLOCKED`：正式 artifact 批准两次均返回 `formal_release_blocked` |
 | 真实模型 / RAGFlow | `NOT_VERIFIED`；本任务调用次数均为 0，不以代表性输入冒充真实依赖 |
 | Browser E2E | `NOT_RUN`（`FRONTEND_DEFERRED`） |
-| Checkpoint | `PENDING` |
+| Checkpoint | `a0a2784` (`feat: complete P1 feasibility and presentation core`) |
 
 ## 已完成范围
 
