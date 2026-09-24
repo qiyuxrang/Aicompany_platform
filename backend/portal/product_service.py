@@ -6,7 +6,7 @@ from collections.abc import Mapping
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Max, Q
+from django.db.models import Q
 
 from .models import Module, User
 from .product_models import (DocumentApproval, DocumentArtifact, DocumentRevision,
@@ -35,9 +35,11 @@ def current_revision(task, kind):
 
 
 @transaction.atomic
-def append_revision(task, kind, payload, input_hash="", blueprint_hash="", actor=None, family="technical-solution"):
+def append_revision(task, kind, payload, input_hash="", blueprint_hash="", actor=None,
+                    family="technical-solution", reason="unspecified"):
     locked = DocumentTask.objects.select_for_update().get(pk=task.pk)
-    version = locked.revisions.filter(kind=kind, family=family).aggregate(value=Max("version"))["value"] or 0
+    previous = locked.revisions.filter(kind=kind, family=family).order_by("-version").first()
+    version = previous.version if previous else 0
     return DocumentRevision.objects.create(
         task=locked,
         kind=kind,
@@ -45,6 +47,8 @@ def append_revision(task, kind, payload, input_hash="", blueprint_hash="", actor
         version=version + 1,
         payload=payload,
         sha256=digest(payload),
+        parent_sha256=previous.sha256 if previous else "",
+        change_reason=reason,
         input_hash=input_hash,
         blueprint_hash=blueprint_hash,
         created_by=actor,
@@ -174,7 +178,7 @@ def resolve_input_issues(task, user, resolutions):
         payload.setdefault("issue_history", []).append(record)
         seen.add(issue_hash)
     payload["issues"] = [issue for issue_hash, issue in issues.items() if issue_hash not in seen]
-    revision = append_revision(task, "input", payload, actor=user)
+    revision = append_revision(task, "input", payload, actor=user, reason="input_issue_review")
     invalidate_generation(task)
     task.input_version = revision.version
     task.version += 1
@@ -413,6 +417,7 @@ def _attach_parsed_source(task, user, original_name, media_type, content, parsed
         source = DocumentSource.objects.create(
             id=source_id, task=task, original_name=original_name, media_type=media_type,
             path=relative, sha256=checksum, size=len(content), parsed=parsed, warnings=warnings,
+            uploaded_by=user, author_verification="unverified",
         )
         previous = task.revisions.get(kind=DocumentRevision.Kind.INPUT, version=task.input_version)
         input_payload = json.loads(json.dumps(previous.payload, ensure_ascii=False))
@@ -432,7 +437,8 @@ def _attach_parsed_source(task, user, original_name, media_type, content, parsed
         else:
             separator = "\n\n" if input_payload["background"] else ""
             input_payload["background"] += separator + parsed["background"]
-        revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=user)
+        revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=user,
+                                   reason="external_source_upload")
         invalidate_generation(task)
         task.input_version = revision.version
         task.version += 1

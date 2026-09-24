@@ -330,7 +330,7 @@ def assign_reviewer(request, task_id):
                 payload = dict(current_input.payload)
                 payload["issues"] = [*payload.get("issues", []), *[record["issue"] for record in payload["issue_resolutions"]]]
                 payload["issue_resolutions"] = []
-                current_input = append_revision(task, "input", payload, actor=request.user)
+                current_input = append_revision(task, "input", payload, actor=request.user, reason="reviewer_changed")
                 task.input_version = current_input.version
             task.reviewer = reviewer
             if current_input and not input_authorized(task, current_input):
@@ -342,7 +342,7 @@ def assign_reviewer(request, task_id):
             task.state = "WAITING_REVIEW" if blueprint else "DRAFT"
             task.stage = "BLUEPRINT" if blueprint else "INTAKE"
             if blueprint:
-                new_revision = append_revision(task, "blueprint", blueprint.payload, input_hash=current_input.sha256, actor=request.user)
+                new_revision = append_revision(task, "blueprint", blueprint.payload, input_hash=current_input.sha256, actor=request.user, reason="reviewer_changed")
                 task.blueprint_version = new_revision.version
             task.checkpoint = {**task.checkpoint, "reviewer_changes": [*task.checkpoint.get("reviewer_changes", []),
                 {"from": previous, "to": reviewer.pk, "actor_id": request.user.pk, "reason": body["reason"], "version": task.version}]}
@@ -385,7 +385,7 @@ def input_statement(request, task_id):
         statement = {"category": body["category"], "text": body["text"], "source_ids": body["source_ids"], "actor_id": request.user.pk}
         payload["statements"] = [*payload.get("statements", []), statement]
         payload["issues"] = [*payload.get("issues", []), {"code": "statement_review_required", **statement}]
-        revision = append_revision(task, "input", payload, actor=request.user)
+        revision = append_revision(task, "input", payload, actor=request.user, reason="manual_statement")
         invalidate_generation(task)
         task.input_version = revision.version
         task.version += 1
@@ -445,7 +445,8 @@ def conversations(request):
                         "mode": "deterministic_fallback", "requested_outputs": output_states,
                     }},
                 )
-                revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=owner)
+                revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=owner,
+                                           reason="conversation_created")
                 task.input_version = revision.version
                 task.save(update_fields=["input_version", "updated_at"])
                 created = True
@@ -508,7 +509,8 @@ def task_conversation(request, task_id):
             }
             payload.setdefault("conversation_request", {key: value for key, value in record.items() if key != "actor_id"})
             payload["conversation_history"] = [*payload.get("conversation_history", []), record]
-            revision = append_revision(task, DocumentRevision.Kind.INPUT, payload, actor=request.user)
+            revision = append_revision(task, DocumentRevision.Kind.INPUT, payload, actor=request.user,
+                                       reason="conversation_updated")
             invalidate_generation(task)
             task.input_version = revision.version
             task.version += 1
@@ -570,7 +572,8 @@ def tasks(request):
                 owner=owner, reviewer=reviewer, title=title,
                 idempotency_key=key, payload_hash=payload_hash,
             )
-            revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=owner)
+            revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=owner,
+                                       reason="task_created")
             task.input_version = revision.version
             task.save(update_fields=["input_version", "updated_at"])
             created = True
@@ -611,7 +614,8 @@ def task_detail(request, task_id):
                 "chapters": [chapter["id"] for chapter in previous_blueprint.payload["chapters"]] if previous_blueprint else [],
                 "tables": ["INPUT_TABLE"], "previous_input_hash": previous_input.sha256 if previous_input else "",
             }}
-            revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=request.user)
+            revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=request.user,
+                                       reason="manual_input_edit")
             invalidate_generation(task)
             task.input_version = revision.version
             changes.append("input")
@@ -637,7 +641,8 @@ def blueprint(request, task_id):
         source_ids = [source_id for chapter in payload["chapters"] for source_id in chapter["source_ids"]]
         if not source_ids_belong(task, source_ids):
             raise ProductError("invalid_source", "蓝图引用了无权来源。")
-        revision = append_revision(task, DocumentRevision.Kind.BLUEPRINT, payload, input_hash=input_revision.sha256, actor=request.user)
+        revision = append_revision(task, DocumentRevision.Kind.BLUEPRINT, payload, input_hash=input_revision.sha256,
+                                   actor=request.user, reason="manual_blueprint_edit")
         task.blueprint_version = revision.version
         task.state = DocumentTask.State.WAITING_REVIEW
         task.stage = DocumentTask.Stage.BLUEPRINT
@@ -877,6 +882,7 @@ def chapters(request, task_id):
         revision = append_revision(
             task, DocumentRevision.Kind.CHAPTER, payload,
             input_hash=input_revision.sha256, blueprint_hash=blueprint_revision.sha256, actor=request.user, family=family,
+            reason="manual_chapter_edit",
         )
         task.checkpoint = {**task.checkpoint, "impact": {
             "reason": "chapter_changed", "scope": "all_checks", "edited_chapter": payload["chapter_id"],

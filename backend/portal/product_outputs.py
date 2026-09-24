@@ -98,7 +98,7 @@ def report_chapter(request, task_id):
             raise ProductError("invalid_chapter", "章节或来源超出已批准蓝图。", 409)
         current = current_revision(task, "input")
         record = append_revision(task, "chapter", payload, input_hash=current.sha256, blueprint_hash=blueprint.sha256,
-                                 actor=request.user, family="feasibility")
+                                 actor=request.user, family="feasibility", reason="manual_chapter_edit")
         task.version += 1
         task.save(update_fields=["version", "updated_at"])
     audit(request.user, "product_chapter_create", f"{record.pk}:v{task.version}")

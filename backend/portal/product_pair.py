@@ -14,7 +14,7 @@ def save_report_content(task, family, payload, *, input_hash, blueprint_hash, ac
             or any(not isinstance(value, str) or not value or len(value) > 100 for value in identifiers)):
         raise ProductError("invalid_report", "报告内容块标识无效。")
     return append_revision(task, DocumentRevision.Kind.REPORT, payload, input_hash=input_hash,
-                           blueprint_hash=blueprint_hash, actor=actor, family=family)
+                           blueprint_hash=blueprint_hash, actor=actor, family=family, reason="report_generated")
 
 
 def latest_report_content(task, family):

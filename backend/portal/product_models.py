@@ -67,6 +67,8 @@ class DocumentRevision(models.Model):
     version = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     payload = models.JSONField()
     sha256 = models.CharField(max_length=64)
+    parent_sha256 = models.CharField(max_length=64, default="", blank=True)
+    change_reason = models.CharField(max_length=80, default="legacy_unspecified")
     input_hash = models.CharField(max_length=64, default="", blank=True)
     blueprint_hash = models.CharField(max_length=64, default="", blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="document_revisions")
@@ -89,6 +91,8 @@ class DocumentSource(models.Model):
     size = models.PositiveBigIntegerField()
     parsed = models.JSONField(default=dict)
     warnings = models.JSONField(default=list)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="uploaded_document_sources")
+    author_verification = models.CharField(max_length=24, default="unverified")
     created_at = models.DateTimeField(auto_now_add=True)
 
 

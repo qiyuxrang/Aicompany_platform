@@ -146,7 +146,8 @@ def _model(task_id, fence, attempt_id, route, payload):
 @transaction.atomic
 def _store(task_id, fence, kind, payload, input_hash, blueprint_hash=""):
     task = _guard(task_id, fence)
-    record = append_revision(task, kind, payload, input_hash=input_hash, blueprint_hash=blueprint_hash)
+    record = append_revision(task, kind, payload, input_hash=input_hash, blueprint_hash=blueprint_hash,
+                             reason=f"worker_{kind}")
     task.checkpoint = {**task.checkpoint, "last_revision": str(record.pk), "input_hash": input_hash, "blueprint_hash": blueprint_hash}
     task.lease_until = timezone.now() + timedelta(seconds=settings.PRODUCT_LEASE_SECONDS)
     if kind == "blueprint":
@@ -310,7 +311,7 @@ def execute_claim(task_id, fence, attempt_id):
                 payload = {**input_revision.payload, "retrieval": snapshot, "knowledge_sources": snapshot["sources"]}
                 if snapshot["status"] == "conflict":
                     payload["issues"] = [*payload.get("issues", []), {"code": "knowledge_source_conflict", "scope_hash": snapshot["scope_hash"]}]
-                revision = append_revision(fresh, "input", payload, actor=fresh.owner)
+                revision = append_revision(fresh, "input", payload, actor=fresh.owner, reason="authorized_retrieval")
                 fresh.input_version, fresh.blueprint_version = revision.version, 0
                 fresh.checkpoint = {**fresh.checkpoint, "retrieval": {"status": snapshot["status"], "scope_hash": snapshot["scope_hash"], "source_count": len(snapshot["sources"])}}
                 fresh.save(update_fields=["input_version", "blueprint_version", "checkpoint", "updated_at"])

@@ -50,7 +50,9 @@ class PairDraftTests(PortalTestCase):
             self.assertEqual(self.other_client.get(url).status_code, 404)
             response = self.owner_client.get(url)
             self.assertEqual(response.status_code, 200)
-            response.close()
+            for closer in response._resource_closers:
+                closer()
+            response._resource_closers.clear()
             later = append_revision(task, "input", {**current.payload, "requirements": "已更改"}, actor=self.owner)
             task.input_version = later.version
             task.save(update_fields=["input_version"])
