@@ -10,7 +10,7 @@
 | 正式发布 | `BLOCKED`；正式发布、业务签认和部署验收未开放 |
 | T-G04 | 尚未按本轮范围执行，不以本次冒烟替代 |
 | Evidence | `docs/product/T-R01/evidence/FAST_DEMO_20260924.md` |
-| Checkpoint | 待本轮本地 checkpoint 后回填 |
+| Checkpoint | `1d58056`（产品事业部快速可见性、真实浏览器冒烟与轻量 Evidence） |
 
 ## 当前结论
 
