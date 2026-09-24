@@ -21,6 +21,19 @@ from .base import PortalTestCase
 })
 class ProductWorkerTests(PortalTestCase):
     @patch("portal.product_worker.generate_for_use")
+    def test_blueprint_prompt_lists_only_current_authorized_source_ids(self, model):
+        self.task.pending_action = "blueprint"
+        self.task.stage = "BLUEPRINT"
+        self.task.save(update_fields=["pending_action", "stage"])
+        model.return_value = {"content": json.dumps(self.blueprint_payload), "prompt_tokens": 1, "completion_tokens": 1}
+
+        run_once()
+
+        payload = json.loads(model.call_args.args[2][1]["content"])
+        self.assertEqual(payload["allowed_source_ids"], ["r1"])
+        self.assertEqual(payload["schema"]["chapters"][0]["source_ids"], ["r1"])
+
+    @patch("portal.product_worker.generate_for_use")
     def test_stage_rules_are_sent_and_bound_to_call_evidence(self, model):
         from portal.product_rules import rules_hash
         from portal.product_worker import _model

@@ -349,10 +349,19 @@ def execute_claim(task_id, fence, attempt_id):
         if task.pending_action == "blueprint":
             from .product_service import validate_blueprint
 
+            allowed_source_ids = sorted({
+                *[str(item.get("row_id")) for item in input_revision.payload.get("items", []) if item.get("row_id") not in (None, "")],
+                *[str(source.pk) for source in task.sources.all()],
+                *[str(source.get("id")) for source in input_revision.payload.get("knowledge_sources", []) if source.get("id")],
+            })
             payload = _model(task_id, fence, attempt_id, settings.PRODUCT_BLUEPRINT_ROUTE,
                              {"action": "blueprint", "input": model_input(task, input_revision.payload),
-                              "schema": {"purpose": "string", "audience": "string", "chapters": [{"id": "stable-id", "title": "string", "scope": "string", "source_ids": []}],
-                                         "conditions": [{"text": "string", "type": "program/model/human"}], "missing": [], "conflicts": [], "template_version": "frozen-original-v1"}})
+                              "allowed_source_ids": allowed_source_ids,
+                              "schema": {"purpose": "string", "audience": "string",
+                                         "chapters": [{"id": "stable-id", "title": "string", "scope": "string",
+                                                       "source_ids": allowed_source_ids}],
+                                         "conditions": [{"text": "string", "type": "program/model/human"}],
+                                         "missing": [], "conflicts": [], "template_version": "frozen-original-v1"}})
             validate_blueprint(payload, input_revision.payload)
             if not source_ids_belong(task, [source for chapter in payload["chapters"] for source in chapter["source_ids"]]):
                 raise ExecutionError("invalid_model_output")
