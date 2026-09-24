@@ -1,0 +1,152 @@
+{
+  "checks": [
+    {
+      "name": "legacy_service_offline_and_recovery",
+      "status": "passed",
+      "kind": "real-service-fault",
+      "elapsed_seconds": 8.446,
+      "detail": null
+    },
+    {
+      "name": "portal_callback_offline_and_recovery",
+      "status": "passed",
+      "kind": "real-service-fault",
+      "elapsed_seconds": 8.301,
+      "detail": null
+    },
+    {
+      "name": "bridge_switch_off_native_session_retained",
+      "status": "passed",
+      "kind": "real-service-fault",
+      "elapsed_seconds": 11.219,
+      "detail": null
+    },
+    {
+      "name": "portal_navigation_only_rollback",
+      "status": "passed",
+      "kind": "real-service-fault",
+      "elapsed_seconds": 10.845,
+      "detail": null
+    },
+    {
+      "name": "ledger_injected_malformed",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 11.438,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 0.789,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "ledger_injected_oversized",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 11.171,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 0.573,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "ledger_injected_redirect",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 11.686,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 0.613,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "ledger_injected_slow",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 13.012,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 2.339,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "ledger_injected_drip",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 23.976,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 2.296,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "portal_injected_malformed",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 11.028,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 0.361,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "portal_injected_oversized",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 11.263,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 0.466,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "portal_injected_redirect",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 11.016,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 0.483,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "portal_injected_slow",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 13.968,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 3.382,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "portal_injected_drip",
+      "status": "passed",
+      "kind": "controlled-fault-endpoint-not-native-data",
+      "elapsed_seconds": 26.478,
+      "detail": {
+        "response_status": 503,
+        "request_seconds": 3.206,
+        "redirect_followed": false
+      }
+    },
+    {
+      "name": "native_chain_recovered_after_faults",
+      "status": "passed",
+      "kind": "real-service-fault",
+      "elapsed_seconds": 0.806,
+      "detail": {
+        "project_count": 2
+      }
+    }
+  ],
+  "boundary": "Real process stop/restart and separately labelled HTTP fault endpoints; no business data mocks counted as native comparison"
+}

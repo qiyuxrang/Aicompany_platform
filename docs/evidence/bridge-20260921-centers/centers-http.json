@@ -1,0 +1,34 @@
+{
+  "boundary": "Real HTTP against isolated services and synthetic registered fixtures; not production or browser SSO",
+  "checks": [
+    {
+      "name": "product role page matrix",
+      "status": "passed"
+    },
+    {
+      "name": "engineer role page matrix",
+      "status": "passed"
+    },
+    {
+      "name": "hr role page matrix",
+      "status": "passed"
+    },
+    {
+      "name": "manager role page matrix",
+      "status": "passed"
+    },
+    {
+      "name": "Admin preview grants no business access",
+      "status": "passed"
+    },
+    {
+      "name": "Revocation rejects the next page and API request",
+      "status": "passed"
+    },
+    {
+      "name": "Real isolated legacy summary matches seeded projects",
+      "status": "passed",
+      "count": 4
+    }
+  ]
+}

@@ -1,0 +1,364 @@
+{
+  "PLT-001": {
+    "title": "登录与会话复用",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G01",
+      "T-G03"
+    ],
+    "acceptance": "AT-PLT-001",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PLT-002": {
+    "title": "对象与动作授权",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G01",
+      "T-G03"
+    ],
+    "acceptance": "AT-PLT-002",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PLT-003": {
+    "title": "可信跨系统身份",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G02",
+      "T-G03"
+    ],
+    "acceptance": "AT-PLT-003",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PLT-004": {
+    "title": "上传与资料隔离",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G02",
+      "T-G03"
+    ],
+    "acceptance": "AT-PLT-004",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PLT-005": {
+    "title": "任务与人工批准契约",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G02",
+      "T-G03"
+    ],
+    "acceptance": "AT-PLT-005",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PLT-006": {
+    "title": "运维与审计",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G04"
+    ],
+    "acceptance": "AT-PLT-006",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PLT-007": {
+    "title": "数据保留与恢复",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G04"
+    ],
+    "acceptance": "AT-PLT-007",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PLT-008": {
+    "title": "性能与故障语义",
+    "source": "specs/01-platform.md",
+    "tasks": [
+      "T-G02",
+      "T-G04"
+    ],
+    "acceptance": "AT-PLT-008",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-001": {
+    "title": "清单与背景接收",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P02"
+    ],
+    "acceptance": "AT-PRD-001",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-002": {
+    "title": "蓝图与判断条件",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P03"
+    ],
+    "acceptance": "AT-PRD-002",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-003": {
+    "title": "蓝图批准与变更",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P03"
+    ],
+    "acceptance": "AT-PRD-003",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-004": {
+    "title": "分章写作与授权检索",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P02",
+      "T-P04"
+    ],
+    "acceptance": "AT-PRD-004",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-005": {
+    "title": "局部修改与关联检查",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P04"
+    ],
+    "acceptance": "AT-PRD-005",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-006": {
+    "title": "持久执行与限额",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P04"
+    ],
+    "acceptance": "AT-PRD-006",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-007": {
+    "title": "内容检查与成稿批准",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P05"
+    ],
+    "acceptance": "AT-PRD-007",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-008": {
+    "title": "格式冻结与回归",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P01",
+      "T-P05"
+    ],
+    "acceptance": "AT-PRD-008",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-009": {
+    "title": "同源可研扩展",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P06"
+    ],
+    "acceptance": "AT-PRD-009",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-010": {
+    "title": "PPT扩展与同源交接",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P06"
+    ],
+    "acceptance": "AT-PRD-010",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-011": {
+    "title": "文档版本与修改留痕",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P07"
+    ],
+    "acceptance": "AT-PRD-011",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "PRD-012": {
+    "title": "质量回归与变更评估",
+    "source": "specs/02-product.md",
+    "tasks": [
+      "T-P08"
+    ],
+    "acceptance": "AT-PRD-012",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-001": {
+    "title": "统一身份与权限边界",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H01",
+      "T-H04"
+    ],
+    "acceptance": "AT-HR-001",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-002": {
+    "title": "JD 生成闭环",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H02"
+    ],
+    "acceptance": "AT-HR-002",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-003": {
+    "title": "评分基线门禁",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H01"
+    ],
+    "acceptance": "AT-HR-003",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-004": {
+    "title": "简历接收与外部数据许可",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H01",
+      "T-H03"
+    ],
+    "acceptance": "AT-HR-004",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-005": {
+    "title": "证据、未知与程序评分",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H03"
+    ],
+    "acceptance": "AT-HR-005",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-006": {
+    "title": "批量任务可靠执行",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H03"
+    ],
+    "acceptance": "AT-HR-006",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-007": {
+    "title": "HR 最终决定与人才库限制",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H03"
+    ],
+    "acceptance": "AT-HR-007",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "HR-008": {
+    "title": "转正确定性状态机",
+    "source": "specs/03-hr.md",
+    "tasks": [
+      "T-H04"
+    ],
+    "acceptance": "AT-HR-008",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "ENG-001": {
+    "title": "专业范围与依据准入",
+    "source": "specs/04-engineering.md",
+    "tasks": [
+      "T-E01"
+    ],
+    "acceptance": "AT-ENG-001",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "ENG-002": {
+    "title": "清单保真与缺项",
+    "source": "specs/04-engineering.md",
+    "tasks": [
+      "T-E01"
+    ],
+    "acceptance": "AT-ENG-002",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "ENG-003": {
+    "title": "候选推荐与人工审定",
+    "source": "specs/04-engineering.md",
+    "tasks": [
+      "T-E02"
+    ],
+    "acceptance": "AT-ENG-003",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "ENG-004": {
+    "title": "计算与专业工具交接",
+    "source": "specs/04-engineering.md",
+    "tasks": [
+      "T-E02"
+    ],
+    "acceptance": "AT-ENG-004",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "ENG-005": {
+    "title": "版本与审批保护",
+    "source": "specs/04-engineering.md",
+    "tasks": [
+      "T-E03"
+    ],
+    "acceptance": "AT-ENG-005",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "BIZ-001": {
+    "title": "角色与来源边界",
+    "source": "specs/05-business.md",
+    "tasks": [
+      "T-B01"
+    ],
+    "acceptance": "AT-BIZ-001",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "BIZ-002": {
+    "title": "总览与专项页面",
+    "source": "specs/05-business.md",
+    "tasks": [
+      "T-B02"
+    ],
+    "acceptance": "AT-BIZ-002",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "BIZ-003": {
+    "title": "计算口径与分页",
+    "source": "specs/05-business.md",
+    "tasks": [
+      "T-B02"
+    ],
+    "acceptance": "AT-BIZ-003",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "BIZ-004": {
+    "title": "刷新与异常反馈",
+    "source": "specs/05-business.md",
+    "tasks": [
+      "T-B03"
+    ],
+    "acceptance": "AT-BIZ-004",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "BIZ-005": {
+    "title": "明细附件与导出",
+    "source": "specs/05-business.md",
+    "tasks": [
+      "T-B03"
+    ],
+    "acceptance": "AT-BIZ-005",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  },
+  "BIZ-006": {
+    "title": "分级接入与回退",
+    "source": "specs/05-business.md",
+    "tasks": [
+      "T-B01",
+      "T-B03"
+    ],
+    "acceptance": "AT-BIZ-006",
+    "status": "本版未执行；历史实现与证据另见EXECUTION_STATUS.md"
+  }
+}

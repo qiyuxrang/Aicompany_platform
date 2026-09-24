@@ -1,0 +1,20 @@
+Creating test database for alias 'default'...
+
+...............F.............................................
+======================================================================
+FAIL: test_path_upload_and_cross_task_download_are_rejected (portal.tests.test_product_api.ProductApiTests.test_path_upload_and_cross_task_download_are_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai������ƽ̨\backend\portal\tests\test_product_api.py", line 443, in test_path_upload_and_cross_task_download_are_rejected
+    self.assertEqual(traversal.status_code, 409)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 409
+
+----------------------------------------------------------------------
+Ran 61 tests in 77.359s
+
+FAILED (failures=1)
+Destroying test database for alias 'default'...
+
+Found 61 test(s).
+System check identified no issues (0 silenced).

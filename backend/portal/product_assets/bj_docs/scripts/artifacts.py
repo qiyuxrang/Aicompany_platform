@@ -11,6 +11,78 @@ from ooxml import *
 from contract import read_content
 from prototypes import PrototypeLibrary
 
+POLICY_PATH = ROOT/'assets'/'document-format-policy.json'
+
+def ensure(parent, tag, first=False):
+    node=parent.find(tag,NS)
+    if node is None:
+        node=E.Element(q(tag))
+        parent.insert(0,node) if first else parent.append(node)
+    return node
+
+def set_on_off(parent, tag, value):
+    for node in parent.findall(tag,NS): parent.remove(node)
+    if value:
+        E.SubElement(parent,q(tag)).set(q('w:val'),'1')
+
+def format_paragraph(node, role, policy):
+    """Apply only the user-approved interim typography; retain unspecified layout."""
+    if node.tag!=q('w:p'): return node
+    typography=policy['typography']
+    spec=typography.get(role,typography['body'])
+    pp=ensure(node,'w:pPr',first=True)
+    spacing=ensure(pp,'w:spacing')
+    spacing.set(q('w:line'),'360'); spacing.set(q('w:lineRule'),'exact')
+    if role in ('heading1','heading2','heading3'):
+        for item in pp.findall('w:numPr',NS)+pp.findall('w:ind',NS): pp.remove(item)
+        jc=ensure(pp,'w:jc'); jc.set(q('w:val'),spec['alignment'])
+    elif role=='figure_and_table_caption':
+        jc=ensure(pp,'w:jc'); jc.set(q('w:val'),'center')
+    size=str(round(spec['size_pt']*2)); bold=spec.get('bold')
+    for run in node.findall('w:r',NS):
+        rp=ensure(run,'w:rPr',first=True)
+        fonts=ensure(rp,'w:rFonts')
+        for key in ('ascii','hAnsi','eastAsia','cs'): fonts.set(q('w:'+key),spec['font'])
+        ensure(rp,'w:sz').set(q('w:val'),size)
+        ensure(rp,'w:szCs').set(q('w:val'),size)
+        lang=ensure(rp,'w:lang'); lang.set(q('w:val'),'zh-CN'); lang.set(q('w:eastAsia'),'zh-CN')
+        if bold is not None:
+            set_on_off(rp,'w:b',bold); set_on_off(rp,'w:bCs',bold)
+    return node
+
+def normalize_page(section):
+    size=ensure(section,'w:pgSz')
+    size.set(q('w:w'),'11906'); size.set(q('w:h'),'16838')
+    grid=ensure(section,'w:docGrid')
+    grid.set(q('w:type'),'linesAndChars'); grid.set(q('w:linePitch'),'360')
+
+def normalize_header(story, policy):
+    """Normalize only an active, non-empty header; blank cover headers remain blank."""
+    if not text(story).strip(): return
+    for child in list(story): story.remove(child)
+    p=E.SubElement(story,q('w:p')); pp=E.SubElement(p,q('w:pPr'))
+    E.SubElement(pp,q('w:jc')).set(q('w:val'),'center')
+    borders=E.SubElement(pp,q('w:pBdr')); bottom=E.SubElement(borders,q('w:bottom'))
+    for key,value in [('val','double'),('sz','4'),('space','1'),('color','000000')]: bottom.set(q('w:'+key),value)
+    r=E.SubElement(p,q('w:r')); E.SubElement(r,q('w:rPr')); append_run_text(r,policy['header_footer']['ordinary_header'])
+    format_paragraph(p,'header',policy)
+
+def normalize_footer(story, policy):
+    for p in story.findall('.//w:p',NS):
+        if any(code.split()[0].upper()=='PAGE' for code in field_instructions(p)):
+            ensure(p,'w:pPr',first=True)
+            ensure(p.find('w:pPr',NS),'w:jc').set(q('w:val'),'center')
+            format_paragraph(p,'header',policy)
+
+def fit_table_width(table, source_width, target_width):
+    if source_width<=target_width: return
+    if source_width>target_width*1.10: raise ValueError('table width exceeds A4 body area')
+    ratio=target_width/source_width
+    for node in table.findall('.//w:gridCol',NS)+table.findall('.//w:tcW',NS)+table.findall('.//w:tblW',NS):
+        value=node.get(q('w:w'))
+        if value and value.isdigit() and node.get(q('w:type'),'dxa')=='dxa':
+            node.set(q('w:w'),str(max(1,round(int(value)*ratio))))
+
 def bookmark_name(identifier):
     if re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,39}',identifier): return identifier
     return 'BJ_'+hashlib.sha256(identifier.encode('utf-8')).hexdigest()[:32]
@@ -43,7 +115,9 @@ def _write_word(data,out,content_dir):
     if out.is_relative_to(ROOT/'assets'): raise ValueError('refusing to overwrite master assets')
     from contract import validate
     validate(data)
-    pack,profile=trusted_pack(data['family']); parts=load_package(pack/'template.docx'); audit_package(parts)
+    pack,profile=trusted_pack(data['family']); policy=json.loads(POLICY_PATH.read_text(encoding='utf-8'))
+    if data['family'] not in policy['applies_to']: raise ValueError('document format policy does not cover family')
+    parts=load_package(pack/'template.docx'); audit_package(parts)
     root=xml(parts['word/document.xml']); body=root.find('w:body',NS); proto=PrototypeLibrary((pack/'prototypes.xml').read_bytes())
     marker=next(p for p in body.findall('w:p',NS) if text(p)=='{{body}}')
     body.remove(marker); insertion=len(body)-1
@@ -51,10 +125,13 @@ def _write_word(data,out,content_dir):
     fixed_replace(root,metadata)
     for name in list(parts):
         if re.fullmatch(r'word/(header|footer)\d+\.xml',name):
-            story=xml(parts[name]); fixed_replace(story,metadata); parts[name]=dump(story)
+            story=xml(parts[name]); fixed_replace(story,metadata)
+            normalize_header(story,policy) if '/header' in name else normalize_footer(story,policy)
+            parts[name]=dump(story)
     def prototype(kind,key):
         return proto.get(kind,key)
-    emitted=[]; figures=[]; bookmark_map={}; counters=[0,0,0]; current_section=body.find('w:sectPr',NS)
+    emitted=[]; figures=[]; bookmark_map={}; counters=[0,0,0]; table_counts={}; figure_counts={}; current_section=body.find('w:sectPr',NS)
+    for section in root.findall('.//w:sectPr',NS): normalize_page(section)
     def available_width():
         sz=current_section.find('w:pgSz',NS); mar=current_section.find('w:pgMar',NS)
         return int(sz.get(q('w:w')))-int(mar.get(q('w:left')))-int(mar.get(q('w:right')))-int(mar.get(q('w:gutter'),'0'))
@@ -71,8 +148,8 @@ def _write_word(data,out,content_dir):
         if typ in ('heading','paragraph','runs','list'):
             key='heading'+str(b['level']) if typ=='heading' else ('list' if typ=='list' else 'paragraph')
             base=prototype('paragraph',key)
-            if typ=='heading' and profile['paragraphs'][key]['automatic_numbering'] and re.match(r'^(第[一二三四五六七八九十0-9]+[章节]|\d+[.、])',b['text']):
-                raise ValueError('heading has automatic numbering; omit textual number')
+            if typ=='heading' and re.match(r'^(第[一二三四五六七八九十0-9]+[章节]|\d+(?:\.\d+){0,2}[.、 ]?)',b['text']):
+                raise ValueError('heading numbering is generated; omit textual number')
             if typ=='runs':
                 p=paragraph(base,'')
                 for r in list(p.findall('w:r',NS)): p.remove(r)
@@ -93,19 +170,13 @@ def _write_word(data,out,content_dir):
                 if typ=='heading':
                     level=b['level']; counters[level-1]+=1
                     for lower in range(level,3): counters[lower]=0
-                    mode=profile['paragraphs'][key]['manual_numbering']
-                    if mode:
-                        if re.match(r'^(第[一二三四五六七八九十0-9]+章|[一二三四五六七八九十]+、|\d+\.)',value): raise ValueError('manual source numbering is generated; omit duplicate prefix')
-                        number=counters[level-1]
-                        cn=chinese_number
-                        prefix=('第'+cn(number)+'章 ' if mode=='chapter' else cn(number)+'、' if mode=='chinese' else '.'.join(str(n) for n in counters[:level])+' ')
-                        value=prefix+value
+                    value='.'.join(str(n) for n in counters[:level])+' '+value
                 nodes=[paragraph(base,value)]
         elif typ=='table':
             t=prototype('table',b['prototype']); tp=profile['tables'][b['prototype']]
             if not tp['variable_rows']: raise ValueError('complex merged form requires fixed topology adapter; expansion refused')
             if len(b['columns'])!=tp['columns']: raise ValueError('table columns differ from actual prototype')
-            if tp['width_twips']>available_width()+120: raise ValueError('table width exceeds section; choose matching source section/prototype')
+            fit_table_width(t,tp['width_twips'],available_width())
             rows=t.findall('w:tr',NS); header=rows[0]; sample=rows[1] if len(rows)>1 else rows[0]; final_row=rows[-1]
             for row in rows: t.remove(row)
             for i,values in enumerate([b['columns']]+b['rows']):
@@ -116,10 +187,12 @@ def _write_word(data,out,content_dir):
                 for cell,value in zip(row.findall('w:tc',NS),values):
                     cp=cell.find('w:p',NS)
                     for p in list(cell.findall('w:p',NS)): cell.remove(p)
-                    cell.append(paragraph(cp,value))
+                    cell.append(format_paragraph(paragraph(cp,value),'body',policy))
                 t.append(row)
             units=[name+'：'+unit for name,unit in zip(b['columns'],b['units']) if unit not in ('不适用','无','—','-')]
-            caption=ptype('caption',b['caption']+('（单位：'+'；'.join(units)+'）' if units else '')); nodes=[caption,t]
+            chapter=max(counters[0],1); table_counts[chapter]=table_counts.get(chapter,0)+1
+            title=re.sub(r'^表\s*\d+(?:\.\d+)?\s*','',b['caption']).strip()
+            caption=ptype('caption',f'表 {chapter}.{table_counts[chapter]} {title}'+('（单位：'+'；'.join(units)+'）' if units else '')); nodes=[caption,t]
         elif typ=='form':
             t=prototype('table',b['prototype']); rows=t.findall('w:tr',NS)
             for entry in b['cells']:
@@ -131,16 +204,21 @@ def _write_word(data,out,content_dir):
                 originals=cell.findall('w:p',NS)
                 for p in originals: cell.remove(p)
                 base=originals[0] if originals else E.Element(q('w:p'))
-                for i,value in enumerate(entry['paragraphs']): cell.append(paragraph(originals[min(i,len(originals)-1)] if originals else base,value))
-            nodes=[ptype('caption',b['caption']),t]
+                for i,value in enumerate(entry['paragraphs']): cell.append(format_paragraph(paragraph(originals[min(i,len(originals)-1)] if originals else base,value),'body',policy))
+            chapter=max(counters[0],1); table_counts[chapter]=table_counts.get(chapter,0)+1
+            title=re.sub(r'^表\s*\d+(?:\.\d+)?\s*','',b['caption']).strip()
+            nodes=[ptype('caption',f'表 {chapter}.{table_counts[chapter]} {title}'),t]
         elif typ=='figure':
-            p=ptype('figure',''); nodes=[p,ptype('caption',b['caption'])]
+            chapter=max(counters[0],1); figure_counts[chapter]=figure_counts.get(chapter,0)+1
+            title=re.sub(r'^图\s*\d+(?:\.\d+)?\s*','',b['caption']).strip()
+            p=ptype('figure',''); nodes=[p,ptype('caption',f'图 {chapter}.{figure_counts[chapter]} {title}')]
             path=(Path(content_dir)/b['path']).resolve()
             if not path.is_relative_to(Path(content_dir).resolve()) or not path.is_file(): raise ValueError('figure not found within content directory')
             if b['width_mm']*1440/25.4>available_width(): raise ValueError('figure overflow')
             figures.append((b['id'],path,b['width_mm'],b['alt']))
         elif typ=='section':
             next_section=prototype('section',b['prototype'])
+            normalize_page(next_section)
             # End the preceding section using its own geometry, then switch the terminal section.
             p=ptype('paragraph',''); pp=p.find('w:pPr',NS)
             if pp is None: pp=E.SubElement(p,q('w:pPr'))
@@ -155,6 +233,12 @@ def _write_word(data,out,content_dir):
                 preceding={q('w:pStyle'),q('w:keepNext'),q('w:keepLines')}
                 pp.insert(sum(child.tag in preceding for child in pp),flag)
             flag.set(q('w:val'),'1')
+        role='heading'+str(b['level']) if typ=='heading' else 'body'
+        for index,node in enumerate(nodes):
+            if node.tag==q('w:p'):
+                caption=((typ in ('table','form') and index==0) or (typ=='figure' and index==1))
+                node_role='figure_and_table_caption' if caption else role
+                format_paragraph(node,node_role,policy)
         for p in nodes:
             if p.tag==q('w:p'): bookmark(p,b['id']); break
         emitted.extend(nodes)
@@ -179,7 +263,7 @@ def _write_word(data,out,content_dir):
             p=Paragraph(node,doc._body); shape=p.add_run().add_picture(str(path),width=Mm(width)); shape._inline.docPr.set('descr',alt)
         doc.save(out)
     audit_package(load_package(out))
-    report={'structural_pass':True,'rendered':False,'visually_reviewed':False,'unverified_items':['Office pagination/TOC refresh and visual inspection required','Engineering assertions require independent professional review'],'family':data['family'],'source_sha256':profile['source_sha256'],'output_sha256':sha(out),'block_ids':[b['id'] for b in data['blocks']],'bookmark_map':bookmark_map}
+    report={'structural_pass':True,'rendered':False,'visually_reviewed':False,'unverified_items':['Office pagination/TOC refresh and visual inspection required','Engineering assertions require independent professional review','Formal cover, exact margins/gutter, TOC depth, signature area and chapter-opening header remain pending formal template confirmation'],'family':data['family'],'source_sha256':profile['source_sha256'],'format_policy_sha256':sha(POLICY_PATH),'format_policy_status':policy['status'],'output_sha256':sha(out),'block_ids':[b['id'] for b in data['blocks']],'bookmark_map':bookmark_map}
     from handoff import encoded
     report['content_sha256']=hashlib.sha256(encoded(data)).hexdigest()
     report['content_hash_method']='sha256-normalized-content-v1'

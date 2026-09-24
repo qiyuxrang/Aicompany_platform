@@ -31,7 +31,7 @@
 | P0 技术基线 | 基线固化 | 进行中（历史引用） | — |
 | R1 接入与基线 | `T-G01`、`T-P01`、`T-P02` | `BLOCKED`（核心范围已验证；T-P01=D-02；T-P02=D-01/D-08） | `docs/product/T-G01/TASK_STATUS.md`、`docs/product/T-P01/TASK_STATUS.md`、`docs/product/T-P02/TASK_STATUS.md` |
 | R2 交互与治理 | `T-P03`、`T-P04`、`T-P07` | `IN_PROGRESS`（T-P03=`BLOCKED`/`CORE_PASS`；T-P04、T-P07=`NOT_VERIFIED`/`CORE_PASS`；前端 Core 已接入，Browser E2E 未执行） | `docs/product/T-P03/TASK_STATUS.md`、`docs/product/T-P04/TASK_STATUS.md`、`docs/product/T-P07/TASK_STATUS.md` |
-| R3 业务评估 | `T-P05`、`T-P06`、`T-P08`、`T-G04`、`T-R01` | `BLOCKED`（`T-P05`/`T-P06`=`CORE_PASS`，前端 Core 已接入；T-P08/T-G04/T-R01、真实检索/模型与业务签认未通过） | `docs/product/T-P05/TASK_STATUS.md`、`docs/product/T-P06/TASK_STATUS.md` |
+| R3 业务评估 | `T-P05`、`T-P06`、`T-P08`、`T-G04`、`T-R01` | `BLOCKED`（`T-P05`/`T-P06`/`T-P08` 自动化 Core 已验证，前端 Core 已接入；T-G04/T-R01、真实检索/模型与业务签认未通过） | `docs/product/T-P05/TASK_STATUS.md`、`docs/product/T-P06/TASK_STATUS.md`、`docs/product/T-P08/TASK_STATUS.md` |
 | 项目中心 / 总经理视角 | B1 经营接入 | `NOT_RUN` | 待建立 |
 | HR | H1/JD、H2/转正 | `NOT_RUN` | 待建立 |
 | 工程 | E0 盘点、E1 试点 | `NOT_RUN` | 待建立 |
@@ -53,6 +53,7 @@
 | `T-P05` | `docs/product/T-P05/TASK_STATUS.md` | 2026-09-24 |
 | `T-P07` | `docs/product/T-P07/TASK_STATUS.md` | 2026-09-24 |
 | `T-P06` | `docs/product/T-P06/TASK_STATUS.md` | 2026-09-24 |
+| `T-P08` | `docs/product/T-P08/TASK_STATUS.md` | 2026-09-24 |
 | `T-H01`～`T-H04` | 尚未建立 | — |
 | `T-B01`～`T-B03` | 尚未建立 | — |
 | `T-E01`～`T-E03` | 尚未建立 | — |
@@ -85,7 +86,7 @@
 | 范围 | 技术测试 | 真实依赖验证 | 浏览器验收 | 业务签认 | 部署验收 |
 | --- | --- | --- | --- | --- | --- |
 | P0 技术基线 | 历史引用（见 §6） | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` |
-| P1 三件套 | `BLOCKED`（T-P05/T-P06 核心链与前端 Core 已验证；T-P08、T-G04、T-R01 未完成） | `BLOCKED`（真实模型/RAGFlow 未授权） | `NOT_RUN` | `BLOCKED` | `NOT_RUN` |
+| P1 三件套 | `BLOCKED`（T-P05/T-P06/T-P08 自动化 Core 与前端 Core 已验证；T-G04、T-R01 未完成） | `BLOCKED`（真实模型/RAGFlow 未授权） | `NOT_RUN` | `BLOCKED` | `NOT_RUN` |
 | HR / 经营 / 工程 / Tender | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` |
 
 ## 5. 项目级证据索引
@@ -101,6 +102,7 @@
 | T-G01 任务证据（唯一目录） | `docs/product/T-G01/evidence/` |
 | T-P07 版本留痕证据 | `docs/product/T-P07/evidence/` |
 | P1 前端业务链 Core 证据 | `docs/product/evidence/frontend-closure-20260924/` |
+| T-P08 三类成果质量回归 | `docs/product/T-P08/evidence/` |
 | 跨任务证据与索引 | `docs/evidence/`、`deliverables/企业平台SDD_V0.2_20260922/qa/` |
 | P0 基线实测 | `docs/P0_BASELINE.md` |
 | 三件套迁移设计 | `docs/superpowers/specs/2026-09-23-product-three-drafts-migration-design.md` |
@@ -133,3 +135,4 @@
 | 2026-09-24 | T-P07 版本留痕核心合同完成 | 只读同权限时间线覆盖主体、原因、diff、hash、来源、批准、artifact current/stale 与外部作者未核实边界；产品后端 109/109 通过；Browser E2E 按 `FRONTEND_DEFERRED` 未记 PASS |
 | 2026-09-24 | T-P06 可研与 PPT Core 完成 | 两份 report 内容分别批准后才允许生成 PPT；可研 Word 9 页与可编辑 PPTX 7 页经 Microsoft Office 实际渲染并完成技术视觉复核；产品后端 126/126 通过；正式模板/业务签认、真实模型/RAGFlow 与 Browser E2E 未通过，未记 Task/P1 PASS |
 | 2026-09-24 | P1 前端业务链 Core 接入完成 | checkpoint `9621f56`；T-P01～T-P06 及 T-P07 版本链已接入统一 React 工作台；后端产品回归 110 项中 109 PASS/1 SKIP，前端 135/135 与 build 通过；Browser E2E 仍为 `NOT_RUN`，未记 Task/P1 PASS |
+| 2026-09-24 | T-P08 三类成果质量回归完成自动化范围 | v12 在隔离链生成技术方案 Word 9 页、可研 Word 9 页和 PPT 7 页并经 Microsoft Office 实际渲染；产品回归 110 PASS/1 SKIP；正式模板/业务视觉/审核、真实模型/RAGFlow 与 Browser E2E 未通过，未记 Task/P1 PASS |

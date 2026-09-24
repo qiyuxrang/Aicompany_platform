@@ -1,0 +1,107 @@
+{
+  "schema": "BJ_PRODUCT_DOCUMENT_FORMAT_POLICY_V1",
+  "status": "approved_interim_baseline",
+  "applies_to": [
+    "technical-solution",
+    "feasibility"
+  ],
+  "approved_source": "user_instruction_2026-09-24",
+  "scope_note": "本规则固化已明确的通用版式；不等同于企业正式模板、视觉签认或业务签认。",
+  "page": {
+    "paper": "A4",
+    "width_mm": 210,
+    "height_mm": 297,
+    "print": "single_sided",
+    "body_grid": {
+      "rows": 38,
+      "characters_per_row": 39,
+      "line_spacing_pt": 18,
+      "line_rule": "exact"
+    }
+  },
+  "typography": {
+    "language": "zh-CN-simplified",
+    "body": {
+      "font": "宋体",
+      "size_pt": 12,
+      "line_spacing_pt": 18
+    },
+    "heading1": {
+      "font": "宋体",
+      "size_pt": 16,
+      "bold": true,
+      "alignment": "center"
+    },
+    "heading2": {
+      "font": "宋体",
+      "size_pt": 14,
+      "bold": true,
+      "alignment": "left"
+    },
+    "heading3": {
+      "font": "宋体",
+      "size_pt": 12,
+      "bold": true,
+      "alignment": "left"
+    },
+    "header": {
+      "font": "宋体",
+      "size_pt": 10.5,
+      "alignment": "center"
+    },
+    "figure_and_table_caption": {
+      "font": "宋体",
+      "size_pt": 10.5,
+      "alignment": "center"
+    },
+    "table_note": {
+      "font": "宋体",
+      "size_pt": 9
+    }
+  },
+  "numbering": {
+    "heading1": "1",
+    "heading2": "1.1",
+    "heading3": "1.1.1",
+    "lower_levels": [
+      "a.",
+      "(1)",
+      "1)"
+    ],
+    "figure": "图 {chapter}.{sequence}",
+    "table": "表 {chapter}.{sequence}"
+  },
+  "header_footer": {
+    "ordinary_header": "西安工业大学毕业设计（论文）",
+    "ordinary_header_bottom_border": "double",
+    "chapter_opening_header": "current_chapter_title",
+    "page_number": {
+      "position": "bottom_center"
+    }
+  },
+  "figures": {
+    "caption_position": "below",
+    "reference_before_figure": true,
+    "must_not_cross_section": true,
+    "subfigure_labels": "a,b,c",
+    "standards": "applicable_national_standards"
+  },
+  "tables": {
+    "caption_position": "above",
+    "common_unit_position": "upper_right_without_unit_label",
+    "footnote_marker": "circled_number",
+    "notes_position": "below"
+  },
+  "pending_formal_template_confirmation": [
+    "formal_cover_layout",
+    "company_name_logo_identity_placement_and_size",
+    "exact_page_margins_and_gutter",
+    "table_theme_colors_header_fill_border_width_and_color",
+    "network_topology_and_architecture_visual_language",
+    "automatic_toc_display_depth",
+    "compiler_reviewer_approver_signature_and_stamp_area",
+    "complete_enterprise_word_template_and_long_form_sample",
+    "chapter_opening_page_specific_header_section_implementation",
+    "lower_than_heading3_content_contract_and_rendering"
+  ]
+}

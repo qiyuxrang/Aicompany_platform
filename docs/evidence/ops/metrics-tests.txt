@@ -1,0 +1,17 @@
+test_busy_collector_drops_sample_without_waiting (portal.tests.test_ops_metrics.BoundedMetricsTests.test_busy_collector_drops_sample_without_waiting) ... ok
+test_middleware_uses_route_template_without_query_body_or_identity (portal.tests.test_ops_metrics.BoundedMetricsTests.test_middleware_uses_route_template_without_query_body_or_identity) ... ok
+test_nonfinite_and_negative_latency_is_rejected (portal.tests.test_ops_metrics.BoundedMetricsTests.test_nonfinite_and_negative_latency_is_rejected) ... ok
+test_old_window_expires_in_memory (portal.tests.test_ops_metrics.BoundedMetricsTests.test_old_window_expires_in_memory) ... ok
+test_polling_health_and_operations_are_excluded (portal.tests.test_ops_metrics.BoundedMetricsTests.test_polling_health_and_operations_are_excluded) ... ok
+test_route_cardinality_is_bounded (portal.tests.test_ops_metrics.BoundedMetricsTests.test_route_cardinality_is_bounded) ... ok
+test_telemetry_exception_does_not_block_response (portal.tests.test_ops_metrics.BoundedMetricsTests.test_telemetry_exception_does_not_block_response) ... ok
+test_units_count_mean_max_and_server_error_ratio (portal.tests.test_ops_metrics.BoundedMetricsTests.test_units_count_mean_max_and_server_error_ratio) ... ok
+test_zero_samples_are_not_collected_not_zero_latency (portal.tests.test_ops_metrics.BoundedMetricsTests.test_zero_samples_are_not_collected_not_zero_latency) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.007s
+
+OK
+Found 9 test(s).
+Skipping setup of unused database(s): default.
+System check identified no issues (0 silenced).

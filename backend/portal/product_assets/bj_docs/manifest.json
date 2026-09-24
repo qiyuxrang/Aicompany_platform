@@ -54,8 +54,8 @@
     {
       "path": "scripts/artifacts.py",
       "source": "skills/bj-docs/scripts/artifacts.py",
-      "sha256": "7057f8055cc9b4045af6d1e6fe1f2716d4927c59e7a3f8b1ef1b2e4cdf2cc146",
-      "bytes": 15302,
+      "sha256": "14038caea835ee25f0cc5ca884b042ae3bdb9d7bd53abf6ce137dfb46bf91613",
+      "bytes": 19793,
       "source_status": " M skills/bj-docs/scripts/artifacts.py"
     },
     {
@@ -120,6 +120,13 @@
       "sha256": "254ccfbdf5ea4be9ca42eb73f6a41d0ab4c18e2dcac205918209d931c1179933",
       "bytes": 1347114,
       "source_status": "clean"
+    },
+    {
+      "path": "assets/document-format-policy.json",
+      "source": "user instruction 2026-09-24",
+      "sha256": "0d7d6cce386f1b0dc2c2931142e452bf0675469e559126d7711b334f64b594d3",
+      "bytes": 2818,
+      "source_status": "approved interim baseline"
     }
   ]
 }

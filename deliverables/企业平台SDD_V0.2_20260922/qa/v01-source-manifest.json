@@ -1,0 +1,66 @@
+[
+  {
+    "file": "README.md",
+    "sha256": "6da4fe76104264a97ac3d3c9053326f61f7a13c2b79aaba9426a4ae944ae58db"
+  },
+  {
+    "file": "REVIEW.md",
+    "sha256": "ee6df75aaa6f832d4220f08a9e31e457f6725645cc1d00c4e0037ffea43c86af"
+  },
+  {
+    "file": "PLAN.md",
+    "sha256": "2d7a3010bc3690bfa62628061ae6988efe4826c05bb285789a280147ba4d544a"
+  },
+  {
+    "file": "TASKS.md",
+    "sha256": "2ba0682723fed79bfee05b37dbe8fdb21bd1752b7510bc2ae8f62cf2eb3522e3"
+  },
+  {
+    "file": "ACCEPTANCE.md",
+    "sha256": "dd3c55d41e0a142d6632c4e35c5c298b0568e5d56f446b20ca1d38aaf294b6ee"
+  },
+  {
+    "file": "AI_HANDOFF.md",
+    "sha256": "d811ab4e0d948351b7f299ba70f7540ec9450a59916df6327fad4e55abde0e9c"
+  },
+  {
+    "file": "EXECUTION_STATUS.md",
+    "sha256": "431826b4245dbab3dd1125fe1459742025c945ddeefa3c512f3289aded4527fc"
+  },
+  {
+    "file": "P1_INCREMENT_EXECUTION.md",
+    "sha256": "c434967e07825265b8b810f3c3db825c938df566614a3917463f0554710e76a8"
+  },
+  {
+    "file": "P1_RUNBOOK.md",
+    "sha256": "b3ee89b3404383cbc0ed710edabaa4cd93b4142350bea990427769ed1bace374"
+  },
+  {
+    "file": "企业平台总体规划_SDD评审版.docx",
+    "sha256": "b40ee6c5b2d5e7d7ec6e6f3ab79eb6e4b3438b4e8f1e644c5febda4490db66cd"
+  },
+  {
+    "file": "specs/00-overview.md",
+    "sha256": "5f3873a392b38484e2de942d1f0249244da517299575aae959d0b4eb096f3e36"
+  },
+  {
+    "file": "specs/01-platform.md",
+    "sha256": "5b6fca57a95bf973f5f059fc315fff6888432759b2277305f6444c10679e3ff8"
+  },
+  {
+    "file": "specs/02-product.md",
+    "sha256": "0e73136438dea8ef6fe4b3320fec3fae5584b7c64783fde588bda33966241e4b"
+  },
+  {
+    "file": "specs/03-hr.md",
+    "sha256": "469c20cd9e45db7940915d35a91ce6807b3ecab1509b9d2519d2986e0c0e8983"
+  },
+  {
+    "file": "specs/04-engineering.md",
+    "sha256": "2a23fd7777e0a685def23f52f91e22b11e87ec2b8ccc0ceb44b77fa1c1098dc7"
+  },
+  {
+    "file": "specs/05-business.md",
+    "sha256": "6ca1f968b4b997d027b7569f8f03676433b8494d48ec19f4f9d932ce04937d42"
+  }
+]

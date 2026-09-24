@@ -1,0 +1,141 @@
+{
+  "timestamp": "2026-09-22T01:12:04.378724+00:00",
+  "result": "passed",
+  "command": "uv run --env-file .runtime/p1-validation.env python validation/p1_isolated_acceptance.py run",
+  "boundaries": {
+    "database": "portal_p1_20260922_091117",
+    "endpoint": "127.0.0.1:55438",
+    "database_name_whitelist_verified": true,
+    "existing_ops_or_daily_database_modified": false,
+    "synthetic_data_only": true,
+    "real_company_data_used": false,
+    "formal_release_enabled": false,
+    "reviewer_allowlist": "synthetic reviewer only"
+  },
+  "model_substitute": {
+    "kind": "deterministic child-process monkeypatch",
+    "real_or_paid_model_called": false,
+    "gateway_url_configured": false,
+    "gateway_token_configured": false,
+    "registered_model_calls_allowed": false,
+    "child_local_model_gate_override": true,
+    "patch_scope": "worker subprocesses only",
+    "first_worker_chapter_entries": [
+      "chapter-1",
+      "chapter-2",
+      "chapter-3"
+    ],
+    "recovery_worker_chapter_entries": [
+      "chapter-3"
+    ],
+    "recovery_worker_review_calls": 1
+  },
+  "real_postgres": {
+    "used": true,
+    "server_version": "17.5 (Debian 17.5-1.pgdg130+1)",
+    "task_id": "be5a3504-5d69-45e5-ae8b-8ded1dee8394",
+    "committed_chapters_before_termination": 2,
+    "committed_chapters_after_recovery": 3,
+    "first_two_chapters_reused": true,
+    "attempts": [
+      {
+        "fence": 2,
+        "status": "failed",
+        "error_code": "lease_expired",
+        "model_substitute_calls": 3
+      },
+      {
+        "fence": 3,
+        "status": "done",
+        "error_code": "",
+        "model_substitute_calls": 2
+      }
+    ]
+  },
+  "real_processes": {
+    "first_worker_pid": 39856,
+    "first_worker_terminated_by_parent": true,
+    "first_worker_returncode": 1,
+    "lease_explicitly_shortened_after_termination": true,
+    "expired_lease_timestamp": "2026-09-22T01:11:52.653745+00:00",
+    "recovery_worker_pid": 31996,
+    "recovery_worker_exit_code": 0,
+    "new_fence_claimed": true
+  },
+  "word_generation": {
+    "implementation": "portal.product_documents.render_draft",
+    "fixed_runtime": {
+      "python": "3.12.12",
+      "lxml": "6.0.2",
+      "python-docx": "1.2.0",
+      "PyMuPDF": "1.26.4",
+      "pywin32": "311"
+    },
+    "called_by_real_worker": true,
+    "artifact_count": 1,
+    "artifact_version": 1,
+    "artifact_path": "be5a3504-5d69-45e5-ae8b-8ded1dee8394/artifacts/ce10ec91abd849bdba7de61379a08953/draft.docx",
+    "artifact_bytes": 26528,
+    "artifact_sha256": "5dac39219bb04b4930eb3a5769977715c59c4f17b3b1530b101422871ce5bcd3",
+    "draft": true,
+    "formal_approval_count": 0,
+    "render_evidence": {
+      "status": "draft_unverified"
+    },
+    "microsoft_word_render": {
+      "executed": true,
+      "renderer": "Microsoft Word 16.0",
+      "rendered": true,
+      "structural_pass": true,
+      "visually_reviewed": false,
+      "page_count": 7,
+      "toc_count": 1,
+      "input_sha256": "5dac39219bb04b4930eb3a5769977715c59c4f17b3b1530b101422871ce5bcd3",
+      "rendered_docx_sha256": "952d5e6393efc2f1bfedc1eddddb3760d75dce716e80226b4d680fc742e691c4",
+      "pdf_sha256": "76f6c77132c71ca9a7884a8d7e8ae1f54f41fbf3cbff95f628686cccf12b6ee2",
+      "page_images": [
+        ".runtime/p1-validation-runs/20260922T011151Z/word-render/page-001.png",
+        ".runtime/p1-validation-runs/20260922T011151Z/word-render/page-002.png",
+        ".runtime/p1-validation-runs/20260922T011151Z/word-render/page-003.png",
+        ".runtime/p1-validation-runs/20260922T011151Z/word-render/page-004.png",
+        ".runtime/p1-validation-runs/20260922T011151Z/word-render/page-005.png",
+        ".runtime/p1-validation-runs/20260922T011151Z/word-render/page-006.png",
+        ".runtime/p1-validation-runs/20260922T011151Z/word-render/page-007.png"
+      ],
+      "unverified_items": [
+        "Open every page image and record visual review separately",
+        "Engineering facts not verified by renderer"
+      ]
+    },
+    "package_entries": 14,
+    "required_entries_present": true,
+    "zip_integrity": true
+  },
+  "api_isolation": {
+    "outsider_is_platform_admin_without_product_role": true,
+    "outsider_list_status": 404,
+    "outsider_task_status": 404,
+    "outsider_artifact_status": 404,
+    "owner_self_review_status": 404,
+    "reviewer_live_revocation_status": 404,
+    "stale_owner_update": {
+      "status": 409,
+      "code": "stale_version"
+    },
+    "stale_manual_chapter": {
+      "status": 409,
+      "code": "stale_version"
+    },
+    "exact_blueprint_version_approval_status": 201,
+    "exact_artifact_version_formal_gate": {
+      "status": 409,
+      "code": "formal_release_blocked"
+    }
+  },
+  "backup_summary": "qa/execution-20260922/p1-backup-summary.json",
+  "browser": {
+    "executed": false,
+    "reason": "Browser acceptance is optional and is handled separately only when Playwright runtime is available.",
+    "screenshots_claimed": false
+  }
+}

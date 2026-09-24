@@ -1,0 +1,35 @@
+[
+  {
+    "stage": "launcher",
+    "error": "FileNotFoundError: Windows subprocess did not resolve pnpm.cmd",
+    "result": "no database or server created",
+    "fix": "Resolve pnpm.cmd explicitly without shell execution."
+  },
+  {
+    "stage": "browser login",
+    "error": "AttributeError: Playwright wait_for_url callback received a string, not an object with .path",
+    "result": "isolated server stopped; failed SQLite and storage removed",
+    "fix": "Treat the callback value as a string."
+  },
+  {
+    "stage": "page preview screenshot",
+    "error": "Direct Chromium image tabs did not expose a normal img locator",
+    "result": "isolated server stopped; failed SQLite and storage removed",
+    "fix": "Use the authenticated images embedded in the real review page."
+  },
+  {
+    "stage": "page preview locator",
+    "error": "AttributeError: Playwright Python uses get_by_alt_text rather than get_by_alt",
+    "result": "isolated server stopped; failed SQLite and storage removed",
+    "fix": "Use the current Playwright 1.60 Python locator API."
+  },
+  {
+    "stage": "parallel page preview receipts",
+    "error": "django.db.utils.OperationalError: database is locked",
+    "log_excerpt": "2026-09-22 11:26:38 preview GET pages 2, 3, and 4 returned HTTP 500 while artifact_preview saved page_views",
+    "cause": "Threaded development server attempted concurrent receipt writes to the isolated SQLite fixture database.",
+    "raw_temp_log_retained": false,
+    "raw_temp_log_note": "The failed isolated directory was removed before the request to retain failure evidence; this record is reconstructed from captured server stderr.",
+    "fix": "Run only this isolated SQLite validation server with --nothreading; requests remain real and unmocked."
+  }
+]

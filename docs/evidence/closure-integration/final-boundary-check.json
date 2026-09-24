@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-09-21T04:44:37.929671+00:00",
+  "original_legacy_source_head_branch_index_unchanged": true,
+  "portal_index_unchanged": true,
+  "original_service_health": {
+    "portal_original": 200,
+    "portal_daily": 200,
+    "legacy_original": 200
+  },
+  "isolated_service_ports_closed": {
+    "18310": true,
+    "18318": true,
+    "18319": true
+  },
+  "original_frontend_index_sha256": "b6a7e2194e166f6f90109a6117b8c8b8daf5788d2b9ae6ea4cf615bf21ba7406",
+  "boundary": "Health endpoints only, not production identity/data acceptance; all existing services left running"
+}

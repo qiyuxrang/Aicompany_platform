@@ -1,0 +1,221 @@
+{
+  "timestamp": "2026-09-21T05:21:11.864100+00:00",
+  "base": "http://127.0.0.1:18310",
+  "admin_username": "bridge_admin",
+  "fixture": {
+    "username": "bridge_admin_http_20260921052104_37b2ea",
+    "user_id": 8
+  },
+  "checks": [
+    {
+      "case": "仅使用18310桥接门户健康端点",
+      "passed": true,
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "case": "bridge_admin真实登录",
+      "passed": true,
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "case": "当前会话确认为bridge_admin",
+      "passed": true,
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "case": "原生DjangoAdmin新增账号表单可读",
+      "passed": true,
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "case": "合成账号所需既有角色可选",
+      "passed": true,
+      "evidence": {
+        "roles": [
+          "产品人员",
+          "工程人员",
+          "人事人员",
+          "总经理",
+          "平台管理员"
+        ]
+      }
+    },
+    {
+      "case": "原生DjangoAdmin创建合成账号",
+      "passed": true,
+      "evidence": {
+        "status": 302
+      }
+    },
+    {
+      "case": "仅定位本轮合成账号",
+      "passed": true,
+      "evidence": {
+        "user_id": 8
+      }
+    },
+    {
+      "case": "合成账号初始密码真实登录",
+      "passed": true,
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "case": "原生DjangoAdmin增加第二角色",
+      "passed": true,
+      "evidence": {
+        "status": 302
+      }
+    },
+    {
+      "case": "角色调整由Admin表单持久化",
+      "passed": true,
+      "evidence": {
+        "selected": [
+          "1",
+          "2"
+        ]
+      }
+    },
+    {
+      "case": "原生DjangoAdmin撤回第二角色",
+      "passed": true,
+      "evidence": {
+        "status": 302
+      }
+    },
+    {
+      "case": "撤回角色后仅保留基准角色",
+      "passed": true,
+      "evidence": {
+        "selected": [
+          "1"
+        ]
+      }
+    },
+    {
+      "case": "原生DjangoAdmin重置合成账号密码",
+      "passed": true,
+      "evidence": {
+        "status": 302
+      }
+    },
+    {
+      "case": "重置使旧会话失效",
+      "passed": true
+    },
+    {
+      "case": "初始密码重置后不可登录",
+      "passed": true
+    },
+    {
+      "case": "重置密码可登录且仍强制改密",
+      "passed": true,
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "case": "原生DjangoAdmin停用合成账号",
+      "passed": true,
+      "evidence": {
+        "status": 302
+      }
+    },
+    {
+      "case": "停用使现有会话失效",
+      "passed": true
+    },
+    {
+      "case": "停用账号拒绝真实登录",
+      "passed": true
+    },
+    {
+      "case": "原生DjangoAdmin重新启用合成账号",
+      "passed": true,
+      "evidence": {
+        "status": 302
+      }
+    },
+    {
+      "case": "重新启用后重置密码恢复登录",
+      "passed": true,
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "case": "审计按动作结果及目标过滤-user_create",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "rows": 1
+      }
+    },
+    {
+      "case": "审计按动作结果及目标过滤-user_change",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "rows": 4
+      }
+    },
+    {
+      "case": "审计按动作结果及目标过滤-password_reset",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "rows": 1
+      }
+    },
+    {
+      "case": "审计新增入口只读拒绝",
+      "passed": true
+    },
+    {
+      "case": "过滤结果提供审计只读详情",
+      "passed": true,
+      "evidence": {
+        "event_id": 220
+      }
+    },
+    {
+      "case": "审计详情允许只读查看",
+      "passed": true
+    },
+    {
+      "case": "审计详情拒绝HTTP写入",
+      "passed": true
+    }
+  ],
+  "passed": 28,
+  "failed": 0,
+  "cleanup": {
+    "attempted": true,
+    "completed": true,
+    "reset_status": 302,
+    "disable_status": 302,
+    "final_admin_read_status": 200,
+    "final_active": false,
+    "final_roles": [],
+    "known_passwords_rejected": true,
+    "final_password_persisted": false
+  },
+  "failure": null,
+  "safety_boundary": {
+    "forbidden_base": "http://127.0.0.1:18210",
+    "forbidden_username": "bjrunner",
+    "credentials_modified": false,
+    "existing_users_modified": []
+  },
+  "boundary": "真实本机HTTP与原生Django Admin表单，仅针对18310 bridge_environment、bridge_admin及本轮合成新用户；不代表普通浏览器UI或浏览器SSO通过。"
+}

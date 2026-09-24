@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "family": "technical-solution",
+  "metadata": {
+    "id": "sample_technical_solution",
+    "title": "隔离采集试验技术方案",
+    "subtitle": "合成验证样本 不用于真实工程",
+    "date": "2026年9月14日",
+    "organization": "模拟编制组",
+    "status": "synthetic"
+  },
+  "sources": [
+    {
+      "id": "SYN01",
+      "text": "本次工具链合成样本，无生产测量及企业原始事实。"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ01",
+      "text": "保持所选文档家族格式并使段落与表格可复核。"
+    }
+  ],
+  "pending": [
+    {
+      "id": "PEND01",
+      "text": "工程参数、责任人、费用及适用标准待证据确认。"
+    }
+  ],
+  "blocks": [
+    {
+      "id": "H1",
+      "type": "heading",
+      "level": 1,
+      "text": "项目概述",
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    },
+    {
+      "id": "P1",
+      "type": "paragraph",
+      "text": "本样本仅验证文档工具链。试验对象是两类合成信号，不连接生产系统；输入由固定脚本生成，未经任何现场测量。需求是记录采集失败与恢复过程，并保留可核对的消息编号。",
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    },
+    {
+      "id": "H2",
+      "type": "heading",
+      "level": 1,
+      "text": "接口与实施方案",
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    },
+    {
+      "id": "P2",
+      "type": "paragraph",
+      "text": "采集端向隔离队列写入事件编号、采集时刻和模拟状态。接收端只校验结构，不将成功接收解释为现场设备正常。恢复测试使用预设中断窗口，接口版本尚待项目方确认。",
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    },
+    {
+      "id": "TAB01",
+      "type": "table",
+      "prototype": "table6",
+      "columns": [
+        "检查项",
+        "验证方法",
+        "证据",
+        "状态",
+        "备注"
+      ],
+      "units": [
+        "不适用",
+        "不适用",
+        "不适用",
+        "不适用",
+        "不适用"
+      ],
+      "rows": [
+        [
+          "编号一致性",
+          "对照输入记录",
+          "合成日志",
+          "待复核",
+          "合成示例"
+        ],
+        [
+          "错误可追溯",
+          "模拟字段缺失",
+          "错误记录",
+          "待复核",
+          "合成示例"
+        ]
+      ],
+      "caption": "表1 合成检查记录",
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    },
+    {
+      "id": "RUN01",
+      "type": "runs",
+      "runs": [
+        {
+          "text": "特殊字符核验：",
+          "bold": true
+        },
+        {
+          "text": "A & B < C > D；字面量 {{title}} 不执行替换。"
+        }
+      ],
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    },
+    {
+      "id": "H3",
+      "type": "heading",
+      "level": 1,
+      "text": "测试与验收边界",
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    },
+    {
+      "id": "P3",
+      "type": "paragraph",
+      "text": "验收样本分别覆盖正常输入、重复编号和缺失字段。每个失败案例必须留下输入与检测结果。只有记录可追溯性属于本次演示范围，吞吐量、可用性与真实安全等级均未测定。",
+      "source_ids": [
+        "SYN01"
+      ],
+      "requirement_ids": [
+        "REQ01"
+      ]
+    }
+  ]
+}

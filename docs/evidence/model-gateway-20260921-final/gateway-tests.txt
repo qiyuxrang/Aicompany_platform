@@ -1,0 +1,41 @@
+C:\Users\BJRunner\Desktop\ai������ƽ̨\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+test_authentication_precedes_payload_and_outbound (test_app.GatewayAppTests.test_authentication_precedes_payload_and_outbound) ... ok
+test_bounded_concurrency_rejects_without_call (test_app.GatewayAppTests.test_bounded_concurrency_rejects_without_call) ... ok
+test_business_call_and_missing_usage (test_app.GatewayAppTests.test_business_call_and_missing_usage) ... ok
+test_connection_probe_overrides_input_and_restricts_tokens (test_app.GatewayAppTests.test_connection_probe_overrides_input_and_restricts_tokens) ... ok
+test_health_is_liveness_not_model_verification (test_app.GatewayAppTests.test_health_is_liveness_not_model_verification) ... ok
+test_missing_service_token_fails_closed (test_app.GatewayAppTests.test_missing_service_token_fails_closed) ... ok
+test_request_size_limit_precedes_parsing (test_app.GatewayAppTests.test_request_size_limit_precedes_parsing) ... ok
+test_safe_transport_error_and_released_capacity (test_app.GatewayAppTests.test_safe_transport_error_and_released_capacity) ... ok
+test_switch_provider_and_model_changes_no_business_input (test_app.GatewayAppTests.test_switch_provider_and_model_changes_no_business_input) ... ok
+test_unexpected_error_does_not_escape (test_app.GatewayAppTests.test_unexpected_error_does_not_escape) ... ok
+test_unknown_protocol_and_unsupported_roles_fail (test_app.GatewayAppTests.test_unknown_protocol_and_unsupported_roles_fail) ... ok
+test_validation_does_not_echo_secrets (test_app.GatewayAppTests.test_validation_does_not_echo_secrets) ... ok
+test_all_dns_answers_must_be_public (test_transport.TransportProtocolSimulationTests.test_all_dns_answers_must_be_public) ... ok
+test_all_error_messages_are_static_chinese (test_transport.TransportProtocolSimulationTests.test_all_error_messages_are_static_chinese) ... ok
+test_canonical_exact_allowlist (test_transport.TransportProtocolSimulationTests.test_canonical_exact_allowlist) ... ok
+test_dns_elapsed_time_is_part_of_total_deadline (test_transport.TransportProtocolSimulationTests.test_dns_elapsed_time_is_part_of_total_deadline) ... ok
+test_dns_failure_is_redacted_and_never_connects (test_transport.TransportProtocolSimulationTests.test_dns_failure_is_redacted_and_never_connects) ... ok
+test_dns_timeout_workers_are_bounded_and_release_after_completion (test_transport.TransportProtocolSimulationTests.test_dns_timeout_workers_are_bounded_and_release_after_completion) ... ok
+test_key_namespace_and_invalid_secret_never_leave_process (test_transport.TransportProtocolSimulationTests.test_key_namespace_and_invalid_secret_never_leave_process) ... ok
+test_multiple_providers_same_protocol_and_default_token_limit (test_transport.TransportProtocolSimulationTests.test_multiple_providers_same_protocol_and_default_token_limit) ... ok
+test_pinning_tls_hostname_host_header_and_no_proxy_or_rebinding (test_transport.TransportProtocolSimulationTests.test_pinning_tls_hostname_host_header_and_no_proxy_or_rebinding) ... ok
+test_real_default_context_requires_certificate_and_hostname (test_transport.TransportProtocolSimulationTests.test_real_default_context_requires_certificate_and_hostname) ... ok
+test_request_shape_size_and_configuration (test_transport.TransportProtocolSimulationTests.test_request_shape_size_and_configuration) ... ok
+test_response_body_exact_limit_is_accepted (test_transport.TransportProtocolSimulationTests.test_response_body_exact_limit_is_accepted) ... ok
+test_response_size_content_length_and_encoding (test_transport.TransportProtocolSimulationTests.test_response_size_content_length_and_encoding) ... ok
+test_status_mapping_no_redirect_retry_or_error_body_read (test_transport.TransportProtocolSimulationTests.test_status_mapping_no_redirect_retry_or_error_body_read) ... ok
+test_strict_json_choices_content_and_usage (test_transport.TransportProtocolSimulationTests.test_strict_json_choices_content_and_usage) ... ok
+test_timeout_and_exception_redaction_at_each_transport_phase (test_transport.TransportProtocolSimulationTests.test_timeout_and_exception_redaction_at_each_transport_phase) ... ok
+test_tls_failure_is_safe_and_connection_is_closed (test_transport.TransportProtocolSimulationTests.test_tls_failure_is_safe_and_connection_is_closed) ... ok
+test_token_parameters_and_missing_usage (test_transport.TransportProtocolSimulationTests.test_token_parameters_and_missing_usage) ... ok
+test_total_deadline_checked_even_with_trickling_body (test_transport.TransportProtocolSimulationTests.test_total_deadline_checked_even_with_trickling_body) ... ok
+test_trailing_slash_and_explicit_https_port_match_exact_allowlist (test_transport.TransportProtocolSimulationTests.test_trailing_slash_and_explicit_https_port_match_exact_allowlist) ... ok
+test_watchdog_interrupts_blocked_headers (test_transport.TransportProtocolSimulationTests.test_watchdog_interrupts_blocked_headers) ... ok
+test_watchdog_retains_socket_after_http_connection_close (test_transport.TransportProtocolSimulationTests.test_watchdog_retains_socket_after_http_connection_close) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 1.416s
+
+OK

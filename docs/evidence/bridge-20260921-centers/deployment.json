@@ -1,0 +1,17 @@
+{
+  "bjrunner_account_password_roles_unchanged": true,
+  "daily_preview": "http://127.0.0.1:18210/",
+  "health": {
+    "8100": 200,
+    "18210": 200,
+    "8018": 200
+  },
+  "original_frontend_hash_unchanged": true,
+  "preview_index_sha256": "f39f685f8dea0577568e9d94830c1fa221b1b915bda7156c9262384dafe13433",
+  "rollback_frontend": ".runtime/centers-preview-backup",
+  "original_service_pids": {
+    "8100": 35088,
+    "8018": 4464
+  },
+  "preview_new_pid": 38996
+}

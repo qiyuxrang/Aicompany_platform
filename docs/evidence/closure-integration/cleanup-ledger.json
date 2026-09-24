@@ -1,0 +1,7 @@
+{
+  "side": "ledger",
+  "registered_accounts_disabled": 5,
+  "passwords_unusable": true,
+  "sessions_cleared": true,
+  "boundary": "Registered new isolated bridge database only; original native accounts and bjrunner untouched"
+}

@@ -1,0 +1,42 @@
+{
+  "date": "2026-09-21",
+  "browser": "Codex In-app Browser",
+  "checks": [
+    "登录页浅色布局",
+    "运维总览与人员表格",
+    "人员详情抽屉打开及关闭",
+    "产品表单错误提示",
+    "工程、人事、总经理页面",
+    "后台首页及新增账号表单（未提交）",
+    "后台自动浅色与显式深色切换",
+    "后台返回运维入口"
+  ],
+  "responsive": [
+    {
+      "overflow": false,
+      "scrollWidth": 360,
+      "width": 375
+    },
+    {
+      "overflow": false,
+      "scrollWidth": 753,
+      "width": 768
+    },
+    {
+      "overflow": false,
+      "scrollWidth": 1009,
+      "width": 1024
+    },
+    {
+      "overflow": false,
+      "scrollWidth": 1425,
+      "width": 1440
+    }
+  ],
+  "limitations": [
+    "非独立Chrome/Edge或移动真机验收",
+    "键盘Tab焦点复验未确认，截图末次发生连接超时；焦点CSS级联已独立复核",
+    "未执行后台写操作、真实业务接入或生成验证"
+  ],
+  "screenshotsContain": "Only synthetic isolated test accounts and activity; no production business statistics"
+}

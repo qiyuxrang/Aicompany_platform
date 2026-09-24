@@ -1,0 +1,8 @@
+{
+  "validationFocus": {
+    "field": null,
+    "outline": "rgb(255, 255, 255) none 2.4px",
+    "visible": false
+  },
+  "tabKeyNavigation": "not confirmed; locator Tab did not advance focus in this browser connection"
+}

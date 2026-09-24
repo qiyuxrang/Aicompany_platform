@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-09-21T05:30:51.909824+00:00",
+  "original_legacy_state_unchanged": true,
+  "portal_index_unchanged": true,
+  "legacy_worktree_clean": true,
+  "original_frontend_index_sha256": "b6a7e2194e166f6f90109a6117b8c8b8daf5788d2b9ae6ea4cf615bf21ba7406",
+  "original_service_health": {
+    "portal_original": 200,
+    "portal_daily": 200,
+    "legacy_original": 200
+  },
+  "isolated_ports_closed": {
+    "18310": true,
+    "18318": true,
+    "18319": true
+  },
+  "machine_secrets_revoked": true,
+  "boundary": "Original services read-only health checks; no formal account reset or old project deployment",
+  "persistent_account": {
+    "username": "bjrunner",
+    "active": true,
+    "password_usable": true,
+    "operation": "read-only; no mutation"
+  }
+}

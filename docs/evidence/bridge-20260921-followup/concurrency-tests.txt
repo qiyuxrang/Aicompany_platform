@@ -1,0 +1,1 @@
+Three waves / 27 concurrent requests passed; callbacks recovered, busy requests minted no tickets

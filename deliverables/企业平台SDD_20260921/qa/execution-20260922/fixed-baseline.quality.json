@@ -1,0 +1,34 @@
+{
+  "structural_pass": true,
+  "rendered": false,
+  "visually_reviewed": false,
+  "unverified_items": [
+    "Office pagination/TOC refresh and visual inspection required",
+    "Engineering assertions require independent professional review"
+  ],
+  "family": "technical-solution",
+  "source_sha256": "fe9238c448c6674c71932faf7311a306e1d8e49fac06924ad0ab3d8f4ad3f05b",
+  "output_sha256": "97a1130b6e2445db616a1d38665f0612e49acc69bda244dc7d6205699eae9570",
+  "block_ids": [
+    "H1",
+    "P1",
+    "H2",
+    "P2",
+    "TAB01",
+    "RUN01",
+    "H3",
+    "P3"
+  ],
+  "bookmark_map": {
+    "H1": "H1",
+    "P1": "P1",
+    "H2": "H2",
+    "P2": "P2",
+    "TAB01": "TAB01",
+    "RUN01": "RUN01",
+    "H3": "H3",
+    "P3": "P3"
+  },
+  "content_sha256": "87fa7ec75324c423440a7a52e7e29615e8a1c5b16bb638c584a8e45ca7bb01e5",
+  "content_hash_method": "sha256-normalized-content-v1"
+}

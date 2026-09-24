@@ -1,0 +1,174 @@
+{
+  "legacy_commit": "beb933ab92775f727a99c01edd4a527a90414dcd",
+  "portal_workers": 8,
+  "portal_summary_slots": 2,
+  "waves": [
+    {
+      "wave": 1,
+      "requests": [
+        {
+          "user": "bridge_manager",
+          "status": 200,
+          "seconds": 0.705
+        },
+        {
+          "user": "bridge_manager",
+          "status": 200,
+          "seconds": 0.73
+        },
+        {
+          "user": "bridge_manager",
+          "status": 503,
+          "seconds": 0.045
+        },
+        {
+          "user": "bridge_sales",
+          "status": 503,
+          "seconds": 0.068
+        },
+        {
+          "user": "bridge_sales",
+          "status": 503,
+          "seconds": 0.04
+        },
+        {
+          "user": "bridge_sales",
+          "status": 503,
+          "seconds": 0.044
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.099
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.043
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.093
+        }
+      ],
+      "success": 2,
+      "busy": 7,
+      "busy_minted_tickets": false,
+      "post_wave_recovery": true,
+      "status": "passed"
+    },
+    {
+      "wave": 2,
+      "requests": [
+        {
+          "user": "bridge_manager",
+          "status": 503,
+          "seconds": 0.048
+        },
+        {
+          "user": "bridge_manager",
+          "status": 503,
+          "seconds": 0.097
+        },
+        {
+          "user": "bridge_manager",
+          "status": 200,
+          "seconds": 0.768
+        },
+        {
+          "user": "bridge_sales",
+          "status": 200,
+          "seconds": 0.717
+        },
+        {
+          "user": "bridge_sales",
+          "status": 503,
+          "seconds": 0.107
+        },
+        {
+          "user": "bridge_sales",
+          "status": 503,
+          "seconds": 0.048
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.05
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.044
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.049
+        }
+      ],
+      "success": 2,
+      "busy": 7,
+      "busy_minted_tickets": false,
+      "post_wave_recovery": true,
+      "status": "passed"
+    },
+    {
+      "wave": 3,
+      "requests": [
+        {
+          "user": "bridge_manager",
+          "status": 503,
+          "seconds": 0.046
+        },
+        {
+          "user": "bridge_manager",
+          "status": 200,
+          "seconds": 0.868
+        },
+        {
+          "user": "bridge_manager",
+          "status": 503,
+          "seconds": 0.159
+        },
+        {
+          "user": "bridge_sales",
+          "status": 503,
+          "seconds": 0.195
+        },
+        {
+          "user": "bridge_sales",
+          "status": 503,
+          "seconds": 0.181
+        },
+        {
+          "user": "bridge_sales",
+          "status": 200,
+          "seconds": 0.865
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.204
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.2
+        },
+        {
+          "user": "bridge_engineering",
+          "status": 503,
+          "seconds": 0.2
+        }
+      ],
+      "success": 2,
+      "busy": 7,
+      "busy_minted_tickets": false,
+      "post_wave_recovery": true,
+      "status": "passed"
+    }
+  ],
+  "business_tables_unchanged": true,
+  "boundary": "27 concurrent real native bridge requests with synthetic isolated users; successful responses compared to each native user's project scope. Smoke regression only, not production load capacity or browser SSO."
+}

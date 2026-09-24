@@ -1,0 +1,226 @@
+{
+  "timestamp": "2026-09-21T01:59:02.772580+00:00",
+  "base": "http://127.0.0.1:18210",
+  "phase": "core",
+  "checks": [
+    {
+      "case": "管理员真实登录",
+      "passed": true
+    },
+    {
+      "case": "匿名运维API拒绝",
+      "passed": true
+    },
+    {
+      "case": "普通用户真实登录",
+      "passed": true
+    },
+    {
+      "case": "overview普通用户403",
+      "passed": true
+    },
+    {
+      "case": "overview管理员真实API200",
+      "passed": true
+    },
+    {
+      "case": "users普通用户403",
+      "passed": true
+    },
+    {
+      "case": "users管理员真实API200",
+      "passed": true
+    },
+    {
+      "case": "usage普通用户403",
+      "passed": true
+    },
+    {
+      "case": "usage管理员真实API200",
+      "passed": true
+    },
+    {
+      "case": "modules普通用户403",
+      "passed": true
+    },
+    {
+      "case": "modules管理员真实API200",
+      "passed": true
+    },
+    {
+      "case": "issues普通用户403",
+      "passed": true
+    },
+    {
+      "case": "issues管理员真实API200",
+      "passed": true
+    },
+    {
+      "case": "maintenance普通用户403",
+      "passed": true
+    },
+    {
+      "case": "maintenance管理员真实API200",
+      "passed": true
+    },
+    {
+      "case": "管理HTML直达也拒绝",
+      "passed": true
+    },
+    {
+      "case": "管理员不默认读取业务摘要",
+      "passed": true
+    },
+    {
+      "case": "未知统计窗口拒绝",
+      "passed": true
+    },
+    {
+      "case": "管理检查缺CSRF拒绝",
+      "passed": true
+    },
+    {
+      "case": "管理检查不接受任意URL",
+      "passed": true
+    },
+    {
+      "case": "检查不接受GET",
+      "passed": true
+    },
+    {
+      "case": "待接入不是假健康",
+      "passed": true
+    },
+    {
+      "case": "复用真实DjangoAdmin新增表单",
+      "passed": true
+    },
+    {
+      "case": "原生Admin创建真实隔离账号",
+      "passed": true
+    },
+    {
+      "case": "新账号标记首次改密",
+      "passed": true
+    },
+    {
+      "case": "新账号真实登录",
+      "passed": true
+    },
+    {
+      "case": "首次改密前不能访问工作模块",
+      "passed": true
+    },
+    {
+      "case": "真实密码修改成功",
+      "passed": true
+    },
+    {
+      "case": "改密后原会话失效",
+      "passed": true
+    },
+    {
+      "case": "修改后重新登录",
+      "passed": true
+    },
+    {
+      "case": "原生Admin调整多角色",
+      "passed": true
+    },
+    {
+      "case": "角色并集即时生效",
+      "passed": true
+    },
+    {
+      "case": "原生Admin撤去角色",
+      "passed": true
+    },
+    {
+      "case": "撤权后直接模块请求拒绝",
+      "passed": true
+    },
+    {
+      "case": "显式授权平台管理",
+      "passed": true
+    },
+    {
+      "case": "显式授权后运维可读",
+      "passed": true
+    },
+    {
+      "case": "原生Admin撤销平台管理",
+      "passed": true
+    },
+    {
+      "case": "撤销后运维下一请求403",
+      "passed": true
+    },
+    {
+      "case": "原生Admin重置密码",
+      "passed": true
+    },
+    {
+      "case": "重置使旧会话失效",
+      "passed": true
+    },
+    {
+      "case": "重置后登录仍强制改密",
+      "passed": true
+    },
+    {
+      "case": "原生Admin停用账号",
+      "passed": true
+    },
+    {
+      "case": "停用后会话失效",
+      "passed": true
+    },
+    {
+      "case": "停用账号登录拒绝",
+      "passed": true
+    },
+    {
+      "case": "原生Admin重新启用",
+      "passed": true
+    },
+    {
+      "case": "启用不恢复旧会话",
+      "passed": true
+    },
+    {
+      "case": "人员详情有真实审计摘要",
+      "passed": true
+    },
+    {
+      "case": "配置只改隔离库受控故障目标",
+      "passed": true
+    },
+    {
+      "case": "真实连接失败产生问题",
+      "passed": true
+    },
+    {
+      "case": "重复探测受冷却限制",
+      "passed": true
+    },
+    {
+      "case": "记录人工处理状态investigating",
+      "passed": true
+    },
+    {
+      "case": "人工处理不伪装健康investigating",
+      "passed": true
+    },
+    {
+      "case": "记录人工处理状态closed",
+      "passed": true
+    },
+    {
+      "case": "人工处理不伪装健康closed",
+      "passed": true
+    }
+  ],
+  "passed": 54,
+  "failed": 0,
+  "boundary": "真实本机HTTP与Django Admin表单，独立PG及合成账号；18218闭端口是受控故障注入，不是旧系统真实事故。不代表浏览器UI或可信经营数据联调。"
+}

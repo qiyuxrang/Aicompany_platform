@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-09-22T16:10:44",
+  "source_document": "C:\\Users\\BJRunner\\Desktop\\企业平台总体规划.docx",
+  "source_sha256": "046907eb1ec6518c2e2d6f2a6ff0e6398c8e2ddbdf4c8903382bc6dc505860dd",
+  "output_document": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_V0.2_20260922\\企业平台总体规划_SDD_V0.2.docx",
+  "requirement_count": 39,
+  "acceptance_count": 39,
+  "task_count": 23,
+  "business_acceptance_status": "V02_NOT_EXECUTED_HISTORY_PRESERVED",
+  "version": "0.2",
+  "v01_requirement_ids_preserved": 37,
+  "v01_protected_files_unchanged": 16,
+  "markdown_sha256": {
+    "CHANGELOG.md": "b2a1f42bb9e3abf4dac2c1ecf2101be59d467b1dbd6272c6a69181c1346acdc4",
+    "specs/00-overview.md": "6c08cf2c0186cacadbb68348a999a2da499aebee625891c154eb5abe9edec602",
+    "specs/01-platform.md": "f0539b44c34fe79bac93ffb2b543811bbf253f1218b342ba925165651b835d5b",
+    "specs/02-product.md": "afb8145b8972c2e5ac206b9087c2abf21f22e2010d7d9883f46e710d38418ee6",
+    "specs/03-hr.md": "469c20cd9e45db7940915d35a91ce6807b3ecab1509b9d2519d2986e0c0e8983",
+    "specs/04-engineering.md": "2a23fd7777e0a685def23f52f91e22b11e87ec2b8ccc0ceb44b77fa1c1098dc7",
+    "specs/05-business.md": "6ca1f968b4b997d027b7569f8f03676433b8494d48ec19f4f9d932ce04937d42",
+    "PLAN.md": "15bcd9e6ec2d34425121cd147d54d2e38ddebea91152a636f440043408e00dac",
+    "TASKS.md": "1cc500478bc0948d43cc563b87fe389e5b02865e5ab51ad339ad477d15754670",
+    "ACCEPTANCE.md": "f23099dfb8dc03c7394e9233f44dff078ebe2fe7662a793a8a882eb913775b94",
+    "EXECUTION_STATUS.md": "c229dcab1ef84a204bfaae2f8d2411e6425cb66b501f6217963d989f778bc02a",
+    "AI_HANDOFF.md": "2fd1a1c31f4578156d07ccf147402f5bce45fe2b0485bdb702c3f05cebca94b0"
+  },
+  "docx_sha256": "d183733dbaa910c3d7af00282e1cb7f27d0279e03a5ebb095771a25816dbd538"
+}

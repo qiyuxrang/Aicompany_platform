@@ -1,0 +1,22 @@
+{
+  "portal_account_role_module_tables_unchanged": {
+    "portal_user": true,
+    "portal_user_roles": true,
+    "portal_role": true,
+    "portal_role_modules": true,
+    "portal_module": true
+  },
+  "daily_new_table_counts": {
+    "portal_provider": 0,
+    "portal_gatewaymodel": 0,
+    "portal_modelroute": 0,
+    "portal_modelcalllog": 0
+  },
+  "portal_health": 200,
+  "gateway_health": 200,
+  "portal_restarted": true,
+  "original_8100_8018_restarted": false,
+  "provider_success_tested": false,
+  "database_backup_catalog_verified": true,
+  "backup_restore_this_round": false
+}

@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-09-21T07:57:28.0714664+08:00",
+  "baseline_commit": "8f6db91254e060118a9b51212df72297f373bf52",
+  "baseline_tree": "ece3ae00efeb8be83c35c64396bf839211c3e795",
+  "branch": "feature/phase1-portal",
+  "pushed": false,
+  "index_audit": {
+    "timestamp": "2026-09-21T07:54:26.331977+08:00",
+    "staged_files": 120,
+    "staged_tree": "ece3ae00efeb8be83c35c64396bf839211c3e795",
+    "scope": "实际index blob扫描；运行环境与历史备份已知秘密精确匹配，加私钥/常见令牌/凭据URI规则；不输出秘密，不声称覆盖所有未知格式。",
+    "reviewed_test_fixtures": [
+      {
+        "file": "backend/portal/tests/test_modules.py",
+        "line": 21,
+        "kind": "credential_url"
+      },
+      {
+        "file": "frontend/src/api.test.ts",
+        "line": 100,
+        "kind": "credential_url"
+      }
+    ],
+    "unresolved_findings": [],
+    "manual_resolution": "两处均为拒绝URL内置凭据的负向单元测试，保留固定合成输入；不是真实服务凭据。"
+  },
+  "source_whitespace_check": "passed; raw evidence trailing whitespace preserved",
+  "portal_health": 200,
+  "legacy_health": 200,
+  "browser_connections": [
+    "Codex In-app Browser"
+  ],
+  "ordinary_browser_workflow": "not executed: no Chrome/Edge control connection advertised",
+  "legacy_implementation": "not authorized yet; no worktree or bridge code created"
+}

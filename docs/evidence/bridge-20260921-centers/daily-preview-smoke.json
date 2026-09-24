@@ -1,0 +1,22 @@
+{
+  "/login": {
+    "status": 200,
+    "location": null
+  },
+  "/assets/index-B1HTj5c0.js": {
+    "status": 200,
+    "location": null
+  },
+  "/assets/index-CN5qTS3f.css": {
+    "status": 200,
+    "location": null
+  },
+  "/preview/product": {
+    "status": 302,
+    "location": "/login"
+  },
+  "/centers/product": {
+    "status": 302,
+    "location": "/login"
+  }
+}

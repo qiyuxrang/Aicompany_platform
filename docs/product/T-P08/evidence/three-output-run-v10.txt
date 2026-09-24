@@ -1,0 +1,27 @@
+Conflict: /api/product/tasks/72ecbdba-c5a8-4b7b-967d-09c2c0e4cf0b/decisions/
+Conflict: /api/product/tasks/72ecbdba-c5a8-4b7b-967d-09c2c0e4cf0b/decisions/
+Conflict: /api/product/tasks/72ecbdba-c5a8-4b7b-967d-09c2c0e4cf0b/decisions/
+����ģ�����ɫ�Ѿ�����û�д���Ĭ���˺Ż򸲸�������Ȩ��
+{
+  "result": "CORE_PASS_WITH_EXTERNAL_AND_HUMAN_BLOCKERS",
+  "task_id": "72ecbdba-c5a8-4b7b-967d-09c2c0e4cf0b",
+  "technical_solution_word": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v10/artifacts/԰����ȫ�����뼯����Ƽ�������-�����Բݸ�-v10.docx",
+    "sha256": "84f1622b13581f59ba0653777b65e586e6252115037804cfbc6dbce0256ed2b6",
+    "bytes": 27303
+  },
+  "feasibility_word": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v10/artifacts/԰����ȫ�����뼯����ƿ������о�����-�����Բݸ�-v10.docx",
+    "sha256": "099303fab7712ce21b0f80fe12b022bf5607febee4ca4337f392eeb84c46c4ee",
+    "bytes": 28416
+  },
+  "presentation": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v10/artifacts/԰����ȫ�����뼯����ƻ㱨���-�����Բݸ�-v10.pptx",
+    "sha256": "e4747a783dc8210549798852b03a2eb0a447f47d6ccda4a7344b06663901d5f9",
+    "bytes": 37938
+  },
+  "technical_word_pages": 9,
+  "feasibility_word_pages": 9,
+  "ppt_pages": 7,
+  "chain": "docs/product/T-P08/evidence/representative-run-20260924-v10/version-chain.json"
+}

@@ -1,0 +1,265 @@
+{
+  "timestamp": "2026-09-21T05:16:51.332471+00:00",
+  "boundary": "Real current legacy source, two isolated PostgreSQL databases and HTTP services; synthetic fixtures only; excludes browser SSO and company financial comparison",
+  "checks": [
+    {
+      "name": "native_scope_manager",
+      "status": "passed",
+      "detail": {
+        "project_ids": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "project_count": 4
+      }
+    },
+    {
+      "name": "native_scope_sales",
+      "status": "passed",
+      "detail": {
+        "project_ids": [
+          1,
+          3
+        ],
+        "project_count": 2
+      }
+    },
+    {
+      "name": "native_scope_engineering",
+      "status": "passed",
+      "detail": {
+        "project_ids": [
+          2,
+          3
+        ],
+        "project_count": 2
+      }
+    },
+    {
+      "name": "denied_nomap",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "denied_inactive",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "denied_first",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "denied_admin",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "mapping_disabled_or_missing_legacy_user",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "platform_revoke_user_role",
+      "status": "passed",
+      "detail": {
+        "effective": "next protected request; stale tickets stay invalid after restoration",
+        "native_session_retained": true
+      }
+    },
+    {
+      "name": "platform_revoke_role_module",
+      "status": "passed",
+      "detail": {
+        "effective": "next protected request; stale tickets stay invalid after restoration",
+        "native_session_retained": true
+      }
+    },
+    {
+      "name": "platform_revoke_module",
+      "status": "passed",
+      "detail": {
+        "effective": "next protected request; stale tickets stay invalid after restoration",
+        "native_session_retained": true
+      }
+    },
+    {
+      "name": "platform_revoke_mapping",
+      "status": "passed",
+      "detail": {
+        "effective": "next protected request; stale tickets stay invalid after restoration",
+        "native_session_retained": true
+      }
+    },
+    {
+      "name": "platform_deactivation_preserves_native_session",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "legacy_permission_changes_and_empty_scope",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "ticket_security_real_endpoints",
+      "status": "passed",
+      "detail": {
+        "concurrent_redemption_statuses": [
+          200,
+          403,
+          403,
+          403,
+          403
+        ]
+      }
+    },
+    {
+      "name": "business_table_read_only",
+      "status": "passed",
+      "before": {
+        "ledger_adjustment": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_attachment": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_audit": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_contract": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_followup": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_importbatch": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_opportunity": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_plan": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_project": {
+          "count": 4,
+          "sha256": "b850699b4e8363e0298217f8fcb06c039032cae9262a282af6dc6857e95f2486"
+        },
+        "ledger_projectengineering": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_projectfinance": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_projectsales": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receipt": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receiptallocation": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receivable": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receivableinventory": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_urgerecord": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "after": {
+        "ledger_adjustment": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_attachment": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_audit": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_contract": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_followup": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_importbatch": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_opportunity": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_plan": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_project": {
+          "count": 4,
+          "sha256": "b850699b4e8363e0298217f8fcb06c039032cae9262a282af6dc6857e95f2486"
+        },
+        "ledger_projectengineering": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_projectfinance": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_projectsales": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receipt": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receiptallocation": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receivable": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_receivableinventory": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ledger_urgerecord": {
+          "count": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    }
+  ]
+}

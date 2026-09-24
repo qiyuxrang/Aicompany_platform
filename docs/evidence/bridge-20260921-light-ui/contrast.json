@@ -1,0 +1,103 @@
+{
+  "scope": "Static semantic color pairs only; not a full accessibility certification",
+  "checks": [
+    {
+      "foreground": "ink",
+      "background": "page",
+      "ratio": 12.96,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "ink",
+      "background": "surface",
+      "ratio": 13.93,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "muted",
+      "background": "surface",
+      "ratio": 5.98,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "muted",
+      "background": "raised",
+      "ratio": 5.31,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "muted",
+      "background": "soft",
+      "ratio": 5.26,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "accent",
+      "background": "soft",
+      "ratio": 5.8,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "on-action",
+      "background": "action",
+      "ratio": 6.59,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "on-action",
+      "background": "accent-dark",
+      "ratio": 8.86,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "good",
+      "background": "good-bg",
+      "ratio": 5.82,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "warning",
+      "background": "warning-bg",
+      "ratio": 5.7,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "danger",
+      "background": "danger-bg",
+      "ratio": 5.68,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "teal",
+      "background": "surface",
+      "ratio": 4.86,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "placeholder",
+      "background": "surface",
+      "ratio": 4.85,
+      "minimum": 4.5,
+      "passed": true
+    },
+    {
+      "foreground": "input-border",
+      "background": "surface",
+      "ratio": 3.18,
+      "minimum": 3.0,
+      "passed": true
+    }
+  ]
+}

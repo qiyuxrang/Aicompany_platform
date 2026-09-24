@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai������ƽ̨\validation\product_three_output_acceptance.py", line 423, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\BJRunner\Desktop\ai������ƽ̨\validation\product_three_output_acceptance.py", line 62, in main
+    import django
+ModuleNotFoundError: No module named 'django'

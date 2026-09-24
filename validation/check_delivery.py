@@ -4,11 +4,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-secrets = set(json.loads((ROOT / ".runtime/qa-credentials.json").read_text(encoding="utf-8")).values())
-for environment_file in (ROOT / ".runtime").glob("*.env"):
+secrets = set()
+for credential_file in (ROOT / ".runtime").rglob("*-credentials.json"):
+    credentials = json.loads(credential_file.read_text(encoding="utf-8"))
+    secrets.update(value for value in credentials.values() if isinstance(value, str) and len(value) >= 16)
+for environment_file in (ROOT / ".runtime").rglob("*.env"):
     for line in environment_file.read_text(encoding="utf-8").splitlines():
         key, separator, value = line.partition("=")
-        if separator and any(label in key for label in ("PASSWORD", "SECRET", "KEY")) and len(value) >= 16:
+        if separator and any(label in key for label in ("PASSWORD", "SECRET", "KEY", "TOKEN")) and len(value) >= 16:
             secrets.add(value)
 paths = subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT).decode().split("\0")
 checked = 0
@@ -21,7 +24,7 @@ for relative in filter(None, paths):
     checked += 1
     if any(secret in text for secret in secrets):
         findings.append(relative)
-for path in (ROOT / ".runtime").glob("*.log"):
+for path in (ROOT / ".runtime").rglob("*.log"):
     checked += 1
     if any(secret in path.read_text(encoding="utf-8", errors="replace") for secret in secrets):
         findings.append(str(path.relative_to(ROOT)))

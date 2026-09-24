@@ -1,0 +1,3 @@
+{"kind": "isolated_postgres_tests", "database": "test_p1_increment_b3f3b860f163476a", "real_services": false}
+Found 280 test(s).
+System check identified no issues (0 silenced).

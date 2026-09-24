@@ -1,0 +1,16 @@
+HTTP acceptance exit code: 0
+legacy_service_offline_and_recovery: passed
+portal_callback_offline_and_recovery: passed
+bridge_switch_off_native_session_retained: passed
+portal_navigation_only_rollback: passed
+ledger_injected_malformed: passed
+ledger_injected_oversized: passed
+ledger_injected_redirect: passed
+ledger_injected_slow: passed
+ledger_injected_drip: passed
+portal_injected_malformed: passed
+portal_injected_oversized: passed
+portal_injected_redirect: passed
+portal_injected_slow: passed
+portal_injected_drip: passed
+native_chain_recovered_after_faults: passed

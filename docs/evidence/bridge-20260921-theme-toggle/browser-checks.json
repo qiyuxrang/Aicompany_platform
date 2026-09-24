@@ -1,0 +1,41 @@
+{
+  "checks": [
+    {
+      "check": "day-draft",
+      "draft": "隔离主题切换验证",
+      "scroll": 1265,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "check": "night-draft",
+      "draft": "隔离主题切换验证",
+      "scroll": 1265,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "check": "mobile-night",
+      "scroll": 360,
+      "theme": "dark",
+      "width": 375
+    },
+    {
+      "check": "mobile-day",
+      "scroll": 360,
+      "theme": "light",
+      "width": 375
+    },
+    {
+      "check": "admin-inherits-day",
+      "theme": "light"
+    },
+    {
+      "check": "portal-inherits-admin-night",
+      "theme": "dark"
+    }
+  ],
+  "nightPersistedOnNewTab": true,
+  "browser": "Codex in-app Chromium",
+  "limits": "Not standalone Chrome/Edge; no real business integration tested."
+}

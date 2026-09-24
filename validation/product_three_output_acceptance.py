@@ -1,4 +1,4 @@
-"""Run the representative P1 feasibility Word + approved-content PPT chain.
+"""Run the representative P1 three-output quality chain.
 
 Uses a fresh isolated SQLite database and private storage. It never calls a
 model or RAGFlow and never treats representative approvals as business signoff.
@@ -20,7 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 RUN_VERSION = os.environ.get("P1_THREE_RUN_VERSION", "v1")
-EVIDENCE = ROOT / "docs" / "product" / "T-P06" / "evidence" / f"representative-run-20260924-{RUN_VERSION}"
+EVIDENCE_TASK = os.environ.get("P1_THREE_EVIDENCE_TASK", "T-P06")
+if EVIDENCE_TASK not in {"T-P06", "T-P08"}:
+    raise SystemExit("Unsupported three-output evidence task.")
+EVIDENCE = ROOT / "docs" / "product" / EVIDENCE_TASK / "evidence" / f"representative-run-20260924-{RUN_VERSION}"
 
 
 def sha256(path):
@@ -244,12 +247,20 @@ def main():
     artifacts = {item.family: item for item in task.artifacts.all()}
     if set(artifacts) != {"technical-solution", "feasibility"}:
         raise RuntimeError("presentation was generated before content approvals")
-    feasibility_artifact = artifacts["feasibility"]
-    verified_artifact(feasibility_artifact)
+    word_artifacts = {
+        "technical_solution": artifacts["technical-solution"],
+        "feasibility": artifacts["feasibility"],
+    }
+    word_renders = {}
     with override_settings(PRODUCT_OFFICE_RENDER_ENABLED=True):
-        word_render = render_office(feasibility_artifact.path, feasibility_artifact.sha256)
-    feasibility_artifact.render_evidence = {**feasibility_artifact.render_evidence, "draft_office_render": word_render}
-    feasibility_artifact.save(update_fields=["render_evidence"])
+        for key, artifact in word_artifacts.items():
+            verified_artifact(artifact)
+            word_renders[key] = render_office(artifact.path, artifact.sha256)
+            artifact.render_evidence = {
+                **artifact.render_evidence,
+                "draft_office_render": word_renders[key],
+            }
+            artifact.save(update_fields=["render_evidence"])
 
     for family in ("technical-solution", "feasibility"):
         report = reports[family]
@@ -307,14 +318,43 @@ def main():
     presentation.save(update_fields=["render_evidence"])
 
     final_dir = EVIDENCE / "artifacts"
-    feasibility_copy = copy_checked(storage / feasibility_artifact.path,
-        final_dir / f"园区安全接入与集中审计可行性研究报告-代表性草稿-{RUN_VERSION}.docx", feasibility_artifact.sha256)
+    def delivered_word(key, destination):
+        artifact = word_artifacts[key]
+        rendered_docx = word_renders[key]["rendered_docx"]
+        record = copy_checked(storage / rendered_docx["path"], destination, rendered_docx["sha256"])
+        record.update({
+            "office_fields_refreshed": True,
+            "source_artifact_id": str(artifact.pk),
+            "source_artifact_sha256": artifact.sha256,
+            "source_artifact_path": artifact.path,
+            "rendered_docx_differs_from_source": rendered_docx["differs_from_input"],
+        })
+        return record
+
+    technical_copy = delivered_word("technical_solution",
+        final_dir / f"园区安全接入与集中审计技术方案-代表性草稿-{RUN_VERSION}.docx")
+    feasibility_copy = delivered_word("feasibility",
+        final_dir / f"园区安全接入与集中审计可行性研究报告-代表性草稿-{RUN_VERSION}.docx")
     presentation_copy = copy_checked(presentation_path,
         final_dir / f"园区安全接入与集中审计汇报简版-代表性草稿-{RUN_VERSION}.pptx", presentation.sha256)
-    word_dir = EVIDENCE / "word-render"
-    word_pdf = copy_checked(storage / word_render["pdf"]["path"], word_dir / f"可行性研究报告-{RUN_VERSION}.pdf", word_render["pdf"]["sha256"])
-    word_pages = [{"page": item["page"], **copy_checked(storage / item["path"], word_dir / f"page-{item['page']:03d}.png", item["sha256"])}
-                  for item in word_render["pages"]]
+    word_render_evidence = {}
+    for key, label in (("technical_solution", "技术方案"), ("feasibility", "可行性研究报告")):
+        word_render = word_renders[key]
+        word_dir = EVIDENCE / f"word-render-{key.replace('_', '-')}"
+        word_pdf = copy_checked(storage / word_render["pdf"]["path"],
+            word_dir / f"{label}-{RUN_VERSION}.pdf", word_render["pdf"]["sha256"])
+        word_pages = [
+            {"page": item["page"], **copy_checked(
+                storage / item["path"], word_dir / f"page-{item['page']:03d}.png", item["sha256"])}
+            for item in word_render["pages"]
+        ]
+        word_render_evidence[key] = {
+            "renderer": "Microsoft Word", "status": word_render["status"],
+            "page_count": word_render["page_count"], "pdf": word_pdf, "pages": word_pages,
+            "rendered_docx_sha256": word_render["rendered_docx"]["sha256"],
+            "rendered_docx_differs_from_source": word_render["rendered_docx"]["differs_from_input"],
+            "visual_review": "pending_manual_inspection",
+        }
     ppt_dir = EVIDENCE / "ppt-render"
     ppt_pdf = copy_checked(Path(ppt_render["pdf"]), ppt_dir / f"汇报简版-{RUN_VERSION}.pdf")
     ppt_pages = [{"page": index, **copy_checked(Path(path), ppt_dir / f"slide-{index:03d}.png")}
@@ -325,7 +365,7 @@ def main():
     if len(outputs) != 3 or not all(item["current"] for item in outputs):
         raise RuntimeError("three current outputs were not exposed")
     formal_attempts = {}
-    for family in ("feasibility", "presentation"):
+    for family in ("technical-solution", "feasibility", "presentation"):
         artifact = task.artifacts.get(family=family)
         response = expect(reviewer_client.post(f"/api/product/tasks/{task_id}/decisions/", data=json.dumps({
             "expected_version": current["version"], "target": "artifact", "target_id": str(artifact.pk),
@@ -369,10 +409,9 @@ def main():
         "worker_attempts": [{"id": str(attempt.pk), "action": attempt.action, "status": attempt.status,
                              "model_calls": attempt.model_calls, "fence": attempt.fence, "error_code": attempt.error_code}
                             for attempt in task.attempts.order_by("start_at")],
-        "delivered": {"feasibility_word": feasibility_copy, "presentation": presentation_copy},
-        "word_render": {"renderer": "Microsoft Word", "status": word_render["status"],
-                        "page_count": word_render["page_count"], "pdf": word_pdf, "pages": word_pages,
-                        "visual_review": "pending_manual_inspection"},
+        "delivered": {"technical_solution_word": technical_copy,
+                      "feasibility_word": feasibility_copy, "presentation": presentation_copy},
+        "word_renders": word_render_evidence,
         "ppt_render": {"renderer": ppt_render["renderer"], "status": "rendered",
                        "page_count": ppt_render["page_count"], "pdf": ppt_pdf, "pages": ppt_pages,
                        "visual_review": "pending_manual_inspection", "quality_claim": "not_ppt_master"},
@@ -384,8 +423,11 @@ def main():
     chain_path.write_text(json.dumps(chain, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
     print(json.dumps({
         "result": "CORE_PASS_WITH_EXTERNAL_AND_HUMAN_BLOCKERS",
-        "task_id": str(task.pk), "feasibility_word": feasibility_copy, "presentation": presentation_copy,
-        "word_pages": word_render["page_count"], "ppt_pages": ppt_render["page_count"],
+        "task_id": str(task.pk), "technical_solution_word": technical_copy,
+        "feasibility_word": feasibility_copy, "presentation": presentation_copy,
+        "technical_word_pages": word_renders["technical_solution"]["page_count"],
+        "feasibility_word_pages": word_renders["feasibility"]["page_count"],
+        "ppt_pages": ppt_render["page_count"],
         "chain": chain_path.relative_to(ROOT).as_posix(),
     }, ensure_ascii=False, indent=2))
 

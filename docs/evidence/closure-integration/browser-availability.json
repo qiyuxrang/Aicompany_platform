@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-21T04:42:58.694500+00:00",
+  "method": "agent.browsers.list via configured browser runtime",
+  "available": [
+    {
+      "type": "iab",
+      "name": "Codex In-app Browser"
+    }
+  ],
+  "ordinary_browser_control_connection": false,
+  "admin_browser_cases": "A01-A10 blocked; no substitution with HTTP or in-app browser",
+  "browser_sso": "not implemented; out of scope"
+}

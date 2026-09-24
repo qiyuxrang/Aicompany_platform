@@ -1,0 +1,40 @@
+﻿需求ID,验收ID,标题,规范文件,任务,结论,负责人,代码与环境版本,实际结果,证据路径
+PLT-001,AT-PLT-001,登录与会话复用,specs/01-platform.md,T-G01;T-G03,本版未执行,,,,
+PLT-002,AT-PLT-002,对象与动作授权,specs/01-platform.md,T-G01;T-G03,本版未执行,,,,
+PLT-003,AT-PLT-003,可信跨系统身份,specs/01-platform.md,T-G02;T-G03,本版未执行,,,,
+PLT-004,AT-PLT-004,上传与资料隔离,specs/01-platform.md,T-G02;T-G03,本版未执行,,,,
+PLT-005,AT-PLT-005,任务与人工批准契约,specs/01-platform.md,T-G02;T-G03,本版未执行,,,,
+PLT-006,AT-PLT-006,运维与审计,specs/01-platform.md,T-G04,本版未执行,,,,
+PLT-007,AT-PLT-007,数据保留与恢复,specs/01-platform.md,T-G04,本版未执行,,,,
+PLT-008,AT-PLT-008,性能与故障语义,specs/01-platform.md,T-G02;T-G04,本版未执行,,,,
+PRD-001,AT-PRD-001,清单与背景接收,specs/02-product.md,T-P02,阻塞,Codex实施/用户技术验收,feature/phase1-portal@8f6db91254e0+工作区,隔离技术测试通过；正式资料授权与产品签认未完成,qa/full-execution-20260922/RESULTS.md
+PRD-002,AT-PRD-002,蓝图与判断条件,specs/02-product.md,T-P03,阻塞,Codex实施/用户技术验收,feature/phase1-portal@8f6db91254e0+工作区,条件与状态动作测试通过；正式样例和业务签认未完成,qa/full-execution-20260922/RESULTS.md
+PRD-003,AT-PRD-003,蓝图批准与变更,specs/02-product.md,T-P03,阻塞,Codex实施/用户技术验收,feature/phase1-portal@8f6db91254e0+工作区,批准和版本保护测试通过；模型及后续链路仍按决策阻断,qa/full-execution-20260922/RESULTS.md
+PRD-004,AT-PRD-004,分章写作与授权检索,specs/02-product.md,T-P02;T-P04,本版未执行,,,,
+PRD-005,AT-PRD-005,局部修改与关联检查,specs/02-product.md,T-P04,本版未执行,,,,
+PRD-006,AT-PRD-006,持久执行与限额,specs/02-product.md,T-P04,本版未执行,,,,
+PRD-007,AT-PRD-007,内容检查与成稿批准,specs/02-product.md,T-P05,本版未执行,,,,
+PRD-008,AT-PRD-008,格式冻结与回归,specs/02-product.md,T-P01;T-P05,本版未执行,,,,
+PRD-009,AT-PRD-009,同源可研扩展,specs/02-product.md,T-P06,本版未执行,,,,
+PRD-010,AT-PRD-010,PPT扩展与同源交接,specs/02-product.md,T-P06,本版未执行,,,,
+PRD-011,AT-PRD-011,文档版本与修改留痕,specs/02-product.md,T-P07,本版未执行,,,,
+PRD-012,AT-PRD-012,质量回归与变更评估,specs/02-product.md,T-P08,本版未执行,,,,
+HR-001,AT-HR-001,统一身份与权限边界,specs/03-hr.md,T-H01;T-H04,阻塞,Codex实施/用户技术验收,feature/phase1-portal@8f6db91254e0+工作区,平台对象权限测试通过；旧系统身份映射 D-03 未批准,qa/full-execution-20260922/RESULTS.md
+HR-002,AT-HR-002,JD 生成闭环,specs/03-hr.md,T-H02,阻塞,Codex实施/用户技术验收,feature/phase1-portal@8f6db91254e0+工作区,保存缺项草稿修订确认版本链通过；正式 HR 样例未签认,qa/full-execution-20260922/RESULTS.md
+HR-003,AT-HR-003,评分基线门禁,specs/03-hr.md,T-H01,本版未执行,,,,
+HR-004,AT-HR-004,简历接收与外部数据许可,specs/03-hr.md,T-H01;T-H03,本版未执行,,,,
+HR-005,AT-HR-005,证据、未知与程序评分,specs/03-hr.md,T-H03,本版未执行,,,,
+HR-006,AT-HR-006,批量任务可靠执行,specs/03-hr.md,T-H03,本版未执行,,,,
+HR-007,AT-HR-007,HR 最终决定与人才库限制,specs/03-hr.md,T-H03,本版未执行,,,,
+HR-008,AT-HR-008,转正确定性状态机,specs/03-hr.md,T-H04,阻塞,Codex实施/用户技术验收,feature/phase1-portal@8f6db91254e0+工作区,隔离状态机角色动作和并发保护通过；D-03/D-07/D-08 未批准,qa/full-execution-20260922/RESULTS.md
+ENG-001,AT-ENG-001,专业范围与依据准入,specs/04-engineering.md,T-E01,本版未执行,,,,
+ENG-002,AT-ENG-002,清单保真与缺项,specs/04-engineering.md,T-E01,本版未执行,,,,
+ENG-003,AT-ENG-003,候选推荐与人工审定,specs/04-engineering.md,T-E02,本版未执行,,,,
+ENG-004,AT-ENG-004,计算与专业工具交接,specs/04-engineering.md,T-E02,本版未执行,,,,
+ENG-005,AT-ENG-005,版本与审批保护,specs/04-engineering.md,T-E03,本版未执行,,,,
+BIZ-001,AT-BIZ-001,角色与来源边界,specs/05-business.md,T-B01,本版未执行,,,,
+BIZ-002,AT-BIZ-002,总览与专项页面,specs/05-business.md,T-B02,本版未执行,,,,
+BIZ-003,AT-BIZ-003,计算口径与分页,specs/05-business.md,T-B02,本版未执行,,,,
+BIZ-004,AT-BIZ-004,刷新与异常反馈,specs/05-business.md,T-B03,本版未执行,,,,
+BIZ-005,AT-BIZ-005,明细附件与导出,specs/05-business.md,T-B03,本版未执行,,,,
+BIZ-006,AT-BIZ-006,分级接入与回退,specs/05-business.md,T-B01;T-B03,本版未执行,,,,

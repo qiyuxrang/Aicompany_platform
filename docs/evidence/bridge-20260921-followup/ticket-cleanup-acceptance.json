@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "deleted_expired_fixture_tickets": 2,
+  "retained_recent_or_live_fixture_tickets": 3,
+  "preview_read_only": true,
+  "repeated_apply_idempotent": true,
+  "audit_users_mappings_unchanged": true,
+  "command_output": [
+    "预览：将删除 2 条过期超过 7 天的票据；未执行删除。",
+    "已删除 2 条过期票据；未删除审计记录、账号或映射。",
+    "已删除 0 条过期票据；未删除审计记录、账号或映射。"
+  ],
+  "boundary": "Actual management command against new isolated PostgreSQL fixture rows; no daily database cleanup or scheduled task installed"
+}

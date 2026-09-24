@@ -1,0 +1,27 @@
+Conflict: /api/product/tasks/3b85282d-2ab4-4d78-88af-ed50b8f8b54a/decisions/
+Conflict: /api/product/tasks/3b85282d-2ab4-4d78-88af-ed50b8f8b54a/decisions/
+Conflict: /api/product/tasks/3b85282d-2ab4-4d78-88af-ed50b8f8b54a/decisions/
+����ģ�����ɫ�Ѿ�����û�д���Ĭ���˺Ż򸲸�������Ȩ��
+{
+  "result": "CORE_PASS_WITH_EXTERNAL_AND_HUMAN_BLOCKERS",
+  "task_id": "3b85282d-2ab4-4d78-88af-ed50b8f8b54a",
+  "technical_solution_word": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v11/artifacts/԰����ȫ�����뼯����Ƽ�������-�����Բݸ�-v11.docx",
+    "sha256": "150ba95fe88e5b0688310feeb9a20fd8caae31c927947fff7013ddf9f3b68754",
+    "bytes": 27327
+  },
+  "feasibility_word": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v11/artifacts/԰����ȫ�����뼯����ƿ������о�����-�����Բݸ�-v11.docx",
+    "sha256": "f19f2b0001f082c5e0aed89069f861b8d272d4b649cc7bb6a02b783060420564",
+    "bytes": 28462
+  },
+  "presentation": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v11/artifacts/԰����ȫ�����뼯����ƻ㱨���-�����Բݸ�-v11.pptx",
+    "sha256": "043e3c1909efc4a1fe7dbbb70fc7bc287b858015e2a05bb602cb4320d5ba05c5",
+    "bytes": 37930
+  },
+  "technical_word_pages": 9,
+  "feasibility_word_pages": 9,
+  "ppt_pages": 7,
+  "chain": "docs/product/T-P08/evidence/representative-run-20260924-v11/version-chain.json"
+}

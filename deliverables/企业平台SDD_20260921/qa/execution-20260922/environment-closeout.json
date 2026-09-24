@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-09-22T09:26:55.5423935+08:00",
+  "isolated_server_stopped": true,
+  "isolated_port": 18320,
+  "original_services_not_restarted": true,
+  "synthetic_databases_retained": true,
+  "credentials_in_public_report": false
+}

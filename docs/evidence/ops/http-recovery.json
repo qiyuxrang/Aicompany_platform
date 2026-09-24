@@ -1,0 +1,42 @@
+{
+  "timestamp": "2026-09-21T02:04:07.735009+00:00",
+  "base": "http://127.0.0.1:18210",
+  "phase": "recovery",
+  "checks": [
+    {
+      "case": "管理员真实登录",
+      "passed": true
+    },
+    {
+      "case": "原生Admin恢复隔离库导航地址",
+      "passed": true
+    },
+    {
+      "case": "真实原导航目标探测可达",
+      "passed": true
+    },
+    {
+      "case": "系统恢复依赖真实复查",
+      "passed": true
+    },
+    {
+      "case": "经营角色真实登录",
+      "passed": true
+    },
+    {
+      "case": "原经营导航未损坏",
+      "passed": true
+    },
+    {
+      "case": "统计来自真实登录及启动事件",
+      "passed": true
+    },
+    {
+      "case": "登录人数与次数有区分",
+      "passed": true
+    }
+  ],
+  "passed": 8,
+  "failed": 0,
+  "boundary": "真实本机HTTP与Django Admin表单，独立PG及合成账号；18218闭端口是受控故障注入，不是旧系统真实事故。不代表浏览器UI或可信经营数据联调。"
+}

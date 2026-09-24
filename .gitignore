@@ -13,3 +13,4 @@ staticfiles/
 test-results/
 *.log
 backups/
+.workbuddy/

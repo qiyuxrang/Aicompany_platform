@@ -1,0 +1,135 @@
+{
+  "timestamp": "2026-09-21T04:05:14.154249+00:00",
+  "result": "passed",
+  "command": "uv run --env-file .runtime/ops-validation.env python validation/ops_restore_rehearsal.py",
+  "source": {
+    "database": "portal_ops_20260921_085811",
+    "endpoint": "127.0.0.1:55438",
+    "transaction_read_only": true,
+    "snapshot": "pg_export_snapshot shared by source fingerprint and pg_dump",
+    "writes_or_account_changes": false
+  },
+  "backup": {
+    "path": "backups/closure-backup/20260921T040512Z/portal_ops_20260921_085811.dump",
+    "format": "PostgreSQL custom",
+    "sha256": "419db6bfba6ca86f9945f71ef226a1426db75bd4dc4f01aea3dcb17e57be6daa",
+    "bytes": 69448,
+    "git_ignored": true,
+    "filesystem_acl_restricted": true,
+    "contains_credentials_files": false
+  },
+  "restore": {
+    "database": "portal_ops_restore_20260921_040512",
+    "created_new": true,
+    "pg_restore_exit_on_error": true,
+    "retained": true,
+    "dropped_databases": false,
+    "public_database_schema_object_privileges_revoked": true,
+    "sensitive_data_notice": "Full validation data; owner access only under normal PostgreSQL ACLs."
+  },
+  "comparison": {
+    "boundary": "Source fingerprints and pg_dump share one repeatable-read exported snapshot. Concurrent committed changes after that snapshot are intentionally outside this comparison.",
+    "post_snapshot_live_source_compared": false,
+    "table_count": 20,
+    "table_sets_equal": true,
+    "row_counts_equal": true,
+    "stable_fingerprints_equal": true,
+    "tables": {
+      "auth_group": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "auth_group_permissions": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "auth_permission": {
+        "rows": 56,
+        "sha256": "a574327d762e5e47bbe402907d5f068ab47bde1fe759fe511263e9ace75e9ab1"
+      },
+      "django_admin_log": {
+        "rows": 20,
+        "sha256": "8e5d54fd370665ccb925663729de113118a09613b4bedea2d288250e2f93cd8e"
+      },
+      "django_content_type": {
+        "rows": 14,
+        "sha256": "9a078ab1b5ea213e7fb64a192bb59c5a7893ebe5156d28cfbeff8ac7baccef70"
+      },
+      "django_migrations": {
+        "rows": 21,
+        "sha256": "2b702249aac57a7b36a204de26ad398aa1fa2849c2b7b7465d494e26a37c63e5"
+      },
+      "django_session": {
+        "rows": 13,
+        "sha256": "266999004872d87d95afc4f3c153082da5d076d32a46d01c858cd56aefe15539"
+      },
+      "portal_auditevent": {
+        "rows": 97,
+        "sha256": "acd7610c8e9bfb74f46267298a2aa836fdffc3634b5afd27a2ca9cf7defa3b01"
+      },
+      "portal_businessmapping": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_integrationticket": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_loginattempt": {
+        "rows": 12,
+        "sha256": "c6d7895764d39d1a0354bff36d450eb3614aa31b464065815c3bbf99ac3db59b"
+      },
+      "portal_module": {
+        "rows": 4,
+        "sha256": "efd3f8677fc9357f39de171b27b49927b65874f44a3300534534f35f232ea1a7"
+      },
+      "portal_modulecheck": {
+        "rows": 3,
+        "sha256": "2e654e7e78f221e08a8f46d1184ede9b25e98f54a3f6d45a7e3ea3e15020c022"
+      },
+      "portal_operationalissue": {
+        "rows": 1,
+        "sha256": "68a96b416f5267355ebc71d8c33c857928f131c5f8b9c83fccf14130b84e6dc7"
+      },
+      "portal_role": {
+        "rows": 5,
+        "sha256": "522fa16144540eb3a8d935ee8e6e559d421c2d03a3ba9c57f0240af25b367f53"
+      },
+      "portal_role_modules": {
+        "rows": 4,
+        "sha256": "fb9a3316741a633cdc43e1e30942dde3dcf340f610d15f72b08c952210305621"
+      },
+      "portal_user": {
+        "rows": 11,
+        "sha256": "3285180f4f0ca124b02e7facb45500e00d98ccee9eb3fac14c006a07cf703dd3"
+      },
+      "portal_user_groups": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_user_roles": {
+        "rows": 13,
+        "sha256": "1bcf355972713d1ea8befc372f3eaa2469126fd880f42d3a5b2f4817c8c27d7a"
+      },
+      "portal_user_user_permissions": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "migration_0003": {
+    "name": "0003_modulecheck_operationalissue_audit_indexes",
+    "source_applied": true,
+    "restore_applied": true,
+    "required_tables": {
+      "portal_modulecheck": {
+        "rows": 3,
+        "sha256": "2e654e7e78f221e08a8f46d1184ede9b25e98f54a3f6d45a7e3ea3e15020c022"
+      },
+      "portal_operationalissue": {
+        "rows": 1,
+        "sha256": "68a96b416f5267355ebc71d8c33c857928f131c5f8b9c83fccf14130b84e6dc7"
+      }
+    }
+  }
+}

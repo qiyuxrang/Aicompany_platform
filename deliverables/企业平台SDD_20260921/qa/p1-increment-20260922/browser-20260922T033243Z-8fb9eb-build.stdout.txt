@@ -1,0 +1,10 @@
+[36mvite v8.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 37 modules transformed.
+rendering chunks...
+computing gzip size...
+../.runtime/p1-increment-browser-dist/index.html                   1.09 kB │ gzip:   0.57 kB
+../.runtime/p1-increment-browser-dist/assets/index-DSRnT-CE.css   59.34 kB │ gzip:  12.90 kB
+../.runtime/p1-increment-browser-dist/assets/index-tVvlW4wI.js   372.39 kB │ gzip: 111.12 kB
+
+[32m✓ built in 126ms[39m

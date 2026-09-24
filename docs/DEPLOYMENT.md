@@ -1,5 +1,17 @@
 # 部署与运维
 
+## 票据留存与重复隔离验收
+
+`cleanup_tickets` 默认仅预览过期超过7天的票据；`--retention-days` 最少1天，显式 `--apply` 才删除。每批最多1000条，独立事务且删除前重查过期条件；不清理审计、账号或映射。当前批失败会回滚，之前已完成批次保留，重跑安全。已在隔离PostgreSQL实测，不表示已在生产运行或安装定时任务。运维账户应在确认目标环境/留存要求后安排，命令与证据见 `PHASE1_FOLLOWUP.md`。
+
+验证脚本支持 `PORTAL_BRIDGE_VALIDATION_RUN` 的独立配置/证据命名空间，默认旧行为不变。新验收必须用新标识并创建新库；重复标识provision会拒绝覆盖，非法路径标识会拒绝。不得用该变量绕开登记库、回环地址和端口检查。
+
+## 2026-09-21 最新恢复与桥接说明
+
+已补齐包含0003新增运维表的恢复：`validation/ops_restore_rehearsal.py`，20表同一导出快照行数/指纹一致，说明及失败留痕见 `evidence/closure-backup/README.md`。恢复库和备份保持受限访问，不直接开放为日常实例；下方18表结果属于历史阶段。
+
+新桥接仅在独立工作树与独立测试库实测，未改原8018、8100、18210。正式接入所需配置、固定路径、回退及未验收条件见 `PHASE1_CLOSURE.md` 与 `INTEGRATION_CONTRACT.md`。测试秘密已撤销，不能将测试env直接当作上线配置，也不能用开发runserver作为生产部署。
+
 ## 本次实际执行补记（2026-09-20）
 
 主线程已执行最终Compose构建/迁移/collectstatic/健康检查（backend与db均healthy）、真实代理HTTP8项、生产check（仅W021）、PG80项测试和18表完整内容指纹恢复对比。证据见 ACCEPTANCE_REPORT。下文通用部署命令不意味着已部署正式域名/Nginx/TLS。

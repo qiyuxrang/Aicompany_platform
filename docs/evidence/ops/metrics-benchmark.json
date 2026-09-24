@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-09-21T01:26:36.658582+00:00",
+  "empty_call": {
+    "iterations": 10000,
+    "median_us": 0.1,
+    "p95_us": 0.1,
+    "max_us": 0.6
+  },
+  "single_route": {
+    "iterations": 10000,
+    "median_us": 2.7,
+    "p95_us": 3.3,
+    "max_us": 115.9
+  },
+  "full_window_128_keys": {
+    "iterations": 3000,
+    "median_us": 1471.55,
+    "p95_us": 2232.7,
+    "max_us": 4130.1
+  },
+  "lock_busy_drop": {
+    "iterations": 10000,
+    "median_us": 0.6,
+    "p95_us": 1.1,
+    "max_us": 37.1
+  },
+  "buckets": 181,
+  "keys": 128,
+  "snapshot_routes": 128,
+  "boundary": "隔离Python进程内合成基准；不请求运行服务，不代表生产压测。仅测记录器增量开销，不包括数据库、网络及页面查询。锁忙直接丢弃样本。"
+}

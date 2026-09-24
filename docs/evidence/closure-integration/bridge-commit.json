@@ -1,0 +1,25 @@
+{
+  "approved_files": [
+    "backend/config/settings.py",
+    "backend/ledger/portal_bridge.py",
+    "backend/ledger/tests/test_portal_bridge.py",
+    "backend/ledger/urls.py"
+  ],
+  "staged_blob_known_secret_matches": 0,
+  "source_and_index_unchanged": true,
+  "snapshot_commit": "97a6bdb9fdba7c8398b886fd0418cf3dd775c82e",
+  "bridge_commit": "beb933ab92775f727a99c01edd4a527a90414dcd",
+  "feature_branch": "feature/portal-read-bridge",
+  "pushed": false,
+  "file_sha256": {
+    "backend/config/settings.py": "ed15e6eed97c4a2ac77911fbe7cb9cfe3caf42c40276d3b7830c58c2e49ae016",
+    "backend/ledger/portal_bridge.py": "6c9811cbcdb14074ff2de6fa8f6dd28bf53f95c5cc88630745b8b999c8e55976",
+    "backend/ledger/tests/test_portal_bridge.py": "6e21b23b94a0f930634abc7b43e66506eec3f5fd700440efd88f66f100250e1b",
+    "backend/ledger/urls.py": "9b2e62f25258d4133bb2d2a7b5803aa37f9100c36738efdad6a855094a85e755"
+  },
+  "feature_commits": [
+    "5ed1199d8f8ced7dbf974027e23d1b563f7458a2",
+    "beb933ab92775f727a99c01edd4a527a90414dcd"
+  ],
+  "final_transport_hardening_validation": "133 portal and 31 legacy tests rerun after cleanup; native HTTP/data and fault evidence from first feature commit; no original service changes"
+}

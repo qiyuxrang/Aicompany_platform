@@ -1,0 +1,25 @@
+{
+  "structural_pass": true,
+  "rendered": true,
+  "visually_reviewed": false,
+  "unverified_items": [
+    "Open every page image and record visual review separately",
+    "Engineering facts not verified by renderer"
+  ],
+  "input_sha256": "97a1130b6e2445db616a1d38665f0612e49acc69bda244dc7d6205699eae9570",
+  "toc_count": 1,
+  "field_update_error_index": 0,
+  "renderer": "Microsoft Word 16.0",
+  "page_count": 5,
+  "pdf": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_20260921\\qa\\execution-20260922\\fixed-render\\document.pdf",
+  "rendered_docx": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_20260921\\qa\\execution-20260922\\fixed-render\\reviewed.docx",
+  "images": [
+    "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_20260921\\qa\\execution-20260922\\fixed-render\\page-001.png",
+    "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_20260921\\qa\\execution-20260922\\fixed-render\\page-002.png",
+    "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_20260921\\qa\\execution-20260922\\fixed-render\\page-003.png",
+    "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_20260921\\qa\\execution-20260922\\fixed-render\\page-004.png",
+    "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\deliverables\\企业平台SDD_20260921\\qa\\execution-20260922\\fixed-render\\page-005.png"
+  ],
+  "rendered_docx_sha256": "fe77dcf8cb2b7f1acf1828d088f4d3bdbae6c4601a2237c5ecdb9b809b0b1e53",
+  "pdf_sha256": "f6d631454fee62c39fcfe0e2bc80c31410921094c38153a451d65d0b32e48c6b"
+}

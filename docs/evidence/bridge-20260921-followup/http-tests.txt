@@ -1,0 +1,15 @@
+native_scope_manager: passed
+native_scope_sales: passed
+native_scope_engineering: passed
+denied_nomap: passed
+denied_inactive: passed
+denied_first: passed
+denied_admin: passed
+mapping_disabled_or_missing_legacy_user: passed
+platform_revoke_user_role: passed
+platform_revoke_role_module: passed
+platform_revoke_module: passed
+platform_revoke_mapping: passed
+platform_deactivation_preserves_native_session: passed
+legacy_permission_changes_and_empty_scope: passed
+ticket_security_real_endpoints: passed

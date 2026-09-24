@@ -1,0 +1,50 @@
+{
+  "date": "2026-09-21",
+  "browser": "Codex In-app Browser",
+  "environment": "isolated 18310 and 18318; registered synthetic accounts and projects only",
+  "checks": [
+    {
+      "name": "管理员预览四类工作台及中文导航",
+      "result": "passed"
+    },
+    {
+      "name": "产品必填校验首错聚焦及同中心跨页草稿保留",
+      "result": "passed"
+    },
+    {
+      "name": "工程清单添加及套定额页关联选项",
+      "result": "passed"
+    },
+    {
+      "name": "工程修复后必填首错聚焦",
+      "result": "passed"
+    },
+    {
+      "name": "人事岗位输入预览与岗位说明共享字段",
+      "result": "passed"
+    },
+    {
+      "name": "人事修复后首错聚焦与转正未接入状态",
+      "result": "passed"
+    },
+    {
+      "name": "经营账号真实四项目展示与刷新",
+      "result": "passed"
+    },
+    {
+      "name": "四类代表页面390像素无整页横向溢出",
+      "result": "passed",
+      "width": 390
+    },
+    {
+      "name": "真实隔离管理员撤权后预览与草稿表单消失",
+      "result": "passed"
+    }
+  ],
+  "limits": [
+    "非独立Chrome或Edge验收",
+    "未执行移动真机和全浏览器兼容验收",
+    "原经营8018未部署桥接，本轮没有修改原业务账户",
+    "不是浏览器单点登录或智能生成验证"
+  ]
+}

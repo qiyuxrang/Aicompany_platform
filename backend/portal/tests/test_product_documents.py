@@ -2,6 +2,7 @@ import hashlib
 import json
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZipFile
@@ -12,6 +13,8 @@ from portal.product_documents import DocumentError, content_document, frozen_pac
 
 
 class ProductDocumentTests(SimpleTestCase):
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
     def setUp(self):
         self.task = SimpleNamespace(pk=uuid.uuid4(), title="合成隔离技术方案")
         self.input_revision = SimpleNamespace(pk=uuid.uuid4(), sha256="1" * 64, payload={
@@ -24,6 +27,68 @@ class ProductDocumentTests(SimpleTestCase):
         manifest = frozen_pack()
         self.assertFalse(manifest["company_samples_copied"])
         self.assertEqual(manifest["formal_business_confirmation"], "blocked")
+        policy_entry = next(entry for entry in manifest["files"]
+                            if entry["path"] == "assets/document-format-policy.json")
+        policy = json.loads((Path(__file__).parents[1] / "product_assets" / "bj_docs" /
+                             policy_entry["path"]).read_text(encoding="utf-8"))
+        self.assertEqual(policy["status"], "approved_interim_baseline")
+        self.assertEqual(policy["typography"]["body"], {
+            "font": "宋体", "size_pt": 12, "line_spacing_pt": 18,
+        })
+        self.assertIn("exact_page_margins_and_gutter", policy["pending_formal_template_confirmation"])
+
+    def test_both_word_families_apply_frozen_interim_format(self):
+        def paragraph_text(paragraph):
+            return "".join(node.text or "" for node in paragraph.iter(self.W + "t"))
+
+        with tempfile.TemporaryDirectory() as directory, override_settings(PRODUCT_STORAGE_ROOT=directory):
+            for family in ("technical-solution", "feasibility"):
+                artifact = render_report_draft(
+                    self.task, self.input_revision, self.blueprint, [self.chapter], family)
+                target = Path(directory) / artifact["path"]
+                with ZipFile(target) as archive:
+                    document = ET.fromstring(archive.read("word/document.xml"))
+                    sections = list(document.iter(self.W + "sectPr"))
+                    self.assertTrue(sections)
+                    for section in sections:
+                        size = section.find(self.W + "pgSz")
+                        grid = section.find(self.W + "docGrid")
+                        self.assertEqual((size.get(self.W + "w"), size.get(self.W + "h")),
+                                         ("11906", "16838"))
+                        self.assertEqual(grid.get(self.W + "linePitch"), "360")
+
+                    paragraphs = list(document.iter(self.W + "p"))
+                    body = next(item for item in paragraphs if "待核草稿：" in paragraph_text(item))
+                    body_spacing = body.find(f"{self.W}pPr/{self.W}spacing")
+                    body_run = body.find(self.W + "r")
+                    self.assertEqual((body_spacing.get(self.W + "line"),
+                                      body_spacing.get(self.W + "lineRule")), ("360", "exact"))
+                    self.assertEqual(body_run.find(f"{self.W}rPr/{self.W}sz").get(self.W + "val"), "24")
+                    self.assertEqual(body_run.find(f"{self.W}rPr/{self.W}rFonts").get(self.W + "eastAsia"), "宋体")
+
+                    heading = next(item for item in paragraphs if paragraph_text(item) == "1 项目概述")
+                    heading_run = heading.find(self.W + "r")
+                    self.assertEqual(heading.find(f"{self.W}pPr/{self.W}jc").get(self.W + "val"), "center")
+                    self.assertEqual(heading_run.find(f"{self.W}rPr/{self.W}sz").get(self.W + "val"), "32")
+                    self.assertIsNotNone(heading_run.find(f"{self.W}rPr/{self.W}b"))
+                    self.assertNotIn("第一章", archive.read("word/document.xml").decode())
+
+                    active_headers = []
+                    for name in archive.namelist():
+                        if name.startswith("word/header") and name.endswith(".xml"):
+                            header = ET.fromstring(archive.read(name))
+                            value = "".join(node.text or "" for node in header.iter(self.W + "t"))
+                            if value:
+                                active_headers.append((header, value))
+                    self.assertTrue(any(value == "西安工业大学毕业设计（论文）"
+                                        for _, value in active_headers))
+                    normalized = next(header for header, value in active_headers
+                                      if value == "西安工业大学毕业设计（论文）")
+                    self.assertEqual(normalized.find(f".//{self.W}bottom").get(self.W + "val"), "double")
+
+                    if family == "technical-solution":
+                        self.assertTrue(any(paragraph_text(item).startswith("表 1.1 ")
+                                            for item in paragraphs))
 
     def test_feasibility_is_separate_draft_and_uses_its_own_template(self):
         content = content_document(self.task, self.input_revision, self.blueprint, [self.chapter], family="feasibility")
@@ -35,6 +100,14 @@ class ProductDocumentTests(SimpleTestCase):
             self.assertNotEqual(artifact["template_hash"], frozen_pack()["files"][0]["sha256"])
             with ZipFile(Path(directory) / artifact["path"]) as archive:
                 self.assertIn("待核草稿", archive.read("word/document.xml").decode())
+
+    def test_three_output_task_gets_distinct_word_titles(self):
+        self.task.title = "园区安全接入与集中审计三件套（代表性草稿）"
+        technical = content_document(self.task, self.input_revision, self.blueprint, [self.chapter])
+        feasibility = content_document(
+            self.task, self.input_revision, self.blueprint, [self.chapter], family="feasibility")
+        self.assertEqual(technical["metadata"]["title"], "园区安全接入与集中审计技术方案（代表性草稿）")
+        self.assertEqual(feasibility["metadata"]["title"], "园区安全接入与集中审计可行性研究报告（代表性草稿）")
 
     def test_invalid_family_fails_closed(self):
         with self.assertRaises(DocumentError):

@@ -20,6 +20,16 @@ class DocumentError(Exception):
         super().__init__(code)
 
 
+def _family_document_title(title, family):
+    title = title.strip()
+    suffix = "技术方案" if family == "technical-solution" else "可行性研究报告"
+    if suffix in title:
+        return title
+    if "三件套" in title:
+        return title.replace("三件套", suffix, 1)
+    return f"{title}（{suffix}）"
+
+
 def frozen_pack(family="technical-solution"):
     if family not in {"technical-solution", "feasibility"}:
         raise DocumentError("template_unavailable")
@@ -83,7 +93,9 @@ def content_document(task, input_revision, blueprint, chapters, family="technica
     for index, value in enumerate(pending, start=1):
         blocks.append({"id": f"PENDING_TEXT{index}", "type": "paragraph", "text": value, "source_ids": ["SINPUT"], "requirement_ids": []})
     return {"version": 1, "family": family,
-            "metadata": {"id": "T" + str(task.pk).replace("-", ""), "title": task.title, "subtitle": "待核草稿 · 未获正式发布批准",
+            "metadata": {"id": "T" + str(task.pk).replace("-", ""),
+                         "title": _family_document_title(task.title, family),
+                         "subtitle": "待核草稿 · 未获正式发布批准",
                          "date": timezone.localdate().isoformat(), "organization": "编制单位待确认", "status": "draft"},
             "sources": sources, "requirements": requirements,
              "pending": [{"id": f"PEND{index}", "text": value} for index, value in enumerate(pending, start=1)], "blocks": blocks}

@@ -1,0 +1,17 @@
+{
+  "daily_preview": "http://127.0.0.1:18210/",
+  "assets": {
+    "/assets/index-CVsBAVNG.js": 200,
+    "/assets/index-sQHAlTEr.css": 200
+  },
+  "original_frontend_unchanged": true,
+  "account_security_unchanged": true,
+  "services_not_restarted": {
+    "8100": 35088,
+    "8018": 4464,
+    "18210": 38996
+  },
+  "shared_portal_admin_static_css_updated": true,
+  "frontend_rollback": ".runtime/business-light-backup",
+  "admin_static_rollback": ".runtime/light-ui-admin-backup"
+}

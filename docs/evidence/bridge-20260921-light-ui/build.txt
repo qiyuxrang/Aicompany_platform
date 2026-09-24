@@ -1,0 +1,10 @@
+[36mvite v8.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 32 modules transformed.
+rendering chunks...
+computing gzip size...
+../.runtime/business-light-dist/index.html                   0.51 kB │ gzip:   0.33 kB
+../.runtime/business-light-dist/assets/index-sQHAlTEr.css   55.51 kB │ gzip:  11.94 kB
+../.runtime/business-light-dist/assets/index-CVsBAVNG.js   347.20 kB │ gzip: 103.35 kB
+
+[32m✓ built in 244ms[39m

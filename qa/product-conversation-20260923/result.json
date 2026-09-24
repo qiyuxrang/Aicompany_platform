@@ -1,0 +1,8 @@
+{
+  "checks": [
+    "single composer creates task and uploads attachment",
+    "P2 outputs stay visibly locked and advanced controls stay collapsed",
+    "existing task accepts a follow-up without creating a second task"
+  ],
+  "console_errors": []
+}

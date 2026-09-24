@@ -1,0 +1,10 @@
+$ vitest run
+
+ RUN  v5.0.1 C:/Users/BJRunner/Desktop/ai智能体平台/frontend
+
+
+ Test Files  10 passed (10)
+      Tests  211 passed (211)
+   Start at  09:00:31
+   Duration  11.33s (tests 49%, environment 40%, import 8%, transform 2%, worker 1%)
+

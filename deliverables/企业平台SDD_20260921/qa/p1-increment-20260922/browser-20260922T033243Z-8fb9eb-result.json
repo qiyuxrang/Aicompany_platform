@@ -1,0 +1,340 @@
+{
+  "timestamp": "2026-09-22T03:33:03.527716+00:00",
+  "result": "passed",
+  "scope": "P1 ordinary Chromium final-document review, approval, and download isolation",
+  "isolation": {
+    "database": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\.runtime\\p1-increment-browser-5ae1dd229a7164fe.sqlite3",
+    "new_sqlite_only": true,
+    "migrations": {
+      "0006_documentapproval_authorization": true,
+      "0007_product_generation_policy": true
+    },
+    "storage": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\.runtime\\p1-increment-browser-private-5ae1dd229a7164fe",
+    "frontend_dist": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\.runtime\\p1-increment-browser-dist",
+    "server": "http://127.0.0.1:61589",
+    "server_cleanup": {
+      "pid": 33648,
+      "returncode": 1,
+      "port_closed": true
+    },
+    "protected_ports_before": {
+      "18210": true,
+      "18410": true
+    },
+    "protected_ports_after": {
+      "18210": true,
+      "18410": true
+    },
+    "daily_env_file_read": false,
+    "existing_database_modified": false
+  },
+  "fixture": {
+    "kind": "five-page actual Microsoft Office-rendered synthetic artifact plus pre-seeded approved blueprint and content-review fixture",
+    "source": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/actual-word.json",
+    "task_id": "bdbac901-bdf5-434c-a002-f9229629f801",
+    "artifact_id": "581aa174-d52f-492e-9699-89c595136ef7",
+    "generation_hash": "fc76111e824ccc49d928bfa354beac41c01f91515146c06ec65361adde8e7260",
+    "blueprint_authorization": {
+      "owner_grant_version": 2,
+      "actor_grant_version": 2,
+      "policy_version": 1,
+      "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+    },
+    "page_count": 5,
+    "company_data": false,
+    "business_approval": false,
+    "preseeded_review_fixture": true,
+    "real_model_business_result": false,
+    "real_model_calls": 0,
+    "real_rag_calls": 0
+  },
+  "browser": {
+    "engine": "bundled Playwright Chromium",
+    "version": "148.0.7778.96",
+    "headless": true,
+    "real_page_api": true,
+    "fetch_mocked": false,
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "page_errors": []
+  },
+  "steps": [
+    {
+      "step": "owner draft and self-review rejection",
+      "screenshot": "owner-draft.png"
+    },
+    {
+      "step": "five pages and six checks submitted",
+      "screenshots": [
+        "review-ready.png",
+        "verified-not-approved.png"
+      ]
+    },
+    {
+      "step": "separate artifact approval",
+      "screenshot": "approved.png"
+    },
+    {
+      "step": "revocation and regrant do not revive approval",
+      "screenshots": [
+        "owner-revoked.png",
+        "owner-regrant-still-draft.png"
+      ]
+    }
+  ],
+  "prior_attempts": [
+    {
+      "stage": "launcher",
+      "error": "FileNotFoundError: Windows subprocess did not resolve pnpm.cmd",
+      "result": "no database or server created",
+      "fix": "Resolve pnpm.cmd explicitly without shell execution."
+    },
+    {
+      "stage": "browser login",
+      "error": "AttributeError: Playwright wait_for_url callback received a string, not an object with .path",
+      "result": "isolated server stopped; failed SQLite and storage removed",
+      "fix": "Treat the callback value as a string."
+    },
+    {
+      "stage": "page preview screenshot",
+      "error": "Direct Chromium image tabs did not expose a normal img locator",
+      "result": "isolated server stopped; failed SQLite and storage removed",
+      "fix": "Use the authenticated images embedded in the real review page."
+    },
+    {
+      "stage": "page preview locator",
+      "error": "AttributeError: Playwright Python uses get_by_alt_text rather than get_by_alt",
+      "result": "isolated server stopped; failed SQLite and storage removed",
+      "fix": "Use the current Playwright 1.60 Python locator API."
+    },
+    {
+      "stage": "parallel page preview receipts",
+      "error": "django.db.utils.OperationalError: database is locked",
+      "log_excerpt": "2026-09-22 11:26:38 preview GET pages 2, 3, and 4 returned HTTP 500 while artifact_preview saved page_views",
+      "cause": "Threaded development server attempted concurrent receipt writes to the isolated SQLite fixture database.",
+      "raw_temp_log_retained": false,
+      "raw_temp_log_note": "The failed isolated directory was removed before the request to retain failure evidence; this record is reconstructed from captured server stderr.",
+      "fix": "Run only this isolated SQLite validation server with --nothreading; requests remain real and unmocked."
+    }
+  ],
+  "self_review": {
+    "status": 404,
+    "body": {
+      "detail": "对象不存在。",
+      "code": "not_found",
+      "request_id": "1bf9eaac5a534d2aa0fc1154ee96fc0d"
+    }
+  },
+  "downloads": {
+    "before_verification": {
+      "filename": "草稿-P1 五页合成成稿浏览器验收-v1.docx",
+      "sha256": "90ab92662699fff8ae39d4d213c71879a2a0ef71cd25d95237339348d74e2a24",
+      "bytes": 26657
+    },
+    "after_verification_before_approval": {
+      "filename": "草稿-P1 五页合成成稿浏览器验收-v1.docx",
+      "sha256": "90ab92662699fff8ae39d4d213c71879a2a0ef71cd25d95237339348d74e2a24",
+      "bytes": 26657
+    },
+    "after_approval": {
+      "filename": "P1 五页合成成稿浏览器验收-v1.docx",
+      "sha256": "8a395ceddad0e859c5a2f0ec0f8800a9125fd21b3085227addeb0fe55b6ddd18",
+      "bytes": 31622
+    },
+    "after_revoke": {
+      "filename": "草稿-P1 五页合成成稿浏览器验收-v1.docx",
+      "sha256": "90ab92662699fff8ae39d4d213c71879a2a0ef71cd25d95237339348d74e2a24",
+      "bytes": 26657
+    },
+    "after_regrant": {
+      "filename": "草稿-P1 五页合成成稿浏览器验收-v1.docx",
+      "sha256": "90ab92662699fff8ae39d4d213c71879a2a0ef71cd25d95237339348d74e2a24",
+      "bytes": 26657
+    }
+  },
+  "authorization_epoch": {
+    "approved": {
+      "database": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\.runtime\\p1-increment-browser-5ae1dd229a7164fe.sqlite3",
+      "migrations": {
+        "0006_documentapproval_authorization": true,
+        "0007_product_generation_policy": true
+      },
+      "review_policy_version": 1,
+      "task": {
+        "id": "bdbac901-bdf5-434c-a002-f9229629f801",
+        "state": "COMPLETED",
+        "stage": "FINAL_REVIEW",
+        "version": 9
+      },
+      "reviewer": {
+        "id": 2,
+        "grant_version": 2,
+        "has_product_role": true
+      },
+      "artifact": {
+        "id": "581aa174-d52f-492e-9699-89c595136ef7",
+        "sha256": "8a395ceddad0e859c5a2f0ec0f8800a9125fd21b3085227addeb0fe55b6ddd18",
+        "generation_hash": "fc76111e824ccc49d928bfa354beac41c01f91515146c06ec65361adde8e7260",
+        "status": "verified",
+        "candidate_current": true,
+        "visual_current": true,
+        "effective_approval": "06d56f04-69c5-4e63-adaf-e549c198a2f9"
+      },
+      "page_view_receipts": 5,
+      "visual_authorization": {
+        "owner_grant_version": 2,
+        "actor_grant_version": 2,
+        "policy_version": 1,
+        "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+      },
+      "approval": {
+        "id": "06d56f04-69c5-4e63-adaf-e549c198a2f9",
+        "authorization": {
+          "owner_grant_version": 2,
+          "actor_grant_version": 2,
+          "policy_version": 1,
+          "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+        },
+        "current": true
+      }
+    },
+    "revoke": {
+      "reviewer_id": 2,
+      "granted": false,
+      "grant_version_before": 2,
+      "grant_version_after": 3
+    },
+    "after_revoke": {
+      "database": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\.runtime\\p1-increment-browser-5ae1dd229a7164fe.sqlite3",
+      "migrations": {
+        "0006_documentapproval_authorization": true,
+        "0007_product_generation_policy": true
+      },
+      "review_policy_version": 1,
+      "task": {
+        "id": "bdbac901-bdf5-434c-a002-f9229629f801",
+        "state": "COMPLETED",
+        "stage": "FINAL_REVIEW",
+        "version": 9
+      },
+      "reviewer": {
+        "id": 2,
+        "grant_version": 3,
+        "has_product_role": false
+      },
+      "artifact": {
+        "id": "581aa174-d52f-492e-9699-89c595136ef7",
+        "sha256": "8a395ceddad0e859c5a2f0ec0f8800a9125fd21b3085227addeb0fe55b6ddd18",
+        "generation_hash": "fc76111e824ccc49d928bfa354beac41c01f91515146c06ec65361adde8e7260",
+        "status": "verified",
+        "candidate_current": false,
+        "visual_current": false,
+        "effective_approval": null
+      },
+      "page_view_receipts": 5,
+      "visual_authorization": {
+        "owner_grant_version": 2,
+        "actor_grant_version": 2,
+        "policy_version": 1,
+        "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+      },
+      "approval": {
+        "id": "06d56f04-69c5-4e63-adaf-e549c198a2f9",
+        "authorization": {
+          "owner_grant_version": 2,
+          "actor_grant_version": 2,
+          "policy_version": 1,
+          "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+        },
+        "current": false
+      }
+    },
+    "regrant": {
+      "reviewer_id": 2,
+      "granted": true,
+      "grant_version_before": 3,
+      "grant_version_after": 4
+    },
+    "after_regrant": {
+      "database": "C:\\Users\\BJRunner\\Desktop\\ai智能体平台\\.runtime\\p1-increment-browser-5ae1dd229a7164fe.sqlite3",
+      "migrations": {
+        "0006_documentapproval_authorization": true,
+        "0007_product_generation_policy": true
+      },
+      "review_policy_version": 1,
+      "task": {
+        "id": "bdbac901-bdf5-434c-a002-f9229629f801",
+        "state": "COMPLETED",
+        "stage": "FINAL_REVIEW",
+        "version": 9
+      },
+      "reviewer": {
+        "id": 2,
+        "grant_version": 4,
+        "has_product_role": true
+      },
+      "artifact": {
+        "id": "581aa174-d52f-492e-9699-89c595136ef7",
+        "sha256": "8a395ceddad0e859c5a2f0ec0f8800a9125fd21b3085227addeb0fe55b6ddd18",
+        "generation_hash": "fc76111e824ccc49d928bfa354beac41c01f91515146c06ec65361adde8e7260",
+        "status": "verified",
+        "candidate_current": false,
+        "visual_current": false,
+        "effective_approval": null
+      },
+      "page_view_receipts": 5,
+      "visual_authorization": {
+        "owner_grant_version": 2,
+        "actor_grant_version": 2,
+        "policy_version": 1,
+        "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+      },
+      "approval": {
+        "id": "06d56f04-69c5-4e63-adaf-e549c198a2f9",
+        "authorization": {
+          "owner_grant_version": 2,
+          "actor_grant_version": 2,
+          "policy_version": 1,
+          "rules_hash": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+        },
+        "current": false
+      }
+    },
+    "old_approval_revived": false
+  },
+  "assertions": {
+    "all_five_pages_opened": true,
+    "all_five_page_receipts_recorded": true,
+    "all_page_checks_manual_automation": true,
+    "six_content_checks_manual_automation": true,
+    "verification_separate_from_approval": true,
+    "unapproved_download_is_draft": true,
+    "approved_download_is_final": true,
+    "revoked_download_is_draft": true,
+    "regrant_does_not_revive_old_approval": true
+  },
+  "evidence": {
+    "approved.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-approved.png",
+    "build.stderr.txt": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-build.stderr.txt",
+    "build.stdout.txt": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-build.stdout.txt",
+    "failure-history.json": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-failure-history.json",
+    "migrate.stderr.txt": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-migrate.stderr.txt",
+    "migrate.stdout.txt": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-migrate.stdout.txt",
+    "owner-draft.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-owner-draft.png",
+    "owner-final.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-owner-final.png",
+    "owner-regrant-still-draft.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-owner-regrant-still-draft.png",
+    "owner-revoked.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-owner-revoked.png",
+    "page-01.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-page-01.png",
+    "page-02.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-page-02.png",
+    "page-03.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-page-03.png",
+    "page-04.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-page-04.png",
+    "page-05.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-page-05.png",
+    "review-ready.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-review-ready.png",
+    "server.stderr.txt": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-server.stderr.txt",
+    "server.stdout.txt": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-server.stdout.txt",
+    "verified-not-approved.png": "deliverables/企业平台SDD_20260921/qa/p1-increment-20260922/browser-20260922T033243Z-8fb9eb-verified-not-approved.png"
+  }
+}

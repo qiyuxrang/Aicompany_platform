@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-09-21T05:26:32.269878+00:00",
+  "legacy_commit": "beb933ab92775f727a99c01edd4a527a90414dcd",
+  "original_legacy_state_unchanged": true,
+  "new_run_guard_rejections": {
+    "path_traversal": true,
+    "duplicate_run": true
+  },
+  "resources": {
+    "portal_database": "portal_bridge_e2e_20260921_131439",
+    "ledger_database": "ledger_bridge_e2e_20260921_131439",
+    "portal_port": 18310,
+    "ledger_port": 18318,
+    "worktree": "C:\\Users\\BJRunner\\Desktop\\ledger-portal-bridge-isolated"
+  },
+  "available_browsers": [
+    {
+      "type": "iab",
+      "name": "Codex In-app Browser"
+    }
+  ],
+  "ordinary_browser_cases": "A01-A10 blocked; no ordinary browser control connection",
+  "boundary": "All native HTTP tests rerun against final legacy commit; fresh approved synthetic resources only; existing daily accounts/services unchanged"
+}

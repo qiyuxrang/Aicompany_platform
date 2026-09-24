@@ -1,0 +1,172 @@
+{
+  "timestamp": "2026-09-22T01:12:04.366668+00:00",
+  "result": "passed",
+  "source": {
+    "database": "portal_p1_20260922_091117",
+    "endpoint": "127.0.0.1:55438",
+    "read_only_repeatable_snapshot": true,
+    "existing_database_modified": false
+  },
+  "backup": {
+    "path": "backups/p1-validation/20260922T011151Z/portal_p1_20260922_091117.dump",
+    "format": "PostgreSQL custom",
+    "bytes": 107062,
+    "sha256": "cd1030463dfcb26651dd5e89a461b49ae4296367d7d2ec9171190132a3800e0f",
+    "git_ignored": true,
+    "filesystem_acl_restricted": true,
+    "contains_runtime_credentials_file": false
+  },
+  "restore": {
+    "database": "portal_p1_restore_20260922_091202",
+    "created_new": true,
+    "retained": true,
+    "dropped_databases": false,
+    "public_access_revoked": true,
+    "private_files_directory": ".runtime/p1-restore-private/portal_p1_restore_20260922_091202",
+    "private_files_retained": true
+  },
+  "comparison": {
+    "snapshot_boundary": "Source fingerprints and pg_dump share one exported repeatable-read snapshot.",
+    "table_count": 30,
+    "table_sets_equal": true,
+    "stable_table_fingerprints_equal": true,
+    "tables": {
+      "auth_group": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "auth_group_permissions": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "auth_permission": {
+        "rows": 96,
+        "sha256": "7738c7d6b805712ad01a07c826f39e703dddfe95c9954fbb9d5f38b0d625ba3c"
+      },
+      "django_admin_log": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "django_content_type": {
+        "rows": 24,
+        "sha256": "781b71e9501b73eb7a685bfcc00b46e691d6fc8f1ab35d83f52a9cf77d73ab5c"
+      },
+      "django_migrations": {
+        "rows": 23,
+        "sha256": "61f0a743f6bcb0b13752b7c2c1ebb15c3afdce1d80abf5f002e71d929b715fd4"
+      },
+      "django_session": {
+        "rows": 4,
+        "sha256": "86478556dd285518e20172f246b14f1a162fa6091f1ee7f3b867d4a8549293f8"
+      },
+      "portal_auditevent": {
+        "rows": 13,
+        "sha256": "9ab8ad9d9f43fd2594dc50796ce61608910c568334846ba7003c70daaccba44b"
+      },
+      "portal_businessmapping": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_documentapproval": {
+        "rows": 1,
+        "sha256": "aa16a68bbda385fdcc7e7ce746a6cfd0fc1ed4b39a9749831401c7c82033dcd7"
+      },
+      "portal_documentartifact": {
+        "rows": 1,
+        "sha256": "3975d291b59b00c3e7efe679aac1d24b46352f943833cc9d9b45c9695ccb4957"
+      },
+      "portal_documentattempt": {
+        "rows": 2,
+        "sha256": "051121ae960ea79ccae206c51b90a69e1636c58dce61ddc2137aa537f40853cb"
+      },
+      "portal_documentrevision": {
+        "rows": 6,
+        "sha256": "8a88068a769d29c0773bd596dc20e0c9561be24ab2e2c9c794c5a0a9a0edc502"
+      },
+      "portal_documentsource": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_documenttask": {
+        "rows": 1,
+        "sha256": "1d0a0bc3f10e8f2a52669ddcf8308ae688fab7260832e2d5f9c6b7343747f136"
+      },
+      "portal_gatewaymodel": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_integrationticket": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_loginattempt": {
+        "rows": 4,
+        "sha256": "1d19f4057830051739a0b3d5e0e7a2ab157691ae06a02d461644e854c0ada610"
+      },
+      "portal_modelcalllog": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_modelroute": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_module": {
+        "rows": 4,
+        "sha256": "97b6595d3665067bce8deec0312922c63c344d3d99d3b4dd857509b6cebd1364"
+      },
+      "portal_modulecheck": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_operationalissue": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_provider": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_role": {
+        "rows": 5,
+        "sha256": "522fa16144540eb3a8d935ee8e6e559d421c2d03a3ba9c57f0240af25b367f53"
+      },
+      "portal_role_modules": {
+        "rows": 4,
+        "sha256": "fb9a3316741a633cdc43e1e30942dde3dcf340f610d15f72b08c952210305621"
+      },
+      "portal_user": {
+        "rows": 3,
+        "sha256": "887bd467535c28fe0474997041036d4dd43775bd425a46fb4512421ffbde1716"
+      },
+      "portal_user_groups": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "portal_user_roles": {
+        "rows": 3,
+        "sha256": "5d5fd7627a8a3f12486728034e690cf80317635ecb7e960dbb3e98e71c895d33"
+      },
+      "portal_user_user_permissions": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "private_file_count": 3,
+    "private_file_hashes_equal": true,
+    "private_files": {
+      "be5a3504-5d69-45e5-ae8b-8ded1dee8394/artifacts/ce10ec91abd849bdba7de61379a08953/content.json": {
+        "bytes": 2875,
+        "sha256": "690707a78c53cc756699b1d0832bdcfe997a15423da13fc1a847547a2d806edd"
+      },
+      "be5a3504-5d69-45e5-ae8b-8ded1dee8394/artifacts/ce10ec91abd849bdba7de61379a08953/draft.docx": {
+        "bytes": 26528,
+        "sha256": "5dac39219bb04b4930eb3a5769977715c59c4f17b3b1530b101422871ce5bcd3"
+      },
+      "be5a3504-5d69-45e5-ae8b-8ded1dee8394/artifacts/ce10ec91abd849bdba7de61379a08953/draft.quality.json": {
+        "bytes": 1504,
+        "sha256": "f3b0c1d578fb3442f31d0f5e84051908a800321efba0f585df6550861a183acf"
+      }
+    }
+  }
+}

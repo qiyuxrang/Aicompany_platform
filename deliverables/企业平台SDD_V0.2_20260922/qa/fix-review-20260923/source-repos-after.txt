@@ -1,0 +1,401 @@
+=== PATH: C:\Git_projects\bj_device_company ===
+BRANCH: feat/company-server-foundation
+HEAD: f4f5a92d6415910e244e90ebadc7c3e39fb910c6
+STATUS_BEGIN
+ M README.md
+ M docs/architecture/workbuddy-skill-workflow.md
+ M docs/release.md
+ M mcp.json
+ M mcp/index.js
+ M skills/bj-docs/SKILL.md
+ M skills/bj-docs/references/document-flow.md
+ M skills/bj-docs/references/feasibility.md
+ M skills/bj-docs/references/plan.md
+ M skills/bj-docs/references/review.md
+ M skills/bj-docs/references/technical-solution.md
+ M skills/bj-docs/scripts/artifacts.py
+ M skills/bj-docs/scripts/bootstrap.cjs
+ M skills/bj-docs/scripts/contract.py
+ M skills/bj-docs/scripts/office_render.py
+ M skills/bj-docs/scripts/ooxml.py
+ M skills/bj-docs/scripts/presentations.py
+ M skills/bj-docs/scripts/spreadsheet.py
+ M skills/bj-expert/SKILL.md
+ M skills/bj-know/SKILL.md
+ M skills/bj-show/SKILL.md
+ M skills/bj-show/references/scene.md
+ M skills/bj-show/references/slides.md
+ M skills/bj-work/SKILL.md
+ M skills/bj-work/references/workbuddy-tools.md
+ M skills/bj-work/references/workflow-contracts.md
+ M skills/bj-work/references/workflow-map.md
+ M skills/bj-work/scripts/hash.cjs
+ M tests/README.md
+ M tests/test_artifact_templates.py
+ M tests/test_clean_room_distribution.py
+ M tests/test_release_packages.py
+ M tests/test_skill_workflow_design.py
+ M token-schema.json
+ M tools/build_release.py
+?? .github/workflows/verify.yml
+?? docs/architecture/WORKBUDDY_ACCEPTANCE.md
+?? docs/architecture/chapter-pages-ppt-master-pilot.md
+?? docs/architecture/delivery-quality-optimization-design.md
+?? docs/architecture/delivery-quality-optimization-plan.md
+?? docs/architecture/demo-optimization-plan.md
+?? docs/architecture/device-list-pilot.md
+?? docs/architecture/environment-agent-acceptance.md
+?? docs/architecture/incremental-production.md
+?? docs/architecture/list-to-deliverables-plan.md
+?? docs/architecture/long-writing-efficiency.md
+?? docs/architecture/performance-quality-optimization.md
+?? docs/architecture/reliability-optimization-20260921.md
+?? docs/architecture/template-content-study.md
+?? docs/architecture/workbuddy-format-pilot-plan.md
+?? docs/architecture/workbuddy-native-route.md
+?? docs/architecture/writing-throughput-optimization-20260921.md
+?? docs/unified-skill.md
+?? docs/windows-installation.md
+?? skills/bj-docs/references/content-depth.md
+?? skills/bj-docs/references/delivery-check.md
+?? skills/bj-docs/references/handoff.md
+?? skills/bj-docs/references/incremental-production.md
+?? skills/bj-docs/references/project-flow.md
+?? skills/bj-docs/references/technical-diagrams.md
+?? skills/bj-docs/scripts/chapter_check.py
+?? skills/bj-docs/scripts/chapter_merge.py
+?? skills/bj-docs/scripts/citation_audit.py
+?? skills/bj-docs/scripts/deck_sources.py
+?? skills/bj-docs/scripts/delivery_check.py
+?? skills/bj-docs/scripts/delivery_evidence.py
+?? skills/bj-docs/scripts/delivery_limits.py
+?? skills/bj-docs/scripts/demo_check.py
+?? skills/bj-docs/scripts/formulas.py
+?? skills/bj-docs/scripts/handoff.py
+?? skills/bj-docs/scripts/installation.cjs
+?? skills/bj-docs/scripts/light_runtime_check.py
+?? skills/bj-docs/scripts/mermaid.cjs
+?? skills/bj-docs/scripts/pair_handoff.py
+?? skills/bj-docs/scripts/ppt_inspect.py
+?? skills/bj-docs/scripts/production.py
+?? skills/bj-docs/scripts/project_flow.py
+?? skills/bj-docs/scripts/project_inputs.py
+?? skills/bj-docs/scripts/runtime_check.py
+?? skills/bj-docs/scripts/strict_json.py
+?? skills/bj-know/references/retrieval-evidence.md
+?? skills/bj-show/references/blender-user-guide.md
+?? skills/bj-show/references/blender.md
+?? skills/bj-show/references/ppt-master.md
+?? skills/bj-show/references/solution-story.md
+?? skills/bj-show/scripts/blender.cjs
+?? skills/bj-show/scripts/blender_build.py
+?? skills/bj-show/scripts/blender_runtime.cjs
+?? skills/bj-show/scripts/blender_scene.py
+?? skills/bj-show/scripts/demo_ui.py
+?? skills/bj-show/scripts/equipment_demo.py
+?? skills/bj-show/scripts/ppt-master.cjs
+?? skills/bj-show/scripts/ppt_setup.py
+?? skills/bj-show/scripts/scene.cjs
+?? skills/bj-show/scripts/scene.py
+?? skills/bj-show/scripts/scene_ui.py
+?? skills/bj-work/references/blueprint-presentation.md
+?? skills/bj-work/references/communication.md
+?? skills/bj-work/references/environment.md
+?? tests/test_blender_portability.py
+?? tests/test_blender_scene.py
+?? tests/test_chapter_check.py
+?? tests/test_chapter_merge.py
+?? tests/test_citation_audit.py
+?? tests/test_content_handoff.py
+?? tests/test_deck_sources.py
+?? tests/test_delivery_check.py
+?? tests/test_delivery_limits.py
+?? tests/test_demo_upgrade.py
+?? tests/test_equipment_demo.py
+?? tests/test_evidence_performance.py
+?? tests/test_hash_release_safety.py
+?? tests/test_knowledge_tools.py
+?? tests/test_mcp_resource_bounds.py
+?? tests/test_mermaid_tool.py
+?? tests/test_pair_handoff.py
+?? tests/test_performance_quality.py
+?? tests/test_ppt_master_binding.py
+?? tests/test_ppt_master_setup.py
+?? tests/test_production.py
+?? tests/test_production_performance.py
+?? tests/test_project_flow.py
+?? tests/test_project_inputs.py
+?? tests/test_safety_boundaries.py
+?? tests/test_scene_tool.py
+?? tests/test_strict_json.py
+?? tests/test_sync_skills.py
+?? tests/test_unified_skill.py
+?? tests/test_windows_installability.py
+?? tools/build_unified_skill.py
+?? tools/requirements-test.txt
+?? tools/sync_skills.py
+?? tools/unified-entry.md
+?? tools/unified-migration.md
+?? tools/verify_demo_browser.py
+?? tools/verify_project.py
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2022-\346\246\206\346\236\227\347\273\217\346\265\216\346\212\200\346\234\257\345\274\200\345\217\221\345\214\272\357\274\210\346\246\206\347\245\236\345\267\245\344\270\232\345\214\272\357\274\211\346\231\272\346\205\247\345\233\255\345\214\272\345\273\272\350\256\276\351\241\271\347\233\256\357\274\210\344\270\200\346\234\237\357\274\211N3\346\240\207\346\256\265\346\267\261\345\214\226\350\256\276\350\256\241\346\226\271\346\241\210.doc"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2022-\347\254\254\344\270\200\345\206\214\343\200\220\346\226\207\346\241\243\351\203\250\345\210\206\343\200\221\346\246\206\346\236\227\345\270\202\351\202\256\346\224\277\344\270\232\347\233\221\347\256\241\344\270\216\346\234\215\345\212\241\345\271\263\345\217\260\345\215\207\347\272\247\346\224\271\351\200\240\351\241\271\347\233\256\345\210\235\346\255\245\350\256\276\350\256\241\357\274\210\344\273\243\345\217\257\347\240\224\357\274\211-20221113-V0.5.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2023-\343\200\220\347\254\254\344\270\200\345\206\214 \345\205\261\345\233\233\345\206\214\343\200\2212023\345\271\264\346\246\206\346\236\227\351\253\230\346\226\260\345\214\272\357\274\210\346\246\206\346\250\252\345\267\245\344\270\232\345\214\272\357\274\211\351\207\215\345\244\247\345\256\211\345\205\250\351\243\216\351\231\251\351\230\262\346\216\247\351\241\271\347\233\256\357\274\210\346\231\272\346\205\247\345\233\255\345\214\272\345\273\272\350\256\276\344\270\200\346\234\237\357\274\211\345\210\235\346\255\245\350\256\276\350\256\241.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2023-\346\246\206\346\236\227\345\270\202\347\273\274\345\220\210\344\272\244\351\200\232\344\277\241\346\201\257\346\234\215\345\212\241\344\270\255\345\277\203-\345\217\257\347\240\22420230403V4.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2023-\346\246\206\346\236\227\345\270\202\347\273\274\345\220\210\344\272\244\351\200\232\344\277\241\346\201\257\346\234\215\345\212\241\345\271\263\345\217\260\345\273\272\350\256\276\351\241\271\347\233\256\345\210\235\346\255\245\350\256\276\350\256\241\346\226\271\346\241\210\357\274\210\344\273\243\345\217\257\347\240\224\357\274\21120231008.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2024-N3\357\274\210\344\272\214\346\234\237\357\274\211\346\267\261\345\214\226\350\256\276\350\256\241\346\226\271\346\241\210V3.4.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2025-\344\270\244\345\270\210\344\270\244\344\270\255\345\277\203\351\241\271\347\233\256\345\273\272\350\256\276\346\226\271\346\241\210.pdf"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2025-\346\246\206\346\236\227\345\270\202\351\202\256\346\224\277\345\277\253\351\200\222\344\270\232\346\231\272\346\205\247\347\233\221\347\256\241\345\271\263\345\217\260\345\273\272\350\256\276\351\241\271\347\233\256\351\231\204\344\273\2662 \351\241\271\347\233\256\345\273\272\350\256\256\344\271\246.docx.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/2026-\346\205\242\346\200\247\347\227\205\345\205\250\345\221\250\346\234\237\347\256\241\347\220\206\351\241\271\347\233\256\345\205\250\346\260\221\351\253\230\350\241\200\345\216\213\347\255\233\346\237\245\347\263\273\347\273\237.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\345\214\227\345\205\203\345\214\226\345\267\245\351\233\206\345\233\242\350\202\241\344\273\275\346\234\211\351\231\220\345\205\254\345\217\270/\345\205\263\344\272\216\351\231\225\350\245\277\345\214\227\345\205\203\345\214\226\345\267\245\351\233\206\345\233\242\350\202\241\344\273\275\346\234\211\351\231\220\345\205\254\345\217\270\345\256\211\345\205\250\347\224\237\344\272\247\346\231\272\350\203\275\345\214\226\346\227\240\344\272\272\345\214\226\345\237\271\350\202\262\345\273\272\350\256\276\350\247\243\345\206\263\346\226\271\346\241\21006-26.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\345\214\227\345\205\203\345\214\226\345\267\245\351\233\206\345\233\242\350\202\241\344\273\275\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\345\214\227\345\205\203\345\214\226\345\267\245\351\233\206\345\233\242\346\234\211\351\231\220\345\205\254\345\217\270\346\212\245\344\273\267\346\270\205\345\215\2256-26.xlsx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\345\214\227\345\205\203\345\214\226\345\267\245\351\233\206\345\233\242\350\202\241\344\273\275\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\345\214\227\345\205\203\345\214\226\345\267\245\351\233\206\345\233\242\350\202\241\344\273\275\346\234\211\351\231\220\345\205\254\345\217\2706-26.pptx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\346\234\211\351\231\220\345\205\254\345\217\270\346\235\245\345\226\234\345\210\206\345\205\254\345\217\270/\345\205\263\344\272\216\346\235\245\345\226\234\345\210\206\345\205\254\345\217\270\345\256\211\345\205\250\347\224\237\344\272\247\346\231\272\350\203\275\345\214\226\346\227\240\344\272\272\345\214\226\345\237\271\350\202\262\345\273\272\350\256\276\350\247\243\345\206\263\346\226\271\346\241\2100623 .docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\346\234\211\351\231\220\345\205\254\345\217\270\346\235\245\345\226\234\345\210\206\345\205\254\345\217\270/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\346\234\211\351\231\220\345\205\254\345\217\270\346\235\245\345\226\234\345\210\206\345\205\254\345\217\270.pptx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\346\234\211\351\231\220\345\205\254\345\217\270\346\235\245\345\226\234\345\210\206\345\205\254\345\217\270/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\346\234\211\351\231\220\345\205\254\345\217\270\346\235\245\345\226\234\345\210\206\345\205\254\345\217\270.xlsx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\351\233\206\345\233\242\347\245\236\346\234\250\350\203\275\346\272\220\345\217\221\345\261\225\346\234\211\351\231\220\345\205\254\345\217\270/\345\205\263\344\272\216\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\351\233\206\345\233\242\347\245\236\346\234\250\350\203\275\346\272\220\345\217\221\345\261\225\346\234\211\351\231\220\345\205\254\345\217\270\345\256\211\345\205\250\347\224\237\344\272\247\346\231\272\350\203\275\345\214\226\346\227\240\344\272\272\345\214\226\345\237\271\350\202\262\345\273\272\350\256\276\350\247\243\345\206\263\346\226\271\346\241\21006-26.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\351\233\206\345\233\242\347\245\236\346\234\250\350\203\275\346\272\220\345\217\221\345\261\225\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\351\233\206\345\233\242\347\245\236\346\234\250\350\203\275\346\272\220\345\217\221\345\261\225\346\234\211\351\231\220\345\205\254\345\217\270.pptx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\351\233\206\345\233\242\347\245\236\346\234\250\350\203\275\346\272\220\345\217\221\345\261\225\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\347\205\244\344\270\232\345\214\226\345\267\245\351\233\206\345\233\242\347\245\236\346\234\250\350\203\275\346\272\220\345\217\221\345\261\225\346\234\211\351\231\220\345\205\254\345\217\270.xlsx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\234\201\346\201\222\346\272\220\346\212\225\350\265\204\351\233\206\345\233\242\347\224\265\345\214\226\346\234\211\351\231\220\345\205\254\345\217\270/\345\205\263\344\272\216\351\231\225\350\245\277\347\234\201\346\201\222\346\272\220\346\212\225\350\265\204\351\233\206\345\233\242\347\224\265\345\214\226\346\234\211\351\231\220\345\205\254\345\217\270\345\256\211\345\205\250\347\224\237\344\272\247\346\231\272\350\203\275\345\214\226\346\227\240\344\272\272\345\214\226\345\237\271\350\202\262\345\273\272\350\256\276\350\247\243\345\206\263\346\226\271\346\241\210 06-24.docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\234\201\346\201\222\346\272\220\346\212\225\350\265\204\351\233\206\345\233\242\347\224\265\345\214\226\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\346\201\222\346\272\220\346\212\225\350\265\204\351\233\206\345\233\242\347\224\265\345\214\226\346\234\211\351\231\220\345\205\254\345\217\270\346\270\205\345\215\225\350\241\25006-24.xlsx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\347\234\201\346\201\222\346\272\220\346\212\225\350\265\204\351\233\206\345\233\242\347\224\265\345\214\226\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\347\234\201\346\201\222\346\272\220\346\212\225\350\265\204\351\233\206\345\233\242\347\224\265\345\214\226\346\234\211\351\231\220\345\205\254\345\217\270.pptx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\351\207\221\346\263\260\345\214\226\345\255\246\347\245\236\346\234\250\346\260\257\347\242\261\346\234\211\351\231\220\345\205\254\345\217\270/\345\205\263\344\272\216\351\231\225\350\245\277\351\207\221\346\263\260\345\214\226\345\255\246\347\245\236\346\234\250\346\260\257\347\242\261\346\234\211\351\231\220\345\205\254\345\217\270\345\256\211\345\205\250\347\224\237\344\272\247\346\231\272\350\203\275\345\214\226\346\227\240\344\272\272\345\214\226\345\237\271\350\202\262\345\273\272\350\256\276\350\247\243\345\206\263\346\226\271\346\241\2100626 .docx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\351\207\221\346\263\260\345\214\226\345\255\246\347\245\236\346\234\250\346\260\257\347\242\261\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\351\207\221\346\263\260\345\214\226\345\255\246\347\245\236\346\234\250\346\260\257\347\242\261\346\234\211\351\231\220\345\205\254\345\217\270.pptx"
+?? "\346\250\241\346\235\277\346\226\207\344\273\266/\351\231\225\350\245\277\351\207\221\346\263\260\345\214\226\345\255\246\347\245\236\346\234\250\346\260\257\347\242\261\346\234\211\351\231\220\345\205\254\345\217\270/\351\231\225\350\245\277\351\207\221\346\263\260\345\214\226\345\255\246\347\245\236\346\234\250\346\260\257\347\242\261\346\234\211\351\231\220\345\205\254\345\217\2700624.xlsx"
+STATUS_END
+
+=== PATH: C:\Users\BJRunner\Downloads\HRBP_AI_招聘系统_V1.9_批量招聘引擎_深度优化版 ===
+BRANCH: fix/workbuddy-screening-reliability
+HEAD: 894e927f42de8d829debf674039902f378c0cbea
+STATUS_BEGIN
+ M .env.example
+ M ARCHITECTURE.md
+ M docker-compose.yml
+ M gateway/.env.example
+ M gateway/alembic/env.py
+ M gateway/batch_store.py
+ M gateway/conftest.py
+ M gateway/contracts/__init__.py
+ M gateway/contracts/base.py
+ M gateway/contracts/enums.py
+ D gateway/contracts/identity.py
+ D gateway/contracts/talent.py
+ D gateway/contracts/talent_search.py
+ D gateway/gate_b_http_verify.py
+ D gateway/integrations/__init__.py
+ D gateway/integrations/twenty/__init__.py
+ D gateway/integrations/twenty/adapter.py
+ D gateway/integrations/twenty/mapper.py
+ D gateway/integrations/twenty/outbox.py
+ D gateway/integrations/twenty/projection.py
+ D gateway/integrations/twenty/worker.py
+ M gateway/live_acceptance_p55.py
+ M gateway/main.py
+ D gateway/probe_gate_c_dim.py
+ D gateway/purge_gate_b_test.py
+ D gateway/rebuild_docs_gate_b.py
+ M gateway/requirements.txt
+ D gateway/run_gate_c_live.py
+ D gateway/scenario_gate_d_s22.py
+ D gateway/seed_gate_b.py
+ D gateway/seed_twenty_poc.py
+ M gateway/state.py
+ D gateway/talent_search_fixtures.py
+ D gateway/test_cloud_embedding_v21.py
+ M gateway/test_contracts_v2.py
+ D gateway/test_fts_search_v21.py
+ D gateway/test_gate_d_offline_v21.py
+ D gateway/test_hybrid_rrf_v21.py
+ M gateway/test_persistence_v2.py
+ D gateway/test_phase1_auto_ingestion.py
+ D gateway/test_rediscovery_v21.py
+ D gateway/test_retrieval_qa_v21.py
+ D gateway/test_semantic_search_v21.py
+ M gateway/test_stateless_v2.py
+ D gateway/test_structured_search_v21.py
+ D gateway/test_talent_ingestion_v2.py
+ D gateway/test_talent_mcp_v21.py
+ D gateway/test_talent_search_v21.py
+ D gateway/test_twenty_outbox.py
+ D gateway/test_twenty_projection.py
+ D gateway/v2/api_talent.py
+ M gateway/v2/db.py
+ M gateway/v2/dify_stateless.py
+ D gateway/v2/embedding.py
+ M gateway/v2/facade.py
+ D gateway/v2/ingestion.py
+ D gateway/v2/legacy_importer.py
+ M gateway/v2/orchestrator.py
+ D gateway/v2/rediscovery.py
+ M gateway/v2/repository.py
+ D gateway/v2/resolver.py
+ D gateway/v2/talent_search.py
+ D gateway/v2/talent_search_doc.py
+ D gateway/v2/talent_search_hybrid.py
+ D gateway/v2/talent_search_semantic.py
+ M workbuddy_mcp/README.md
+ M workbuddy_mcp/server.py
+?? docs/superpowers/plans/local-skill.md
+?? docs/superpowers/plans/screening-only.md
+?? gateway/contracts/job.py
+?? gateway/main.py.bak-20260909-dotenv
+?? gateway/test_date_guard.py
+?? gateway/test_screening_only.py
+?? gateway/test_screening_reliability.py
+?? gateway/v2/date_guard.py
+?? skills/README.md
+?? skills/resume-screening/.gitignore
+?? skills/resume-screening/SKILL.md
+?? skills/resume-screening/pyproject.toml
+?? skills/resume-screening/references/acceptance.md
+?? skills/resume-screening/references/contracts.md
+?? skills/resume-screening/references/parallel.md
+?? skills/resume-screening/scripts/cli.py
+?? skills/resume-screening/scripts/documents.py
+?? skills/resume-screening/scripts/report.py
+?? skills/resume-screening/scripts/store.py
+?? skills/resume-screening/scripts/validation.py
+?? skills/resume-screening/tests/test_documents_cli.py
+?? skills/resume-screening/tests/test_local.py
+?? skills/resume-screening/tests/test_parallel.py
+?? skills/resume-screening/uv.lock
+STATUS_END
+
+=== PATH: C:\Users\BJRunner\Downloads\hrbp-ai-twenty ===
+BRANCH: feature/twenty-workspace-poc
+HEAD: 87033952091e309599aaa6526ae75ebc8cbbf6e9
+STATUS_BEGIN
+ M docs/TWENTY_TALENT_UI_GUIDE_ZH.md
+ M gateway/contracts/runtime.py
+ M gateway/integrations/twenty/adapter.py
+ M gateway/integrations/twenty/mapper.py
+ M gateway/integrations/twenty/outbox.py
+ M gateway/integrations/twenty/projection.py
+ M gateway/integrations/twenty/worker.py
+ M gateway/main.py
+ M gateway/mock_dify_v2.py
+ M gateway/talent_search_fixtures.py
+ M gateway/test_fts_search_v21.py
+ M gateway/test_rediscovery_v21.py
+ M gateway/test_semantic_search_v21.py
+ M gateway/test_stateless_v2.py
+ M gateway/test_talent_ingestion_v2.py
+ M gateway/test_twenty_outbox.py
+ M gateway/test_twenty_projection.py
+ M gateway/twenty_setup_objects.py
+ M gateway/v2/api_talent.py
+ M gateway/v2/db.py
+ M gateway/v2/dify_stateless.py
+ M gateway/v2/facade.py
+ M gateway/v2/ingestion.py
+ M gateway/v2/job_service.py
+ M gateway/v2/normalizer.py
+ M gateway/v2/orchestrator.py
+ M gateway/v2/rediscovery.py
+ M gateway/v2/talent_search.py
+ M gateway/v2/talent_search_doc.py
+ M gateway/v2/talent_search_semantic.py
+ M workbuddy_mcp/README.md
+ M workbuddy_mcp/server.py
+?? .agents/skills/hrbp-workflow/SKILL.md
+?? .agents/skills/hrbp-workflow/agents/openai.yaml
+?? .agents/skills/hrbp-workflow/references/project-guardrails.md
+?? .agents/skills/hrbp-workflow/references/validation-cases.md
+?? backup_20260908/twenty_db_20260908.sql
+?? backup_20260908/twenty_poc_source_20260908.sql
+?? dify/screening_v67_classifier.py
+?? dify/screening_v67_file_identity.py
+?? docs/TWENTY_HR_FIELD_MAPPING.md
+?? gateway/alembic/versions/f8a9b0c1d223_candidate_resume_association.py
+?? gateway/auth.py
+?? gateway/hr_read_api.py
+?? gateway/test_date_guard.py
+?? gateway/test_hr_read_model.py
+?? gateway/test_job_recall_v2.py
+?? gateway/test_pool_authorization.py
+?? gateway/test_production_search_eligibility.py
+?? gateway/test_recognition_ingestion_gate.py
+?? gateway/test_screening_file_binding.py
+?? gateway/test_screening_job_context.py
+?? gateway/test_screening_v67_contract.py
+?? gateway/test_talent_search_small_fixes.py
+?? gateway/test_twenty_deletion.py
+?? gateway/v2/date_guard.py
+?? gateway/v2/hr_read_model.py
+?? gateway/v2/job_recall.py
+?? gateway/v2/production_search_exclusions.json
+?? gateway/v2/resume_links.py
+?? outputs/talent_search_final_closure_20260909/FINAL_REPORT.md
+?? outputs/talent_search_final_closure_20260909/acceptance_runner.py
+?? outputs/talent_search_final_closure_20260909/baseline.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_00.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_01.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_02.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_03.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_04.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_05.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_06.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_07.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_08.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_09.json
+?? outputs/talent_search_final_closure_20260909/baseline_http_10.json
+?? outputs/talent_search_final_closure_20260909/baseline_runner_metrics.json
+?? outputs/talent_search_final_closure_20260909/competitor_audit.json
+?? outputs/talent_search_final_closure_20260909/data_quality.json
+?? outputs/talent_search_final_closure_20260909/data_snapshot.json
+?? outputs/talent_search_final_closure_20260909/evidence_audit.json
+?? outputs/talent_search_final_closure_20260909/evidence_signal_inventory.json
+?? outputs/talent_search_final_closure_20260909/final_acceptance.json
+?? outputs/talent_search_final_closure_20260909/final_http_00.json
+?? outputs/talent_search_final_closure_20260909/final_http_01.json
+?? outputs/talent_search_final_closure_20260909/final_http_02.json
+?? outputs/talent_search_final_closure_20260909/final_http_03.json
+?? outputs/talent_search_final_closure_20260909/final_http_04.json
+?? outputs/talent_search_final_closure_20260909/final_http_05.json
+?? outputs/talent_search_final_closure_20260909/final_http_06.json
+?? outputs/talent_search_final_closure_20260909/final_http_07.json
+?? outputs/talent_search_final_closure_20260909/final_http_08.json
+?? outputs/talent_search_final_closure_20260909/final_http_09.json
+?? outputs/talent_search_final_closure_20260909/final_http_10.json
+?? outputs/talent_search_final_closure_20260909/final_runner_metrics.json
+?? outputs/talent_search_final_closure_20260909/final_worktree.json
+?? outputs/talent_search_final_closure_20260909/finish_report.py
+?? outputs/talent_search_final_closure_20260909/frozen_manifest.json
+?? outputs/talent_search_final_closure_20260909/gold_quality_audit.json
+?? outputs/talent_search_final_closure_20260909/independent_evaluator.py
+?? outputs/talent_search_final_closure_20260909/independent_metrics.json
+?? outputs/talent_search_final_closure_20260909/initial_worktree.json
+?? outputs/talent_search_final_closure_20260909/initial_worktree.patch
+?? outputs/talent_search_final_closure_20260909/job_family_validation.json
+?? outputs/talent_search_final_closure_20260909/leave_one_job_out.json
+?? outputs/talent_search_final_closure_20260909/legacy_isolation.json
+?? outputs/talent_search_final_closure_20260909/local_http_00.json
+?? outputs/talent_search_final_closure_20260909/local_http_01.json
+?? outputs/talent_search_final_closure_20260909/local_http_02.json
+?? outputs/talent_search_final_closure_20260909/local_http_03.json
+?? outputs/talent_search_final_closure_20260909/local_http_04.json
+?? outputs/talent_search_final_closure_20260909/local_http_05.json
+?? outputs/talent_search_final_closure_20260909/local_http_06.json
+?? outputs/talent_search_final_closure_20260909/local_http_07.json
+?? outputs/talent_search_final_closure_20260909/local_http_08.json
+?? outputs/talent_search_final_closure_20260909/local_http_09.json
+?? outputs/talent_search_final_closure_20260909/local_http_10.json
+?? outputs/talent_search_final_closure_20260909/local_replay.py
+?? outputs/talent_search_final_closure_20260909/local_runner_metrics.json
+?? outputs/talent_search_final_closure_20260909/negative_context_gate.json
+?? outputs/talent_search_final_closure_20260909/phase_checkpoints.json
+?? outputs/talent_search_final_closure_20260909/production_gate.json
+?? outputs/talent_search_final_closure_20260909/ranking_repeatability.json
+?? outputs/talent_search_final_closure_20260909/regression.log
+?? outputs/talent_search_final_closure_20260909/regression.xml
+?? outputs/talent_search_final_closure_20260909/regression_summary.json
+?? outputs/talent_search_final_closure_20260909/repeatability_diagnostic.json
+?? outputs/talent_search_final_closure_20260909/runtime_identity.json
+?? outputs/talent_search_final_closure_20260909/signal_stability.json
+?? outputs/talent_search_final_closure_20260909/strategy_comparison.json
+?? scripts/verify_recognition_gate.py
+?? scripts/verify_single_user_auth.py
+?? workbuddy_mcp/HR_READ_MODEL.md
+?? workbuddy_mcp/hr_read_server.py
+STATUS_END
+

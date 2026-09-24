@@ -1,0 +1,135 @@
+Creating test database for alias 'default'...
+
+{"request_id": "6414dee1e17a4744964eafccb0a3fb49", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 55.62}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "0845d7dc726242f0a2d2e0bc0434b099", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.53}
+Service Unavailable: /api/portal-bridge/summary/
+.{"request_id": "be046b68aa7c4368ba22b45eb218854e", "route": "api/portal-bridge/summary/", "method": "POST", "status": 200, "duration_ms": 4.24}
+.{"request_id": "5f120e3498c74a4e954ff9f1e10e8305", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.69}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "a57b59429ec1485cacb42756b4ebf09a", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 0.5}
+Forbidden: /api/portal-bridge/summary/
+.{"request_id": "8b7e874cfeb640ad8f23f1d5f65adcce", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.6}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "08fe1c9815774b249e8f8f06d970a2b9", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.46}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "4c8c384edab341e99d679b18f1ac3321", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.45}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "c1a85fa3af18425f987daa0e591af4a1", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.46}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "c2db812c0e994b4696ab70e50ccc9cc9", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.32}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "9ff126fa9f2f4a238b14af795c207666", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.55}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "a86792fb1ccc4bb29d6fbfb3cb5a4d26", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.44}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "e4ab3fbe87d442d19a32cc8b69bc9661", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.34}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "8eb2811e5b2c40eaa2412cfaa9c708e4", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.67}
+Service Unavailable: /api/portal-bridge/summary/
+.{"request_id": "f081353f24da4a95ab9cdbe480dde27b", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.26}
+{"request_id": "3b683613b5d847ceac99cfb6edc65b91", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.33}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "a51a26033a8744fdb1bffc8e26eda804", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 0.17}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "8a24fe1a900b41d6b074d147f48dcc5b", "route": "api/portal-bridge/summary/", "method": "POST", "status": 200, "duration_ms": 5.17}
+.{"request_id": "47143451a9c94d85a84e09818f801e39", "route": "api/portal-bridge/summary/", "method": "GET", "status": 404, "duration_ms": 3.82}
+Not Found: /api/portal-bridge/summary/
+{"request_id": "4e7970a97c22472cad8bd90e38e8c6c9", "route": "api/portal-bridge/summary/", "method": "POST", "status": 404, "duration_ms": 3.27}
+Not Found: /api/portal-bridge/summary/
+.{"request_id": "8d159c9b18d347888d0ad82861498810", "route": "api/portal-bridge/summary/", "method": "GET", "status": 405, "duration_ms": 0.22}
+Method Not Allowed: /api/portal-bridge/summary/
+.{"request_id": "4bbab40f616149fa8dfaf2233a9952a0", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 2.01}
+Forbidden: /api/portal-bridge/summary/
+.{"request_id": "436139ad6f564d31947ec81132a6faa9", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 1.76}
+Forbidden: /api/portal-bridge/summary/
+{"request_id": "810b7a0b71eb4ca0af11a40da1cb6886", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 2.03}
+Forbidden: /api/portal-bridge/summary/
+{"request_id": "4869a53decef461da74d60374ebf62ad", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 2.03}
+Forbidden: /api/portal-bridge/summary/
+.{"request_id": "2b5c367a66554d0ba454c12bc135ee4e", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 0.26}
+Forbidden: /api/portal-bridge/summary/
+{"request_id": "1e04790862954f3dbac4413a0731f4c0", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 0.2}
+Forbidden: /api/portal-bridge/summary/
+{"request_id": "628d3bf83f0e4d5abd9b9123391d99fa", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 0.18}
+Forbidden: /api/portal-bridge/summary/
+.{"request_id": "a90d0c7f06e94527a7caf58b0ffc4bf7", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 0.78}
+{"request_id": "636d062e9901456685d4169b2f6a09ce", "route": "api/auth/login/", "method": "POST", "status": 200, "duration_ms": 426.61}
+{"request_id": "4a2a2f89d9da48128efe6c84d1fc3e5b", "route": "api/portal-bridge/summary/", "method": "POST", "status": 403, "duration_ms": 0.27}
+Forbidden: /api/portal-bridge/summary/
+{"request_id": "f95dd474e54c4ba9897e873157222d27", "route": "api/projects/$", "method": "GET", "status": 200, "duration_ms": 25.12}
+.{"request_id": "98530ef3c15645dc923986c27fefe2ee", "route": "api/portal-bridge/summary/", "method": "POST", "status": 200, "duration_ms": 3.68}
+{"request_id": "9d5440f6b9cb4f94b493b74014bba9f9", "route": "api/portal-bridge/summary/", "method": "POST", "status": 200, "duration_ms": 3.51}
+{"request_id": "8bc6bea9ea2a4e18a1979d26094ffc16", "route": "api/portal-bridge/summary/", "method": "POST", "status": 200, "duration_ms": 2.73}
+.{"request_id": "35070ced323b41c69846528e9891de17", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 1.82}
+Service Unavailable: /api/portal-bridge/summary/
+{"request_id": "02cb0096fd1a49a1bc5f8e72bc7f0d67", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 3.58}
+Service Unavailable: /api/portal-bridge/summary/
+.{"request_id": "2759e8dd74ec4acaa5ed61b2947fe318", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.24}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "b84724cfd5c64f749905732e042338d5", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.29}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "ca51cd1f33274165ae36a9a24cf106c4", "route": "api/portal-bridge/summary/", "method": "POST", "status": 413, "duration_ms": 0.17}
+Content Too Large: /api/portal-bridge/summary/
+.{"request_id": "4b09520f30a144cf80a233e5a1d6f967", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.29}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "a91ed51703ce456a8ec1b4986e2ebd3d", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.27}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "8cf4a10f4a0f4aaa883a343a70fd4d64", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.2}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "b354e1659e654db6b0161c1dd38005ae", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.15}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "4d13bbabf39c4f03b4cc5f70b5fa24e8", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.13}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "5532e685ccac4703a9320e1d3ec13035", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.12}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "33a1379d0a9f43159e68b040020e33d3", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.13}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "e6bddb42127a48f980a2847ae41702f9", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.21}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "aa2d3a90c6b64748b854985d155e21ad", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.17}
+Bad Request: /api/portal-bridge/summary/
+{"request_id": "e928767959c3425fbbf5aa8888ce7033", "route": "api/portal-bridge/summary/", "method": "POST", "status": 400, "duration_ms": 0.14}
+Bad Request: /api/portal-bridge/summary/
+.{"request_id": "9186db8694494000b8a210d1c270c6ca", "route": "api/portal-bridge/summary/", "method": "POST", "status": 503, "duration_ms": 53.22}
+Service Unavailable: /api/portal-bridge/summary/
+.{"request_id": "1681f6e61657449393670243f26c9183", "route": "api/portal-bridge/summary/", "method": "POST", "status": 200, "duration_ms": 4.07}
+{"request_id": "bbce5007a04346858e6191691a844006", "route": "api/portal-bridge/summary/", "method": "POST", "status": 200, "duration_ms": 4.08}
+.{"request_id": "e7b65a95dcd04e0698a8b6f215b0ed07", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 0.62}
+{"request_id": "f9f03bd601a94093a36ad6ea5505ffbd", "route": "api/auth/login/", "method": "POST", "status": 403, "duration_ms": 7.29}
+{"request_id": "7b0448ca82904536834e32aec2d61c1e", "route": "api/auth/login/", "method": "POST", "status": 200, "duration_ms": 340.81}
+.{"request_id": "c7c51ea913bf4a0d8056fd327ef87706", "route": "api/auth/demo-login/", "method": "POST", "status": 404, "duration_ms": 0.49}
+.{"request_id": "0f21a8c667d44161ab419089cf1276df", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 0.47}
+{"request_id": "d3b6b9a56e164d78aa382abbbcf1f191", "route": "api/auth/demo-login/", "method": "POST", "status": 200, "duration_ms": 7.92}
+{"request_id": "26f7dffd9c894cf48ef7a7bb21cfe470", "route": "api/projects/$", "method": "GET", "status": 200, "duration_ms": 10.53}
+.{"request_id": "89733f5b31f14982b864e0f99abfb812", "route": "api/projects/$", "method": "GET", "status": 200, "duration_ms": 8.02}
+{"request_id": "1ed8198bd2784e449749f98f4c30ed26", "route": "api/projects/(?P<pk>[^/.]+)/$", "method": "PATCH", "status": 403, "duration_ms": 4.01}
+{"request_id": "4ec4c4bd78ee42f78548674910d55db0", "route": "api/projects/(?P<pk>[^/.]+)/$", "method": "PATCH", "status": 200, "duration_ms": 35.42}
+.{"request_id": "4c46b53b628d457281a87362f66b518d", "route": "api/adjustments/$", "method": "POST", "status": 400, "duration_ms": 4.63}
+.{"request_id": "7817b421489e43e5a56568d37908648d", "route": "api/projects/$", "method": "GET", "status": 403, "duration_ms": 0.46}
+.{"request_id": "a7170c8eeab3462898f4c4011a3c7426", "route": "api/auth/password/", "method": "POST", "status": 400, "duration_ms": 326.97}
+.{"request_id": "7b224b1613c44423a740d69f6e039e41", "route": "api/auth/demo-login/", "method": "POST", "status": 404, "duration_ms": 0.37}
+Not Found: /api/auth/demo-login/
+.{"request_id": "1e830abbca154a229eec8f9fa40edb97", "route": "api/auth/csrf/", "method": "GET", "status": 200, "duration_ms": 0.73}
+{"request_id": "a8253427cca9414fadc467a6b3617b34", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 324.75}
+{"request_id": "c9dfbd85660c41ed8aec7e15d60927d8", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 333.84}
+{"request_id": "f5344a0ae974484eacf06d8f3f91013c", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 320.08}
+{"request_id": "1618a4cbc8964b6c88a148de8f455e4a", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 365.03}
+{"request_id": "2f8080a104694d44a1dc17631d2b7dad", "route": "api/auth/login/", "method": "POST", "status": 401, "duration_ms": 361.74}
+{"request_id": "e1721b059c824a62bdc88781483047ca", "route": "api/auth/login/", "method": "POST", "status": 429, "duration_ms": 3.59}
+.{"request_id": "73876e68d1ef421680f4e8ba1a75bd62", "route": "api/projects/$", "method": "POST", "status": 403, "duration_ms": 0.4}
+.{"request_id": "e60e18ee5633401ea0c4e9f331b33beb", "route": "api/auth/register/", "method": "POST", "status": 400, "duration_ms": 0.62}
+Bad Request: /api/auth/register/
+{"request_id": "9a402fb13d38497d8d8bd8a700fd06c1", "route": "api/auth/register/", "method": "POST", "status": 400, "duration_ms": 0.33}
+Bad Request: /api/auth/register/
+..{"request_id": "375dc5ee0fac4da4b8bae9629920f84d", "route": "api/projects/(?P<pk>[^/.]+)/$", "method": "PATCH", "status": 409, "duration_ms": 3.56}
+.{"request_id": "c55e69438c424da1b9a9e60f91d00ae5", "route": "api/auth/me/", "method": "GET", "status": 401, "duration_ms": 0.45}
+.
+----------------------------------------------------------------------
+Ran 31 tests in 47.816s
+
+OK
+Destroying test database for alias 'default'...
+
+Found 31 test(s).
+System check identified no issues (0 silenced).

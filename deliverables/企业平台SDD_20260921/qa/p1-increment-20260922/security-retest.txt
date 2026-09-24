@@ -1,0 +1,121 @@
+Creating test database for alias 'default'...
+
+.................................F.FEFF...FF....
+======================================================================
+ERROR: test_manual_change_does_not_reuse_prior_model_review (portal.tests.test_product_worker.ProductWorkerTests.test_manual_change_does_not_reuse_prior_model_review)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Tool\Anaconda\Lib\unittest\mock.py", line 1426, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\tests\test_product_worker.py", line 192, in test_manual_change_does_not_reuse_prior_model_review
+    _render(self.task, fence, attempt_id, self.input_revision, self.blueprint, chapters)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\product_worker.py", line 236, in _render
+    _renew(task.pk, fence)
+    ~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Tool\Anaconda\Lib\contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\product_worker.py", line 90, in _renew
+    task = _guard(task_id, fence)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\product_worker.py", line 49, in _guard
+    raise ExecutionError("blueprint_approval_required")
+portal.product_worker.ExecutionError: blueprint_approval_required
+
+======================================================================
+FAIL: test_cancellation_fences_inflight_output (portal.tests.test_product_worker.ProductWorkerTests.test_cancellation_fences_inflight_output)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Tool\Anaconda\Lib\unittest\mock.py", line 1426, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\tests\test_product_worker.py", line 104, in test_cancellation_fences_inflight_output
+    self.assertEqual(DocumentAttempt.objects.get().status, "cancelled")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'failed' != 'cancelled'
+- failed
++ cancelled
+
+
+======================================================================
+FAIL: test_external_permission_closed_without_outbound (portal.tests.test_product_worker.ProductWorkerTests.test_external_permission_closed_without_outbound)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\.venv\Lib\site-packages\django\test\utils.py", line 456, in inner
+    return func(*args, **kwargs)
+  File "C:\Tool\Anaconda\Lib\unittest\mock.py", line 1426, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\tests\test_product_worker.py", line 65, in test_external_permission_closed_without_outbound
+    self.assertEqual(self.task.state, "WAITING_INPUT")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'FAILED' != 'WAITING_INPUT'
+- FAILED
++ WAITING_INPUT
+
+
+======================================================================
+FAIL: test_missing_cost_approval_blocks_before_any_outbound (portal.tests.test_product_worker.ProductWorkerTests.test_missing_cost_approval_blocks_before_any_outbound)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\.venv\Lib\site-packages\django\test\utils.py", line 456, in inner
+    return func(*args, **kwargs)
+  File "C:\Tool\Anaconda\Lib\unittest\mock.py", line 1426, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\tests\test_product_worker.py", line 28, in test_missing_cost_approval_blocks_before_any_outbound
+    self.assertEqual(self.task.error_code, "budget_authorization_required")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'blueprint_approval_required' != 'budget_authorization_required'
+- blueprint_approval_required
++ budget_authorization_required
+
+
+======================================================================
+FAIL: test_model_cannot_expand_blueprint_source_scope (portal.tests.test_product_worker.ProductWorkerTests.test_model_cannot_expand_blueprint_source_scope)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Tool\Anaconda\Lib\unittest\mock.py", line 1426, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\tests\test_product_worker.py", line 155, in test_model_cannot_expand_blueprint_source_scope
+    self.assertEqual(self.task.error_code, "invalid_model_output")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'blueprint_approval_required' != 'invalid_model_output'
+- blueprint_approval_required
++ invalid_model_output
+
+
+======================================================================
+FAIL: test_task_model_budget_is_bounded (portal.tests.test_product_worker.ProductWorkerTests.test_task_model_budget_is_bounded)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\.venv\Lib\site-packages\django\test\utils.py", line 456, in inner
+    return func(*args, **kwargs)
+  File "C:\Tool\Anaconda\Lib\unittest\mock.py", line 1426, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\tests\test_product_worker.py", line 132, in test_task_model_budget_is_bounded
+    self.assertEqual(self.task.state, "WAITING_INPUT")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'FAILED' != 'WAITING_INPUT'
+- FAILED
++ WAITING_INPUT
+
+
+======================================================================
+FAIL: test_truncated_chapter_is_failure_and_completed_chapters_resume (portal.tests.test_product_worker.ProductWorkerTests.test_truncated_chapter_is_failure_and_completed_chapters_resume)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Tool\Anaconda\Lib\unittest\mock.py", line 1426, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\BJRunner\Desktop\ai智能体平台\backend\portal\tests\test_product_worker.py", line 76, in test_truncated_chapter_is_failure_and_completed_chapters_resume
+    self.assertEqual(self.task.error_code, "output_truncated")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'blueprint_approval_required' != 'output_truncated'
+- blueprint_approval_required
++ output_truncated
+
+
+----------------------------------------------------------------------
+Ran 48 tests in 86.030s
+
+FAILED (failures=6, errors=1)
+Destroying test database for alias 'default'...
+
+Found 48 test(s).
+System check identified no issues (0 silenced).

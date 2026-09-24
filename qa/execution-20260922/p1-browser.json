@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-09-22T01:22:45.2747100Z",
+  "result": "passed",
+  "scope": "Post-backup isolated UI persistence and authorization-gate acceptance",
+  "server": {
+    "url": "http://127.0.0.1:18320",
+    "launcher_pid": 23744,
+    "listener_pid": 27772,
+    "left_running_for_main_thread": true,
+    "existing_services_touched": false
+  },
+  "isolation": {
+    "database": "portal_p1_20260922_091117",
+    "executed_after_database_backup_comparison": true,
+    "backup_evidence_modified": false,
+    "synthetic_data_only": true,
+    "real_or_paid_model_called": false
+  },
+  "account": {
+    "username_class": "synthetic owner",
+    "active": true,
+    "must_change_password": false,
+    "credentials_written_to_report": false
+  },
+  "checks": {
+    "login": {
+      "passed": true,
+      "observed_display_name": "P1 合成任务所有人",
+      "observed_role": "产品人员"
+    },
+    "server_draft_save": {
+      "passed": true,
+      "task_id": "e501d657-c071-4c34-a596-d9da06bce99e",
+      "saved_title": "P1 浏览器重载合成任务-已保存",
+      "server_version_after_save": 2,
+      "synthetic_reload_marker_saved": true
+    },
+    "full_page_reload": {
+      "passed": true,
+      "task_reselected_from_server_list": true,
+      "saved_title_restored": true,
+      "saved_input_restored": true,
+      "server_version_restored": 2
+    },
+    "model_authorization_gate": {
+      "passed": true,
+      "action": "queue blueprint from UI",
+      "alert_observed": "模型外发未获授权，任务已转为等待输入。",
+      "server_state_after_reload": "WAITING_INPUT",
+      "server_stage_after_reload": "BLUEPRINT",
+      "server_version_after_reload": 3,
+      "error_code": "model_authorization_required",
+      "pending_action": "blueprint"
+    }
+  },
+  "browser": {
+    "surface": "Codex in-app browser",
+    "screenshot_captured": false,
+    "claims_screenshot_evidence": false,
+    "tab_left_for_handoff": true
+  },
+  "relationship_to_system_report": "p1-system.json intentionally records browser.executed=false because the immutable database backup comparison completed before this separate post-backup UI check.",
+  "failures": []
+}

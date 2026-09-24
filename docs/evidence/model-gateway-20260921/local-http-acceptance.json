@@ -1,0 +1,25 @@
+{
+  "scope": "Real local Django to FastAPI HTTP and isolated PostgreSQL; no real provider completion",
+  "database": "portal_model_e2e_20260921_175832",
+  "checks": {
+    "gateway_unauthenticated_denied": true,
+    "ordinary_admin_denied": true,
+    "admin_provider_creation": true,
+    "admin_model_creation": true,
+    "test_get_not_allowed": true,
+    "test_csrf_required": true,
+    "test_explicit_cost_confirmation_required": true,
+    "real_gateway_disallows_unapproved_target": true,
+    "no_false_success_or_raw_secret": true,
+    "admin_route_creation": true,
+    "business_authorized_reaches_real_gateway": true,
+    "revocation_blocks_next_call": true,
+    "call_log_admin_readonly": true
+  },
+  "cleanup": {
+    "accounts_disabled": 2,
+    "sessions_cleared": true,
+    "isolated_services_stopped": true,
+    "service_tokens_revoked": true
+  }
+}

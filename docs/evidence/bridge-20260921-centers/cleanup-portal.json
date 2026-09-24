@@ -1,0 +1,7 @@
+{
+  "side": "portal",
+  "registered_accounts_disabled": 10,
+  "passwords_unusable": true,
+  "sessions_cleared": true,
+  "boundary": "Registered new isolated bridge database only; original native accounts and bjrunner untouched"
+}
