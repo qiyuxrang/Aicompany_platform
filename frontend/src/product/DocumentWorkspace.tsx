@@ -39,7 +39,7 @@ const labels: Record<string, string> = {
   input: "需求录入", blueprint_review: "蓝图待审核", artifact_review: "文档待审核",
 };
 const outputLabels = { "technical-solution": "技术方案", feasibility: "可行性研究报告", presentation: "汇报 PPT" } as const;
-const outputReviewLabels = { stale: "已过期", approved: "已批准", pending_review: "待人工审核" } as const;
+const outputReviewLabels = { stale: "已过期", approved: "已生成", pending_review: "已生成" } as const;
 const status = (value: string) => labels[value.toLowerCase()] || `待确认状态（${value || "未提供"}）`;
 const active = (task: TaskSummary) => ["queued", "running"].includes(task.state.toLowerCase());
 function errorMessage(error: unknown) {
@@ -241,7 +241,6 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     if (!initial.current) {
       initial.current = true;
       setTitle(result.title); setInput(pretty(editableInput(result.input || emptyInput()))); setBlueprint(pretty(result.blueprint?.payload || emptyBlueprint));
-      setAssignedReviewer(result.reviewer_id == null ? "" : String(result.reviewer_id));
       if (requestedArtifact) {
         const artifact = result.artifacts.find(item => String(item.id) === requestedArtifact)!;
         setArtifactId(requestedArtifact);
@@ -366,7 +365,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
         remaining = remaining.slice(1); setConversationFiles(remaining); setTask(nextTask);
       }
       setConversationMessage(""); setConversationAccepted(false);
-      setNotice("补充要求和资料已保存；正式审批仍需在专业工作台完成。");
+      setNotice("补充要求和资料已保存；确认蓝图后系统会生成三件套草稿。");
     } catch (reason) {
       if (!controller.signal.aborted && mounted.current) setConversationError(errorMessage(reason));
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
@@ -401,7 +400,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
           <strong>{outputLabels[family]}</strong>
           <span>{latest ? `${latest.draft ? "草稿" : "成果"} v${latest.version} · ${outputReviewLabels[latest.review_status]} · ${latest.sha256.slice(0, 12)}` : "尚未生成"}</span>
           {latest?.current && <a href={family === "technical-solution" ? artifactDownload(latest.id) : draftDownload(latest.id)}>下载当前草稿</a>}
-          {latest?.content_version != null && <small>内容 v{latest.content_version} · {latest.content_approved ? "已批准" : "未批准"}</small>}
+          {latest?.content_version != null && <small>内容 v{latest.content_version} · 已生成</small>}
           {latest?.source_versions.length ? <small>来源：{latest.source_versions.map(source => `${outputLabels[source.family as keyof typeof outputLabels] || source.family} v${source.version}`).join("、")}</small> : null}
         </article>;
       })}</section>
@@ -425,11 +424,8 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     <Field id="draft-title" label="草稿标题"><input id="draft-title" value={title} onChange={event => setTitle(event.target.value)} /></Field>
     <Field id="draft-input" label="草稿输入 JSON"><textarea id="draft-input" rows={12} value={input} onChange={event => setInput(event.target.value)} /></Field>
     <button disabled={disabled("edit")} onClick={() => void saveJson("", input, "input")}>保存服务端草稿</button>
-    <h3>审核人与输入判断</h3>
+    <h3>输入判断</h3>
     <p>分类说明：事实为来源直接支持；推断为基于来源的判断；冲突为来源不一致；缺项为现有来源不足。核对和补充判断都必须关联当前任务资料。</p>
-    <Field id="assigned-reviewer" label="指定审核人 ID"><input id="assigned-reviewer" type="number" min="1" value={assignedReviewer} disabled={disabled("assign_reviewer")} onChange={event => setAssignedReviewer(event.target.value)} /></Field>
-    <Field id="assignment-reason" label="指定或改派原因"><textarea id="assignment-reason" value={assignmentReason} disabled={disabled("assign_reviewer")} onChange={event => setAssignmentReason(event.target.value)} /></Field>
-    <button disabled={disabled("assign_reviewer") || !reviewerReady} onClick={() => void send("reviewer/", { reviewer_id: reviewerId, reason: assignmentReason.trim() })}>指定或改派审核人</button>
     {inputIssues.length ? <>
       <ul aria-label="输入问题核对">{inputIssues.map((issue, index) => {
         const resolution = issueResolutions[issue.issue_hash] || { category: "", reason: "", source_ids: [] };
@@ -462,29 +458,15 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     <details><summary>蓝图 JSON 中文结构示例（不会自动填入）</summary><pre>{pretty({ purpose: "填写已确认的目的", audience: "填写真实受众", chapters: [{ id: "章节标识", title: "章节名称", scope: "本章范围", source_ids: [] }], conditions: [{ text: "待确认条件", type: "human" }], missing: [], conflicts: [], template_version: "填写后端支持的模板版本" })}</pre><p>conditions.type 只允许 program（程序校验）、model（模型辅助）、human（人工确认）；source_ids 引用已上传资料 ID。</p></details>
     <Field id="blueprint-json" label="蓝图 JSON"><textarea id="blueprint-json" rows={14} value={blueprint} onChange={event => setBlueprint(event.target.value)} /></Field>
     <button disabled={disabled("save_blueprint")} onClick={() => void saveJson("blueprint/", blueprint, "payload")}>保存蓝图</button>
-    <Field id="decision-comment" label="审核意见"><textarea id="decision-comment" value={comment} onChange={event => setComment(event.target.value)} /></Field>
-    <p>批准/退回绑定服务端版本及 SHA256，不会批准尚未保存的编辑内容。</p>
-    <button disabled={disabled("review_blueprint") || !task.blueprint} onClick={() => decision("blueprint", "approve")}>批准服务端蓝图</button>
-    <button disabled={disabled("review_blueprint") || !task.blueprint} onClick={() => decision("blueprint", "revise")}>退回蓝图</button>
-    <h3>正文与人工章节</h3>
-    <button disabled={disabled("queue_write")} onClick={() => void send("queue/", { action: "write" })}>生成正文</button>
-    <ul aria-label="章节修订">{task.chapters.map(revision => <li key={revision.id}><button disabled={busy} onClick={() => { setChapterFamily(revision.family); setChapter(pretty(revision.payload)); }}>编辑 {outputLabels[revision.family]} · {revision.payload.title || revision.id}（版本 {revision.version ?? "未提供"}）</button></li>)}</ul>
-    <Field id="chapter-json" label="章节 JSON" hint="chapter_id 对应章节标识；title 标题；paragraphs 正文字符串数组；source_ids 引用资料 ID 数组。手动选择章节才载入，自动刷新不覆盖。"><textarea id="chapter-json" rows={10} value={chapter} onChange={event => setChapter(event.target.value)} /></Field>
-    <label htmlFor="chapter-family">保存目标成果</label><select id="chapter-family" value={chapterFamily} onChange={event => setChapterFamily(event.target.value as Exclude<OutputFamily, "presentation">)}><option value="technical-solution">技术方案</option><option value="feasibility">可行性研究报告</option></select>
-    <button disabled={disabled("save_chapter")} onClick={() => void saveJson(chapterFamily === "technical-solution" ? "chapters/" : "report-chapters/", chapter, "chapter", chapterFamily === "feasibility" ? { family: "feasibility" } : {})}>保存所选成果章节</button>
-    <h3>结构化内容审核</h3>
-    <p>技术方案与可研内容分别审核；按钮是否可用完全由后端 review_report 决定。</p>
+    <Field id="decision-comment" label="确认说明"><textarea id="decision-comment" value={comment} onChange={event => setComment(event.target.value)} /></Field>
+    <p>确认绑定服务端蓝图版本及 SHA256；确认后系统自动生成技术方案、可研和 PPT 草稿。</p>
+    <button disabled={disabled("confirm_blueprint") || !task.blueprint} onClick={() => decision("blueprint", "approve")}>确认蓝图并生成三件套</button>
+    <h3>结构化内容版本</h3>
     <ul aria-label="结构化内容版本">{(task.reports || []).map(report => <li key={report.id}>
-      {outputLabels[report.family]}内容 v{report.version} · {report.current ? "当前" : "已过期"} · SHA256：{report.sha256} · {report.approved ? "已批准" : "待审核"}
-      <button disabled={!report.current || disabled("review_report")} onClick={() => decision("report", "approve", report)}>批准{outputLabels[report.family]}内容 v{report.version}</button>
-      <button disabled={!report.current || disabled("review_report")} onClick={() => decision("report", "revise", report)}>退回{outputLabels[report.family]}内容 v{report.version}</button>
+      {outputLabels[report.family]}内容 v{report.version} · {report.current ? "已生成" : "已过期"} · SHA256：{report.sha256}
     </li>)}</ul>
     <h3>Word / PPT 草稿与历史版本</h3>
-    <button disabled={disabled("queue_render")} onClick={() => void send("queue/", { action: "render" })}>生成 Word 草稿</button>
-    <button disabled={disabled("queue_three_drafts")} onClick={() => void send("queue/", { action: "three_drafts" })}>生成技术方案与可研 Word 待审核草稿</button>
-    <button disabled={disabled("queue_presentation")} onClick={() => void send("queue/", { action: "presentation" })}>从已批准内容生成 PPT 草稿</button>
-    <button disabled={disabled("queue_candidate")} onClick={() => void send("queue/", { action: "candidate" })}>生成正式候选并后台 Office 渲染（非发布）</button>
-    <p>检索与正式候选默认可能因未授权被拒；候选生成或渲染成功也不表示已经批准或发布。</p>
+    <p>生成完成的文件仍为草稿，不代表正式发布。</p>
     {historyError && <p role="alert">版本链读取失败：{historyError}</p>}
     <ul aria-label="成果历史版本">{outputs.map(item => <li key={item.id}>
       {outputLabels[item.family]} v{item.version} · {item.current ? "当前" : "已过期"} · SHA256：{item.sha256}
@@ -493,27 +475,6 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
       </a>
     </li>)}</ul>
     <details><summary>查看版本与来源链</summary><p>服务端记录为应用级只读历史，不宣称法证级不可篡改。</p><ul aria-label="版本来源链">{(history?.timeline || []).filter(item => item.event === "revision").map(item => <li key={item.id}>{item.family ? `${outputLabels[item.family] || item.family} · ` : ""}{item.kind} v{item.version} · SHA256：{item.sha256} · 原因：{item.reason || "未提供"} · 操作者：{item.actor?.name || "未提供"} · 来源：{item.source_refs?.join("、") || "无"}</li>)}</ul></details>
-    <label htmlFor="artifact-review">选择审核技术方案版本</label><select id="artifact-review" value={artifactId} onChange={event => selectArtifact(event.target.value)}><option value="">请选择版本</option>{reviewArtifacts.map(item => <option key={item.id} value={item.id}>版本 {item.version}</option>)}</select>
-    {artifact && <>
-      <h3>正式候选逐页核验</h3>
-      {!evidence ? <p>所选版本没有公开的正式候选渲染证据，不能提交核验。</p> : <>
-        <p>证据状态：{evidence.status}；页数：{evidence.page_count}。必须逐页打开鉴权预览、手动勾选通过并填写非空意见。</p>
-        <ul aria-label="候选页核验">{evidence.pages.map(page => {
-          const pageDraft = currentVerification ? verification.pages[String(page.page)] || { passed: false, comment: "" } : { passed: false, comment: "" };
-          return <li key={page.page}>
-            <a href={artifactPreview(artifact.id, page.page)} target="_blank" rel="noreferrer">鉴权预览第 {page.page} 页</a> · SHA256：{page.sha256}
-            <img src={artifactPreview(artifact.id, page.page)} alt={`正式候选第 ${page.page} 页预览`} loading="lazy" />
-            <label><input type="checkbox" checked={pageDraft.passed} disabled={disabled("verify_artifact")} onChange={event => setVerification(current => ({ ...current, pages: { ...current.pages, [String(page.page)]: { ...pageDraft, passed: event.target.checked } } }))} />第 {page.page} 页已人工核对并通过</label>
-            <Field id={`page-comment-${page.page}`} label={`第 ${page.page} 页核验意见`}><textarea id={`page-comment-${page.page}`} value={pageDraft.comment} disabled={disabled("verify_artifact")} onChange={event => setVerification(current => ({ ...current, pages: { ...current.pages, [String(page.page)]: { ...pageDraft, comment: event.target.value } } }))} /></Field>
-          </li>;
-        })}</ul>
-        <fieldset disabled={disabled("verify_artifact")}><legend>全文内容核验（必须逐项手动确认）</legend>{contentCheckKeys.map(key => <label key={key}><input type="checkbox" checked={currentVerification && verification.content_checks[key]} onChange={event => setVerification(current => ({ ...current, content_checks: { ...current.content_checks, [key]: event.target.checked } }))} />{contentCheckLabels[key]}已核对</label>)}</fieldset>
-        <button disabled={disabled("verify_artifact") || !verificationReady} onClick={submitVerification}>提交正式候选核验</button>
-      </>}
-    </>}
-    <p>正式候选核验与批准是两项独立操作；核验不会自动批准。</p>
-    <button disabled={disabled("review_artifact") || !artifact} onClick={() => decision("artifact", "approve")}>批准所选文档</button>
-    <button disabled={disabled("review_artifact") || !artifact} onClick={() => decision("artifact", "revise")}>退回所选文档</button>
     <h3>后台任务控制</h3>
     <button disabled={disabled("cancel")} onClick={() => void send("cancel/", {})}>取消任务</button>
     <button disabled={disabled("retry")} onClick={() => void send("retry/", {})}>重试任务</button>
