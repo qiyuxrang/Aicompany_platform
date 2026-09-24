@@ -136,3 +136,4 @@
 | 2026-09-24 | T-P06 可研与 PPT Core 完成 | 两份 report 内容分别批准后才允许生成 PPT；可研 Word 9 页与可编辑 PPTX 7 页经 Microsoft Office 实际渲染并完成技术视觉复核；产品后端 126/126 通过；正式模板/业务签认、真实模型/RAGFlow 与 Browser E2E 未通过，未记 Task/P1 PASS |
 | 2026-09-24 | P1 前端业务链 Core 接入完成 | checkpoint `9621f56`；T-P01～T-P06 及 T-P07 版本链已接入统一 React 工作台；后端产品回归 110 项中 109 PASS/1 SKIP，前端 135/135 与 build 通过；Browser E2E 仍为 `NOT_RUN`，未记 Task/P1 PASS |
 | 2026-09-24 | T-P08 三类成果质量回归完成自动化范围 | v12 在隔离链生成技术方案 Word 9 页、可研 Word 9 页和 PPT 7 页并经 Microsoft Office 实际渲染；产品回归 110 PASS/1 SKIP；正式模板/业务视觉/审核、真实模型/RAGFlow 与 Browser E2E 未通过，未记 Task/P1 PASS |
+| 2026-09-24 | 技术方案/可研临时版式基线 v2 固化 | 公司名称与用户提供 Logo 纳入冻结资产；目录层级按实际标题确定；技术图统一由 Mermaid 临时生成且不保留源码，只留渲染图、来源与 hash。v16 是此前真实渲染证据；本轮新增 v2 规则按用户要求未重测，D-02 正式企业母版与业务签认仍未解除 |

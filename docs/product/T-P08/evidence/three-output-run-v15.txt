@@ -1,0 +1,37 @@
+Conflict: /api/product/tasks/29351b86-9511-422e-a55c-dc50069390f8/decisions/
+Conflict: /api/product/tasks/29351b86-9511-422e-a55c-dc50069390f8/decisions/
+Conflict: /api/product/tasks/29351b86-9511-422e-a55c-dc50069390f8/decisions/
+����ģ�����ɫ�Ѿ�����û�д���Ĭ���˺Ż򸲸�������Ȩ��
+{
+  "result": "CORE_PASS_WITH_EXTERNAL_AND_HUMAN_BLOCKERS",
+  "task_id": "29351b86-9511-422e-a55c-dc50069390f8",
+  "technical_solution_word": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v15/artifacts/԰����ȫ�����뼯����Ƽ�������-�����Բݸ�-v15.docx",
+    "sha256": "e6b477829a6dd8fefd252b3653dbce502163ed8b59c208126ae9990a851ad6db",
+    "bytes": 34389,
+    "office_fields_refreshed": true,
+    "source_artifact_id": "34f9f406-c6a5-43ac-b16f-2201849708df",
+    "source_artifact_sha256": "53ea0ca4fa3bbfc9dc66cdc819d831fbda535c8d038f2d0490c329d25af0e370",
+    "source_artifact_path": "29351b86-9511-422e-a55c-dc50069390f8/artifacts/db7a77fd99984b97aa993dfd11994984/draft.docx",
+    "rendered_docx_differs_from_source": true
+  },
+  "feasibility_word": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v15/artifacts/԰����ȫ�����뼯����ƿ������о�����-�����Բݸ�-v15.docx",
+    "sha256": "abc53c5f5fc5bd84972abf8d76f9c1e44d4ab7734430271db4c7b19955635f33",
+    "bytes": 39522,
+    "office_fields_refreshed": true,
+    "source_artifact_id": "354cc7a2-a357-4821-8cf7-74a8b3699780",
+    "source_artifact_sha256": "ee98fc34c56d501822d31919be7cbfad00c9fafda76f93503b9d77415e2a68a9",
+    "source_artifact_path": "29351b86-9511-422e-a55c-dc50069390f8/artifacts/93be1a4ca5e24d33a9990fac9ef8d643/draft.docx",
+    "rendered_docx_differs_from_source": true
+  },
+  "presentation": {
+    "path": "docs/product/T-P08/evidence/representative-run-20260924-v15/artifacts/԰����ȫ�����뼯����ƻ㱨���-�����Բݸ�-v15.pptx",
+    "sha256": "732f00b828a7b46ddf33d6895c61f3a5bcfb7243eb398cc6103773079b1ce08b",
+    "bytes": 37942
+  },
+  "technical_word_pages": 8,
+  "feasibility_word_pages": 9,
+  "ppt_pages": 7,
+  "chain": "docs/product/T-P08/evidence/representative-run-20260924-v15/version-chain.json"
+}

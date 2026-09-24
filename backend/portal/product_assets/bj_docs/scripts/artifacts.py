@@ -34,7 +34,8 @@ def format_paragraph(node, role, policy):
     spacing=ensure(pp,'w:spacing')
     spacing.set(q('w:line'),'360'); spacing.set(q('w:lineRule'),'exact')
     if role in ('heading1','heading2','heading3'):
-        for item in pp.findall('w:numPr',NS)+pp.findall('w:ind',NS): pp.remove(item)
+        for item in pp.findall('w:numPr',NS)+pp.findall('w:ind',NS)+pp.findall('w:pStyle',NS): pp.remove(item)
+        outline=ensure(pp,'w:outlineLvl'); outline.set(q('w:val'),str(int(role[-1])-1))
         jc=ensure(pp,'w:jc'); jc.set(q('w:val'),spec['alignment'])
     elif role=='figure_and_table_caption':
         jc=ensure(pp,'w:jc'); jc.set(q('w:val'),'center')
@@ -56,15 +57,15 @@ def normalize_page(section):
     grid=ensure(section,'w:docGrid')
     grid.set(q('w:type'),'linesAndChars'); grid.set(q('w:linePitch'),'360')
 
-def normalize_header(story, policy):
+def normalize_header(story, policy, value=None):
     """Normalize only an active, non-empty header; blank cover headers remain blank."""
     if not text(story).strip(): return
     for child in list(story): story.remove(child)
     p=E.SubElement(story,q('w:p')); pp=E.SubElement(p,q('w:pPr'))
     E.SubElement(pp,q('w:jc')).set(q('w:val'),'center')
     borders=E.SubElement(pp,q('w:pBdr')); bottom=E.SubElement(borders,q('w:bottom'))
-    for key,value in [('val','double'),('sz','4'),('space','1'),('color','000000')]: bottom.set(q('w:'+key),value)
-    r=E.SubElement(p,q('w:r')); E.SubElement(r,q('w:rPr')); append_run_text(r,policy['header_footer']['ordinary_header'])
+    for key,setting in [('val','double'),('sz','4'),('space','1'),('color','000000')]: bottom.set(q('w:'+key),setting)
+    r=E.SubElement(p,q('w:r')); E.SubElement(r,q('w:rPr')); append_run_text(r,value or policy['header_footer']['ordinary_header'])
     format_paragraph(p,'header',policy)
 
 def normalize_footer(story, policy):
@@ -74,6 +75,41 @@ def normalize_footer(story, policy):
             ensure(p.find('w:pPr',NS),'w:jc').set(q('w:val'),'center')
             format_paragraph(p,'header',policy)
 
+def add_header_part(parts, value, policy):
+    used={int(match.group(1)) for name in parts if (match:=re.fullmatch(r'word/header(\d+)\.xml',name))}
+    number=max(used,default=0)+1; part=f'word/header{number}.xml'
+    story=E.Element(q('w:hdr')); p=E.SubElement(story,q('w:p')); r=E.SubElement(p,q('w:r')); append_run_text(r,'seed')
+    normalize_header(story,policy,value); parts[part]=dump(story)
+
+    rel_name='word/_rels/document.xml.rels'; rels=xml(parts[rel_name])
+    rel_ns=E.QName(rels).namespace; existing={item.get('Id') for item in rels}
+    index=1
+    while f'rId{index}' in existing: index+=1
+    rel_id=f'rId{index}'; relationship=E.SubElement(rels,'{'+rel_ns+'}Relationship')
+    relationship.set('Id',rel_id); relationship.set('Type','http://schemas.openxmlformats.org/officeDocument/2006/relationships/header')
+    relationship.set('Target',f'header{number}.xml'); parts[rel_name]=dump(rels)
+
+    types=xml(parts['[Content_Types].xml']); types_ns=E.QName(types).namespace
+    override=E.SubElement(types,'{'+types_ns+'}Override'); override.set('PartName','/'+part)
+    override.set('ContentType','application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml')
+    parts['[Content_Types].xml']=dump(types)
+    return rel_id
+
+def configure_section_header(section, default_id, first_id=None):
+    for node in section.findall('w:headerReference',NS)+section.findall('w:titlePg',NS): section.remove(node)
+    reference=E.Element(q('w:headerReference')); reference.set(q('w:type'),'default'); reference.set(q('r:id'),default_id)
+    section.insert(0,reference)
+    if first_id:
+        first=E.Element(q('w:headerReference')); first.set(q('w:type'),'first'); first.set(q('r:id'),first_id)
+        section.insert(1,first); section.insert(2,E.Element(q('w:titlePg')))
+    for node in section.findall('w:pgNumType',NS): section.remove(node)
+
+def section_break(section, default_id, first_id, policy):
+    copy=deepcopy(section); configure_section_header(copy,default_id,first_id)
+    ensure(copy,'w:type').set(q('w:val'),'nextPage')
+    p=E.Element(q('w:p')); pp=E.SubElement(p,q('w:pPr')); pp.append(copy)
+    return format_paragraph(p,'body',policy)
+
 def fit_table_width(table, source_width, target_width):
     if source_width<=target_width: return
     if source_width>target_width*1.10: raise ValueError('table width exceeds A4 body area')
@@ -82,6 +118,39 @@ def fit_table_width(table, source_width, target_width):
         value=node.get(q('w:w'))
         if value and value.isdigit() and node.get(q('w:type'),'dxa')=='dxa':
             node.set(q('w:w'),str(max(1,round(int(value)*ratio))))
+
+def set_toc_depth(root, level):
+    """Let the actual heading hierarchy determine the generated TOC depth."""
+    found=False; replacement=r'\o "1-'+str(level)+'"'
+    for node in root.findall('.//w:instrText',NS):
+        if node.text and re.search(r'\bTOC\b',node.text,re.I):
+            found=True
+            if re.search(r'\\o\s+"1-\d+"',node.text,re.I):
+                node.text=re.sub(r'\\o\s+"1-\d+"',replacement,node.text,flags=re.I)
+            else:
+                node.text=node.text.rstrip()+' '+replacement+' '
+    for node in root.findall('.//w:fldSimple',NS):
+        instruction=node.get(q('w:instr'),'')
+        if re.search(r'\bTOC\b',instruction,re.I):
+            found=True
+            node.set(q('w:instr'),re.sub(r'\\o\s+"1-\d+"',replacement,instruction,flags=re.I))
+    if not found: raise ValueError('template TOC field not found')
+
+def add_cover_identity(doc, data, policy):
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Mm, Pt
+    identity=policy['company_identity']; logo=(ROOT/identity['logo_path']).resolve()
+    if not logo.is_relative_to((ROOT/'assets').resolve()) or sha(logo)!=identity['logo_sha256']:
+        raise ValueError('company logo integrity mismatch')
+    title=next((p for p in doc.paragraphs if p.text.strip()==data['metadata']['title']),None)
+    if title is None: raise ValueError('cover title paragraph not found')
+    logo_paragraph=title.insert_paragraph_before(); logo_paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    logo_paragraph.paragraph_format.space_after=Pt(6)
+    logo_paragraph.add_run().add_picture(str(logo),width=Mm(identity['cover_logo_width_mm']))
+    if data['family']=='technical-solution':
+        company=title.insert_paragraph_before(); company.alignment=WD_ALIGN_PARAGRAPH.CENTER
+        company.paragraph_format.space_after=Pt(8)
+        run=company.add_run(identity['name']); run.font.name='宋体'; run.font.size=Pt(12)
 
 def bookmark_name(identifier):
     if re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,39}',identifier): return identifier
@@ -123,6 +192,8 @@ def _write_word(data,out,content_dir):
     body.remove(marker); insertion=len(body)-1
     metadata={'owner':'待确认',**data['metadata']}
     fixed_replace(root,metadata)
+    heading_levels=[block['level'] for block in data['blocks'] if block['type']=='heading']
+    set_toc_depth(root,max(heading_levels,default=1))
     for name in list(parts):
         if re.fullmatch(r'word/(header|footer)\d+\.xml',name):
             story=xml(parts[name]); fixed_replace(story,metadata)
@@ -131,7 +202,11 @@ def _write_word(data,out,content_dir):
     def prototype(kind,key):
         return proto.get(kind,key)
     emitted=[]; figures=[]; bookmark_map={}; counters=[0,0,0]; table_counts={}; figure_counts={}; current_section=body.find('w:sectPr',NS)
-    for section in root.findall('.//w:sectPr',NS): normalize_page(section)
+    existing_sections=root.findall('.//w:sectPr',NS)
+    for section in existing_sections: normalize_page(section)
+    ordinary_header_id=add_header_part(parts,policy['header_footer']['ordinary_header'],policy)
+    configure_section_header(current_section,ordinary_header_id)
+    front_break_needed=(len(existing_sections)==1 and current_section.find('w:headerReference',NS) is not None)
     def available_width():
         sz=current_section.find('w:pgSz',NS); mar=current_section.find('w:pgMar',NS)
         return int(sz.get(q('w:w')))-int(mar.get(q('w:left')))-int(mar.get(q('w:right')))-int(mar.get(q('w:gutter'),'0'))
@@ -143,6 +218,13 @@ def _write_word(data,out,content_dir):
         name=bookmark_name(ident); bookmark_map[ident]=name
         i=str(len(emitted)+1); start=E.Element(q('w:bookmarkStart')); start.set(q('w:id'),i); start.set(q('w:name'),name)
         end=E.Element(q('w:bookmarkEnd')); end.set(q('w:id'),i); p.insert(1 if p.find('w:pPr',NS) is not None else 0,start); p.append(end)
+    if front_break_needed:
+        # A one-section source would otherwise leak the body header onto cover/TOC pages.
+        p=ptype('paragraph',''); pp=ensure(p,'w:pPr',first=True); front=deepcopy(current_section)
+        for ref in front.findall('w:headerReference',NS): front.remove(ref)
+        section_type=ensure(front,'w:type'); section_type.set(q('w:val'),'nextPage')
+        pp.append(front); format_paragraph(p,'body',policy); emitted.append(p)
+    first_body_heading=True
     for b in data['blocks']:
         typ=b['type']; nodes=[]
         if typ in ('heading','paragraph','runs','list'):
@@ -227,12 +309,16 @@ def _write_word(data,out,content_dir):
         if typ=='heading' and b['level']==1:
             pp=nodes[0].find('w:pPr',NS)
             if pp is None: pp=E.Element(q('w:pPr')); nodes[0].insert(0,pp)
-            flag=pp.find('w:pageBreakBefore',NS)
-            if flag is None:
-                flag=E.Element(q('w:pageBreakBefore'))
-                preceding={q('w:pStyle'),q('w:keepNext'),q('w:keepLines')}
-                pp.insert(sum(child.tag in preceding for child in pp),flag)
-            flag.set(q('w:val'),'1')
+            if front_break_needed and first_body_heading:
+                for flag in pp.findall('w:pageBreakBefore',NS): pp.remove(flag)
+            else:
+                flag=pp.find('w:pageBreakBefore',NS)
+                if flag is None:
+                    flag=E.Element(q('w:pageBreakBefore'))
+                    preceding={q('w:pStyle'),q('w:keepNext'),q('w:keepLines')}
+                    pp.insert(sum(child.tag in preceding for child in pp),flag)
+                flag.set(q('w:val'),'1')
+            first_body_heading=False
         role='heading'+str(b['level']) if typ=='heading' else 'body'
         for index,node in enumerate(nodes):
             if node.tag==q('w:p'):
@@ -251,19 +337,42 @@ def _write_word(data,out,content_dir):
         for key,value in [('before','0'),('after','0'),('line','20'),('lineRule','exact')]: sp.set(q('w:'+key),value)
         rp=E.SubElement(pp,q('w:rPr')); E.SubElement(rp,q('w:sz')).set(q('w:val'),'2')
         emitted.append(tail)
+    heading_indexes=[]
+    for index,node in enumerate(emitted):
+        outline=node.find('w:pPr/w:outlineLvl',NS) if node.tag==q('w:p') else None
+        if outline is not None and outline.get(q('w:val'))=='0': heading_indexes.append((index,text(node)))
+    if heading_indexes:
+        heading_by_index={index:(number,title) for number,(index,title) in enumerate(heading_indexes)}
+        chapter_headers=[add_header_part(parts,re.sub(r'^\d+(?:\.\d+)*\s+','',title),policy)
+                         for _,title in heading_indexes]
+        rebuilt=[]; current_chapter=-1; content_since_front=False
+        for index,node in enumerate(emitted):
+            if index in heading_by_index:
+                if current_chapter<0:
+                    if content_since_front: rebuilt.append(section_break(current_section,ordinary_header_id,None,policy))
+                else:
+                    rebuilt.append(section_break(current_section,ordinary_header_id,chapter_headers[current_chapter],policy))
+                current_chapter+=1
+                pp=node.find('w:pPr',NS)
+                for flag in pp.findall('w:pageBreakBefore',NS): pp.remove(flag)
+            rebuilt.append(node)
+            if not (node.find('w:pPr/w:sectPr',NS) is not None): content_since_front=True
+        emitted=rebuilt
+        configure_section_header(current_section,ordinary_header_id,chapter_headers[-1])
     for i,node in enumerate(emitted): body.insert(insertion+i,node)
     parts['word/document.xml']=dump(root); audit_package(parts); save_package(out,parts)
-    if figures:
+    if figures or policy.get('company_identity'):
         from docx import Document
         from docx.shared import Mm
         doc=Document(out)
+        add_cover_identity(doc,data,policy)
         for ident,path,width,alt in figures:
             node=next(p for p in doc.element.body.findall(q('w:p')) if any(x.get(q('w:name'))==bookmark_name(ident) for x in p.findall(q('w:bookmarkStart'))))
             from docx.text.paragraph import Paragraph
             p=Paragraph(node,doc._body); shape=p.add_run().add_picture(str(path),width=Mm(width)); shape._inline.docPr.set('descr',alt)
         doc.save(out)
     audit_package(load_package(out))
-    report={'structural_pass':True,'rendered':False,'visually_reviewed':False,'unverified_items':['Office pagination/TOC refresh and visual inspection required','Engineering assertions require independent professional review','Formal cover, exact margins/gutter, TOC depth, signature area and chapter-opening header remain pending formal template confirmation'],'family':data['family'],'source_sha256':profile['source_sha256'],'format_policy_sha256':sha(POLICY_PATH),'format_policy_status':policy['status'],'output_sha256':sha(out),'block_ids':[b['id'] for b in data['blocks']],'bookmark_map':bookmark_map}
+    report={'structural_pass':True,'rendered':False,'visually_reviewed':False,'unverified_items':['Office pagination/TOC refresh and visual inspection required','Engineering assertions require independent professional review','Formal cover layout, exact margins/gutter and signature area remain pending formal template confirmation'],'family':data['family'],'source_sha256':profile['source_sha256'],'format_policy_sha256':sha(POLICY_PATH),'format_policy_status':policy['status'],'company_identity':{'name':policy['company_identity']['name'],'logo_sha256':policy['company_identity']['logo_sha256']},'toc_depth':max(heading_levels,default=1),'output_sha256':sha(out),'block_ids':[b['id'] for b in data['blocks']],'bookmark_map':bookmark_map}
     from handoff import encoded
     report['content_sha256']=hashlib.sha256(encoded(data)).hexdigest()
     report['content_hash_method']='sha256-normalized-content-v1'

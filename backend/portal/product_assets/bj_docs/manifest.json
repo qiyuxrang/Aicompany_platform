@@ -54,8 +54,8 @@
     {
       "path": "scripts/artifacts.py",
       "source": "skills/bj-docs/scripts/artifacts.py",
-      "sha256": "14038caea835ee25f0cc5ca884b042ae3bdb9d7bd53abf6ce137dfb46bf91613",
-      "bytes": 19793,
+      "sha256": "1f7efbb1bf237853e853a646a051642173f1375421c9e572ee8fad84dba6c7c9",
+      "bytes": 26777,
       "source_status": " M skills/bj-docs/scripts/artifacts.py"
     },
     {
@@ -124,9 +124,16 @@
     {
       "path": "assets/document-format-policy.json",
       "source": "user instruction 2026-09-24",
-      "sha256": "0d7d6cce386f1b0dc2c2931142e452bf0675469e559126d7711b334f64b594d3",
-      "bytes": 2818,
+      "sha256": "31a162b59ca3944f01a4f54b7c54e5d58b289d3b6df23907839de3db222ff885",
+      "bytes": 3584,
       "source_status": "approved interim baseline"
+    },
+    {
+      "path": "assets/company/company-logo.png",
+      "source": "user supplied 2026-09-24",
+      "sha256": "d877ca4686cd50452dd930ae4879872ba2b66427573b0bd72f4e4a940ccbc2df",
+      "bytes": 19294,
+      "source_status": "approved company identity asset"
     }
   ]
 }

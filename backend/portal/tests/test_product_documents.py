@@ -69,6 +69,7 @@ class ProductDocumentTests(SimpleTestCase):
                     heading = next(item for item in paragraphs if paragraph_text(item) == "1 项目概述")
                     heading_run = heading.find(self.W + "r")
                     self.assertEqual(heading.find(f"{self.W}pPr/{self.W}jc").get(self.W + "val"), "center")
+                    self.assertIsNone(heading.find(f"{self.W}pPr/{self.W}pStyle"))
                     self.assertEqual(heading_run.find(f"{self.W}rPr/{self.W}sz").get(self.W + "val"), "32")
                     self.assertIsNotNone(heading_run.find(f"{self.W}rPr/{self.W}b"))
                     self.assertNotIn("第一章", archive.read("word/document.xml").decode())
@@ -85,8 +86,30 @@ class ProductDocumentTests(SimpleTestCase):
                     normalized = next(header for header, value in active_headers
                                       if value == "西安工业大学毕业设计（论文）")
                     self.assertEqual(normalized.find(f".//{self.W}bottom").get(self.W + "val"), "double")
+                    relationships = ET.fromstring(archive.read("word/_rels/document.xml.rels"))
+                    relationship_targets = {item.get("Id"): item.get("Target") for item in relationships}
+                    relationship_id = sections[-1].find(self.W + "headerReference").get(
+                        "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+                    linked_header = ET.fromstring(archive.read("word/" + relationship_targets[relationship_id]))
+                    self.assertEqual("".join(node.text or "" for node in linked_header.iter(self.W + "t")),
+                                     "西安工业大学毕业设计（论文）")
+                    chapter_headers = []
+                    for section in sections:
+                        first = next((item for item in section.findall(self.W + "headerReference")
+                                      if item.get(self.W + "type") == "first"), None)
+                        if first is None:
+                            continue
+                        target = relationship_targets[first.get(
+                            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")]
+                        header = ET.fromstring(archive.read("word/" + target))
+                        chapter_headers.append("".join(node.text or "" for node in header.iter(self.W + "t")))
+                    self.assertIn("项目概述", chapter_headers)
+                    self.assertIn("待确认事项", chapter_headers)
 
                     if family == "technical-solution":
+                        self.assertGreaterEqual(len(sections), 2)
+                        self.assertIsNone(sections[0].find(self.W + "headerReference"))
+                        self.assertIsNotNone(sections[-1].find(self.W + "headerReference"))
                         self.assertTrue(any(paragraph_text(item).startswith("表 1.1 ")
                                             for item in paragraphs))
 

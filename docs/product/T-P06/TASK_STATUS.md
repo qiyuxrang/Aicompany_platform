@@ -12,6 +12,7 @@
 | 真实模型 / RAGFlow | `NOT_VERIFIED`；本任务调用次数均为 0，不以代表性输入冒充真实依赖 |
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；可研/PPT 分阶段生成、独立内容审核、版本、stale 与下载已接入 |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
+| 版式基线 | 共用 `document-format-policy.json` v2；公司名称/Logo、实际标题层级目录和 Mermaid 临时生成规则已固化，本轮未重测 |
 | Checkpoint | `a0a2784` (`feat: complete P1 feasibility and presentation core`) |
 | Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 
