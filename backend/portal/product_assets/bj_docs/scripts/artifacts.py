@@ -57,17 +57,6 @@ def normalize_page(section):
     grid=ensure(section,'w:docGrid')
     grid.set(q('w:type'),'linesAndChars'); grid.set(q('w:linePitch'),'360')
 
-def normalize_header(story, policy, value=None):
-    """Normalize only an active, non-empty header; blank cover headers remain blank."""
-    if not text(story).strip(): return
-    for child in list(story): story.remove(child)
-    p=E.SubElement(story,q('w:p')); pp=E.SubElement(p,q('w:pPr'))
-    E.SubElement(pp,q('w:jc')).set(q('w:val'),'center')
-    borders=E.SubElement(pp,q('w:pBdr')); bottom=E.SubElement(borders,q('w:bottom'))
-    for key,setting in [('val','double'),('sz','4'),('space','1'),('color','000000')]: bottom.set(q('w:'+key),setting)
-    r=E.SubElement(p,q('w:r')); E.SubElement(r,q('w:rPr')); append_run_text(r,value or policy['header_footer']['ordinary_header'])
-    format_paragraph(p,'header',policy)
-
 def normalize_footer(story, policy):
     for p in story.findall('.//w:p',NS):
         if any(code.split()[0].upper()=='PAGE' for code in field_instructions(p)):
@@ -75,35 +64,9 @@ def normalize_footer(story, policy):
             ensure(p.find('w:pPr',NS),'w:jc').set(q('w:val'),'center')
             format_paragraph(p,'header',policy)
 
-def add_header_part(parts, value, policy):
-    used={int(match.group(1)) for name in parts if (match:=re.fullmatch(r'word/header(\d+)\.xml',name))}
-    number=max(used,default=0)+1; part=f'word/header{number}.xml'
-    story=E.Element(q('w:hdr')); p=E.SubElement(story,q('w:p')); r=E.SubElement(p,q('w:r')); append_run_text(r,'seed')
-    normalize_header(story,policy,value); parts[part]=dump(story)
-
-    rel_name='word/_rels/document.xml.rels'; rels=xml(parts[rel_name])
-    rel_ns=E.QName(rels).namespace; existing={item.get('Id') for item in rels}
-    index=1
-    while f'rId{index}' in existing: index+=1
-    rel_id=f'rId{index}'; relationship=E.SubElement(rels,'{'+rel_ns+'}Relationship')
-    relationship.set('Id',rel_id); relationship.set('Type','http://schemas.openxmlformats.org/officeDocument/2006/relationships/header')
-    relationship.set('Target',f'header{number}.xml'); parts[rel_name]=dump(rels)
-
-    types=xml(parts['[Content_Types].xml']); types_ns=E.QName(types).namespace
-    override=E.SubElement(types,'{'+types_ns+'}Override'); override.set('PartName','/'+part)
-    override.set('ContentType','application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml')
-    parts['[Content_Types].xml']=dump(types)
-    return rel_id
-
 def clear_section_headers(section):
     for node in section.findall('w:headerReference',NS)+section.findall('w:titlePg',NS): section.remove(node)
 
-
-def section_break(section, policy):
-    copy=deepcopy(section); clear_section_headers(copy)
-    ensure(copy,'w:type').set(q('w:val'),'nextPage')
-    p=E.Element(q('w:p')); pp=E.SubElement(p,q('w:pPr')); pp.append(copy)
-    return format_paragraph(p,'body',policy)
 
 def fit_table_width(table, source_width, target_width):
     if source_width<=target_width: return

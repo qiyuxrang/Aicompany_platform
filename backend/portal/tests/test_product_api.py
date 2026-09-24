@@ -440,6 +440,15 @@ class ProductApiTests(PortalTestCase):
         self.assertEqual(detail["state"], "WAITING_INPUT")
         self.assertEqual(detail["error_code"], "model_authorization_required")
 
+    def test_legacy_reviewer_assignment_endpoint_is_not_exposed(self):
+        task = self.create_task(reviewer=False)
+        response = self.owner_client.post(
+            f"/api/product/tasks/{task['id']}/reviewer/",
+            json_body(expected_version=task["version"], reviewer_id=self.reviewer.pk, reason="旧流程调用"),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
+
     def test_actions_follow_single_owner_blueprint_flow(self):
         task = self.create_task(reviewer=False)
         self.assertIn("queue_retrieve", task["actions"])

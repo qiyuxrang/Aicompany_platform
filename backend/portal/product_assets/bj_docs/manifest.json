@@ -40,8 +40,8 @@
     {
       "path": "assets/technical-solution/profile.json",
       "source": "skills/bj-docs/assets/technical-solution/profile.json",
-      "sha256": "4962da7522df600c5d1310e11cc28cd84b1f7e7cec4b89863a7cf321a0294563",
-      "bytes": 10352,
+      "sha256": "446950263eb6be919d7c915e76f82f13b1e3f5341a15bf9716f98d32598166aa",
+      "bytes": 9909,
       "source_status": "clean"
     },
     {
@@ -54,8 +54,8 @@
     {
       "path": "scripts/artifacts.py",
       "source": "skills/bj-docs/scripts/artifacts.py",
-      "sha256": "58b0824d000496536a3cbe127f6259b0ccff3573314eb4baab7169598e609842",
-      "bytes": 25018,
+      "sha256": "85c8a7ed861dcac02ba77ff494e9d4b693f1333b9e2a2f640be2e33797474305",
+      "bytes": 22375,
       "source_status": " M skills/bj-docs/scripts/artifacts.py"
     },
     {
@@ -110,8 +110,8 @@
     {
       "path": "assets/feasibility/profile.json",
       "source": "skills/bj-docs/assets/feasibility/profile.json",
-      "sha256": "891a6bce15dceacdee67ed5a7c857f88ef9955f09035830abae108ab77114227",
-      "bytes": 44772,
+      "sha256": "88a1d91e57cd74bfcc63cc2845c3cc38ab72249cf807db44736b8a466c18e4c3",
+      "bytes": 42786,
       "source_status": "clean"
     },
     {
@@ -124,8 +124,8 @@
     {
       "path": "assets/document-format-policy.json",
       "source": "user instruction 2026-09-24",
-      "sha256": "e7cb2e4c19c28fe98de85c74d72cb60e11a823d5b600037ced5a82ddf2d5b4f7",
-      "bytes": 3797,
+      "sha256": "b6dc76eb6034320b515a9b99059ed766c20e9b6c35ccc8ef8f67d0ab38ef23dd",
+      "bytes": 3657,
       "source_status": "approved interim baseline"
     },
     {

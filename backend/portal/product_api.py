@@ -1039,7 +1039,6 @@ urlpatterns = [
     path("tasks/<uuid:task_id>/retry/", retry),
     path("tasks/<uuid:task_id>/sources/", sources),
     path("tasks/<uuid:task_id>/chapters/", chapters),
-    path("tasks/<uuid:task_id>/reviewer/", assign_reviewer),
     path("tasks/<uuid:task_id>/input-review/", input_review),
     path("tasks/<uuid:task_id>/statements/", input_statement),
     path("artifacts/<uuid:artifact_id>/download/", download),
