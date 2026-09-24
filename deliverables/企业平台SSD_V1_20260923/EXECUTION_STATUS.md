@@ -87,7 +87,7 @@
 | 范围 | 技术测试 | 真实依赖验证 | 浏览器验收 | 业务签认 | 部署验收 |
 | --- | --- | --- | --- | --- | --- |
 | P0 技术基线 | 历史引用（见 §6） | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` |
-| P1 三件套 | `BLOCKED`（T-P05/T-P06/T-P08 自动化 Core 与前端 Core 已验证；T-G04、T-R01 未完成） | `BLOCKED`（真实模型/RAGFlow 未授权） | `NOT_VERIFIED`（仅完成隔离快速可见性冒烟） | `BLOCKED` | `NOT_RUN` |
+| P1 三件套 | `BLOCKED`（T-P05/T-P06/T-P08 自动化 Core 与前端 Core 已验证；T-G04、完整 T-R01 未完成） | `BLOCKED`（真实模型/RAGFlow 未授权） | `NOT_VERIFIED`（产品事业部一期双角色访问、三类成果展示及 Word/PPT 落盘冒烟完成；完整 E2E 未执行） | `BLOCKED` | `NOT_RUN` |
 | HR / 经营 / 工程 / Tender | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` |
 
 ## 5. 项目级证据索引
@@ -139,3 +139,4 @@
 | 2026-09-24 | T-P08 三类成果质量回归完成自动化范围 | v12 在隔离链生成技术方案 Word 9 页、可研 Word 9 页和 PPT 7 页并经 Microsoft Office 实际渲染；产品回归 110 PASS/1 SKIP；正式模板/业务视觉/审核、真实模型/RAGFlow 与 Browser E2E 未通过，未记 Task/P1 PASS |
 | 2026-09-24 | 技术方案/可研临时版式基线 v2 固化 | 公司名称与用户提供 Logo 纳入冻结资产；目录层级按实际标题确定；技术图统一由 Mermaid 临时生成且不保留源码，只留渲染图、来源与 hash。v16 是此前真实渲染证据；本轮新增 v2 规则按用户要求未重测，D-02 正式企业母版与业务签认仍未解除 |
 | 2026-09-24 | T-R01 快速可见性冒烟 | 独立 SQLite 与代表性 v16 成果副本在本机 18320 启动；真实 Chromium 登录并进入产品事业部流水线，显示三类成果；技术方案下载端点在登录会话返回 200。未执行完整双角色 E2E、文件落盘、真实模型/RAGFlow、T-G04、业务签认或部署验收，状态仍为 `NOT_VERIFIED` |
+| 2026-09-24 | 产品事业部一期接入冒烟收口 | 基于 `b3780aa`，一期仅保留项目成果模块且未展示招投标入口；真实 Chromium 分别验证经办人与审核人访问，三类成果可见；技术方案 DOCX 与汇报 PPTX 浏览器真实落盘并由 Microsoft Office 打开成功。Django check、TypeScript、前端 build 通过；按批准范围未跑全量回归，完整 T-R01 仍为 `NOT_VERIFIED` |
