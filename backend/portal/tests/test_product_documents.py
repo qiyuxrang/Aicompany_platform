@@ -29,6 +29,7 @@ class ProductDocumentTests(SimpleTestCase):
         content = content_document(self.task, self.input_revision, self.blueprint, [self.chapter], family="feasibility")
         self.assertEqual(content["family"], "feasibility")
         self.assertEqual(content["metadata"]["status"], "draft")
+        self.assertTrue(any("未提供经核实的成本与收益依据" in item["text"] for item in content["pending"]))
         with tempfile.TemporaryDirectory() as directory, override_settings(PRODUCT_STORAGE_ROOT=directory):
             artifact = render_report_draft(self.task, self.input_revision, self.blueprint, [self.chapter], "feasibility")
             self.assertNotEqual(artifact["template_hash"], frozen_pack()["files"][0]["sha256"])

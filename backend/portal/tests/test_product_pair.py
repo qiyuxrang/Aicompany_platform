@@ -3,9 +3,9 @@ from pathlib import Path
 
 from django.test import override_settings
 
-from portal.product_models import DocumentArtifact
+from portal.product_models import DocumentApproval, DocumentArtifact
 from portal.product_pair import pair_snapshot, save_report_content
-from portal.product_service import ProductError, append_revision
+from portal.product_service import ProductError, append_revision, approval_authorization
 from portal.product_storage import verified_artifact
 from .test_product_api import ProductApiTests
 from .base import PortalTestCase
@@ -23,9 +23,20 @@ class PairDraftTests(PortalTestCase):
         task = self._task(self.save_blueprint(created))
         input_revision = task.revisions.get(kind="input", version=task.input_version)
         blueprint_hash = task.revisions.get(kind="blueprint", version=task.blueprint_version).sha256
-        first = save_report_content(task, "technical-solution", {"blocks": [{"id": "same", "text": "技术路线", "source_ids": ["SINPUT"]}], "pending": []}, input_hash=input_revision.sha256, blueprint_hash=blueprint_hash, actor=self.owner)
-        second = save_report_content(task, "feasibility", {"blocks": [{"id": "same", "text": "条件评估", "source_ids": ["SINPUT"]}], "pending": []}, input_hash=input_revision.sha256, blueprint_hash=blueprint_hash, actor=self.owner)
-        self.assertEqual({block["ref"] for block in pair_snapshot(task)["blocks"]}, {"technical-solution:same", "feasibility:same"})
+        first = save_report_content(task, "technical-solution", {"blocks": [{"id": "same", "text": "技术路线", "source_ids": ["SINPUT"]}], "pending": [{"id": "P1", "text": "同一待确认事项"}]}, input_hash=input_revision.sha256, blueprint_hash=blueprint_hash, actor=self.owner)
+        second = save_report_content(task, "feasibility", {"blocks": [{"id": "same", "text": "条件评估", "source_ids": ["SINPUT"]}], "pending": [{"id": "P2", "text": "同一待确认事项"}]}, input_hash=input_revision.sha256, blueprint_hash=blueprint_hash, actor=self.owner)
+        with self.assertRaises(ProductError) as caught:
+            pair_snapshot(task)
+        self.assertEqual(caught.exception.code, "report_approval_required")
+        for report in (first, second):
+            DocumentApproval.objects.create(task=task, revision=report, actor=self.reviewer, decision="approve",
+                                            sha256=report.sha256, authorization=approval_authorization(task, self.reviewer))
+        snapshot = pair_snapshot(task)
+        self.assertEqual({block["ref"] for block in snapshot["blocks"]}, {"technical-solution:same", "feasibility:same"})
+        self.assertTrue(all(source["approval_id"] for source in snapshot["sources"]))
+        self.assertEqual(snapshot["pending"], [{"text": "同一待确认事项",
+                                                "refs": ["technical-solution:P1", "feasibility:P2"],
+                                                "families": ["technical-solution", "feasibility"]}])
         self.assertNotEqual(first.pk, second.pk)
         later = append_revision(task, "input", {**input_revision.payload, "requirements": "已更改"}, actor=self.owner)
         task.input_version = later.version

@@ -94,6 +94,16 @@ class ProductReleaseFlowTests(PortalTestCase):
         self.assertEqual(DocumentArtifact.objects.filter(task=task).count(), 1)
         self.assertEqual(DocumentArtifact.objects.get(task=task).pk, artifact.pk)
 
+    def test_unrelated_family_artifact_does_not_stale_candidate(self):
+        task, artifact = self.rendered_task()
+        DocumentArtifact.objects.create(
+            task=task, version=artifact.version + 1, family="feasibility", path="unrelated-feasibility.docx",
+            sha256="f" * 64, blueprint_hash=artifact.blueprint_hash, input_hash=artifact.input_hash,
+            template_hash="e" * 64, generation_hash="d" * 64, render_evidence={"kind": "draft"},
+        )
+        self.assertEqual(self.verify(task, artifact).status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(self.approve(task, artifact).status_code, 201)
     def test_title_change_invalidates_candidate_and_preserves_file_title(self):
         task, artifact = self.rendered_task()
         original_title = artifact.render_evidence["document_title"]

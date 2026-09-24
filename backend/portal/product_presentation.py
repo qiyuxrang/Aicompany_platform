@@ -35,5 +35,6 @@ def render_presentation_draft(task, pair):
     return {"path": output.relative_to(root).as_posix(), "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
             "template_hash": hashlib.sha256(SCRIPT.read_bytes()).hexdigest(),
             "render_evidence": {"kind": "draft", "status": "draft_unverified", "engine": "python-pptx-simple-draft",
-                                "pair_hash": pair["sha256"], "source_versions": pair["sources"],
+                                "engine_version": "v1", "pair_hash": pair["sha256"], "source_versions": pair["sources"],
+                                "block_refs": [{"ref": block["ref"], "source_ids": block.get("source_ids", [])} for block in pair["blocks"]],
                                 "office_render": "not_run", "visual_review": "not_run", "business_approval": "blocked"}}

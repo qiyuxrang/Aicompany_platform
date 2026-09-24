@@ -73,6 +73,8 @@ def content_document(task, input_revision, blueprint, chapters, family="technica
             blocks.append({"id": "INPUT_TABLE", "type": "table", "prototype": "table6", "columns": ["原行号", "设备名称", "数量", "单位", "来源"],
                            "units": ["不适用"] * 5, "rows": rows, "caption": "表1 输入设备清单（待核）", "source_ids": ["SINPUT"], "requirement_ids": requirement_ids})
     pending = ["正式模板与样例、内容及格式批准尚未完成；本件始终为待核草稿。"]
+    if family == "feasibility":
+        pending.append("未提供经核实的成本与收益依据，不形成经济成本、收益或回报结论。")
     pending.extend(blueprint.payload.get("missing", []))
     pending.extend(blueprint.payload.get("conflicts", []))
     if facts.get("issues"):

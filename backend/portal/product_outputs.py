@@ -10,7 +10,7 @@ from rest_framework.response import Response
 
 from .product_api import product_endpoint, _body, _expected, _task_detail
 from .product_models import DocumentArtifact, DocumentRevision
-from .product_pair import FAMILIES, latest_report_content, pair_snapshot
+from .product_pair import FAMILIES, effective_report_approval, latest_report_content, pair_snapshot
 from .product_service import (ProductError, approved_blueprint, current_revision, input_authorized,
                               require_owner, require_version, task_for, source_ids_belong, validate_chapter, append_revision)
 from .product_storage import StorageError, verified_artifact
@@ -20,7 +20,8 @@ from .security import audit
 def _current(task, artifact):
     current_input = current_revision(task, DocumentRevision.Kind.INPUT)
     blueprint = approved_blueprint(task)
-    if (not current_input or not blueprint or current_input.version != task.input_version
+    latest = task.artifacts.filter(family=artifact.family).order_by("-version").first()
+    if (not current_input or not blueprint or current_input.version != task.input_version or latest is None or latest.pk != artifact.pk
             or artifact.input_hash != current_input.sha256 or artifact.blueprint_hash != blueprint.sha256):
         return False
     if artifact.family == "presentation":
@@ -45,9 +46,13 @@ def outputs(request, task_id):
         revision = task.revisions.filter(kind="input", sha256=artifact.input_hash).first()
         if not input_authorized(task, revision):
             continue
+        report = task.revisions.filter(pk=artifact.render_evidence.get("report_id"), kind=DocumentRevision.Kind.REPORT).first()
         result.append({"id": str(artifact.pk), "family": artifact.family, "version": artifact.version,
                        "sha256": artifact.sha256, "current": _current(task, artifact), "draft": True,
                        "engine": artifact.render_evidence.get("engine", "frozen-word"),
+                       "content_version": report.version if report else None,
+                       "content_sha256": report.sha256 if report else None,
+                       "content_approved": effective_report_approval(report) is not None if report else None,
                        "source_versions": artifact.render_evidence.get("source_versions", [])})
     return Response({"outputs": result})
 

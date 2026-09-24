@@ -1,0 +1,29 @@
+Creating test database for alias 'default'...
+
+......................................................F.....F................................................................
+======================================================================
+FAIL: test_changed_template_policy_or_input_invalidates_approval_evidence (portal.tests.test_product_release_flow.ProductReleaseFlowTests.test_changed_template_policy_or_input_invalidates_approval_evidence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai������ƽ̨\backend\portal\tests\test_product_release_flow.py", line 162, in test_changed_template_policy_or_input_invalidates_approval_evidence
+    self.assertEqual(self.approve(task, artifact).status_code, 409)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 409
+
+======================================================================
+FAIL: test_title_change_invalidates_candidate_and_preserves_file_title (portal.tests.test_product_release_flow.ProductReleaseFlowTests.test_title_change_invalidates_candidate_and_preserves_file_title)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai������ƽ̨\backend\portal\tests\test_product_release_flow.py", line 102, in test_title_change_invalidates_candidate_and_preserves_file_title
+    self.assertEqual(self.approve(task, artifact).status_code, 409)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 409
+
+----------------------------------------------------------------------
+Ran 125 tests in 166.224s
+
+FAILED (failures=2)
+Destroying test database for alias 'default'...
+
+Found 125 test(s).
+System check identified no issues (0 silenced).

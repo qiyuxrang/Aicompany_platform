@@ -25,6 +25,7 @@ from .product_service import (ProductError, append_revision, approved_blueprint,
                               validate_chapter, validate_input)
 from .product_storage import StorageError, remove_relative, verified_artifact
 from .product_release import CONTENT_CHECKS, candidate_current, evidence_file, public_evidence
+from .product_pair import effective_report_approval, latest_report_content, pair_snapshot
 from .security import audit
 from .models import User
 
@@ -113,7 +114,7 @@ def _requested_output_states(outputs):
         if value == "technical_solution":
             result.append({"type": value, "status": "blocked", "code": "model_not_authorized"})
         else:
-            result.append({"type": value, "status": "not_started", "code": "p2_not_authorized"})
+            result.append({"type": value, "status": "not_started", "code": "approved_content_required"})
     return result
 
 
@@ -182,9 +183,15 @@ def _task_actions(task, user, input_revision, blueprint):
             if _chapters_complete(task, input_revision, approved):
                 actions.extend(["queue_render", "queue_candidate"])
             actions.append("queue_three_drafts")
+            try:
+                pair_snapshot(task)
+            except ProductError:
+                pass
+            else:
+                actions.append("queue_presentation")
         if (task.state in {DocumentTask.State.FAILED, DocumentTask.State.WAITING_INPUT}
                 and task.attempt_count < int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8))
-                and task.pending_action in {"blueprint", "write", "render", "three_drafts"}):
+                and task.pending_action in {"blueprint", "write", "render", "three_drafts", "presentation"}):
             actions.append("retry")
         if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended):
             actions.extend(["assign_reviewer", "add_statement"])
@@ -195,6 +202,8 @@ def _task_actions(task, user, input_revision, blueprint):
             actions.append("review_blueprint")
         if reviewable and task.stage == DocumentTask.Stage.FINAL_REVIEW and task.artifacts.exists():
             actions.extend(["review_artifact", "verify_artifact"])
+        if reviewable and task.stage == DocumentTask.Stage.FINAL_REVIEW and task.revisions.filter(kind=DocumentRevision.Kind.REPORT).exists():
+            actions.append("review_report")
         if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended) and input_revision.payload.get("issues"):
             actions.append("review_input")
     return actions
@@ -252,13 +261,19 @@ def _task_detail(task, user):
         "payload": record.payload, "input_hash": record.input_hash,
         "blueprint_hash": record.blueprint_hash, "created_at": record.created_at.isoformat(),
     } for record in task.revisions.filter(kind=DocumentRevision.Kind.CHAPTER).order_by("version") if input_access.get(record.input_hash, False)]
+    reports = [{
+        "id": str(record.pk), "family": record.family, "version": record.version, "sha256": record.sha256,
+        "input_hash": record.input_hash, "blueprint_hash": record.blueprint_hash,
+        "approved": effective_report_approval(record) is not None, "created_at": record.created_at.isoformat(),
+    } for record in task.revisions.filter(kind=DocumentRevision.Kind.REPORT).order_by("family", "version")
+        if input_access.get(record.input_hash, False)]
     artifacts = []
     for artifact in task.artifacts.order_by("version"):
         if not input_access.get(artifact.input_hash, False):
             continue
         approved = effective_artifact_approval(artifact) is not None
         artifacts.append({
-            "id": str(artifact.pk), "version": artifact.version, "sha256": artifact.sha256,
+            "id": str(artifact.pk), "family": artifact.family, "version": artifact.version, "sha256": artifact.sha256,
             "blueprint_hash": artifact.blueprint_hash, "input_hash": artifact.input_hash,
             "review_id": str(artifact.review_id) if artifact.review_id else None,
             "render_evidence": public_evidence(artifact.render_evidence), "template_hash": artifact.template_hash,
@@ -270,7 +285,7 @@ def _task_detail(task, user):
         "warnings": source.warnings, "created_at": source.created_at.isoformat(),
     } for source in task.sources.order_by("created_at")]
     approvals = [{
-        "id": str(record.pk), "target": "blueprint" if record.revision_id else "artifact",
+        "id": str(record.pk), "target": ("blueprint" if record.revision_id and record.revision.kind == DocumentRevision.Kind.BLUEPRINT else "report" if record.revision_id else "artifact"),
         "target_id": str(record.revision_id or record.artifact_id), "actor_id": record.actor_id,
         "decision": record.decision, "comment": record.comment, "sha256": record.sha256,
         "created_at": record.created_at.isoformat(),
@@ -298,7 +313,7 @@ def _task_detail(task, user):
         "version": task.version, "input_version": task.input_version,
         "blueprint_version": task.blueprint_version,
         "input": input_revision.payload if input_revision else None,
-        "blueprint": _revision_data(blueprint), "chapters": chapters, "artifacts": artifacts,
+        "blueprint": _revision_data(blueprint), "chapters": chapters, "reports": reports, "artifacts": artifacts,
         "sources": sources, "approvals": approvals, "issues": issues,
         "error_code": task.error_code, "actions": actions, "blockers": _task_blockers(actions),
         "reviewer_id": task.reviewer_id, "owner_id": task.owner_id,
@@ -471,8 +486,8 @@ def conversations(request):
         },
         "blockers": {
             "technical_solution": "model_not_authorized",
-            "feasibility": "p2_not_authorized",
-            "presentation": "p2_not_authorized",
+            "feasibility": "approved_content_required",
+            "presentation": "approved_content_required",
         },
     }, status=201 if created else 200)
 
@@ -532,8 +547,8 @@ def task_conversation(request, task_id):
         },
         "blockers": {
             "technical_solution": "model_not_authorized",
-            "feasibility": "p2_not_authorized",
-            "presentation": "p2_not_authorized",
+            "feasibility": "approved_content_required",
+            "presentation": "approved_content_required",
         },
     })
 
@@ -665,7 +680,7 @@ def _queue(task, action):
         if _input_revision(task) is None:
             raise ProductError("input_required", "请先保存输入。", 409)
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
-    elif action in {"write", "render", "candidate", "three_drafts"}:
+    elif action in {"write", "render", "candidate", "three_drafts", "presentation"}:
         blueprint_revision = approved_blueprint(task)
         if blueprint_revision is None:
             raise ProductError("blueprint_approval_required", "当前蓝图尚未获有效批准。", 409)
@@ -683,6 +698,8 @@ def _queue(task, action):
                     if record.payload.get("paragraphs")}
                 if not required <= found:
                     raise ProductError("chapters_incomplete", f"{family} 报告章节尚未完整保存。", 409)
+        if action == "presentation":
+            pair_snapshot(task)
     else:
         raise ProductError("invalid_action", "任务动作无效。")
     task.pending_action = action
@@ -716,11 +733,14 @@ def _decision_target(task, target, target_id):
             if record.input_hash != _input_revision(task).sha256:
                 raise DocumentRevision.DoesNotExist
             return record
+        if target == "report":
+            record = task.revisions.get(pk=target_id, kind=DocumentRevision.Kind.REPORT)
+            current = latest_report_content(task, record.family)
+            if current is None or current.pk != record.pk or record.input_hash != _input_revision(task).sha256:
+                raise DocumentRevision.DoesNotExist
+            return record
         if target == "artifact":
-            latest = task.artifacts.order_by("-version").first()
-            if latest is None or str(latest.pk) != str(target_id):
-                raise DocumentArtifact.DoesNotExist
-            return latest
+            return task.artifacts.get(pk=target_id)
     except (ValueError, TypeError, ValidationError, DocumentRevision.DoesNotExist, DocumentArtifact.DoesNotExist) as error:
         raise ProductError("not_found", "对象不存在。", 404) from error
     raise ProductError("invalid_target", "审核目标无效。")
@@ -737,7 +757,7 @@ def decisions(request, task_id):
         target = _decision_target(task, body["target"], body["target_id"])
         if not isinstance(body["sha256"], str) or target.sha256 != body["sha256"]:
             raise ProductError("stale_target", "审核目标版本或哈希已变化。", 409)
-        lookup = {"revision": target} if body["target"] == "blueprint" else {"artifact": target}
+        lookup = {"revision": target} if body["target"] in {"blueprint", "report"} else {"artifact": target}
         existing = DocumentApproval.objects.filter(actor=request.user, decision=body["decision"], **lookup).first()
         if existing:
             latest = target.approvals.filter(actor=request.user).order_by("-created_at").first()
@@ -783,6 +803,11 @@ def decisions(request, task_id):
             blocked = not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
             task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
             task.error_code = "model_authorization_required" if blocked else ""
+        elif body["target"] == "report":
+            task.state = DocumentTask.State.WAITING_REVIEW
+            task.stage = DocumentTask.Stage.FINAL_REVIEW
+            task.pending_action = ""
+            task.error_code = ""
         else:
             task.state = DocumentTask.State.COMPLETED
             task.stage = DocumentTask.Stage.FINAL_REVIEW
@@ -829,7 +854,7 @@ def retry(request, task_id):
             raise ProductError("invalid_state", "当前状态不能重试。", 409)
         if task.attempt_count >= int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8)):
             raise ProductError("attempt_limit", "已达到隔离环境安全重试上限。", 409)
-        if task.pending_action not in {"blueprint", "write", "render", "three_drafts"}:
+        if task.pending_action not in {"blueprint", "write", "render", "three_drafts", "presentation"}:
             raise ProductError("invalid_action", "没有可重试的持久动作。", 409)
         blocked = task.pending_action in {"blueprint", "write"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
         task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED

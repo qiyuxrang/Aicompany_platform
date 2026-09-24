@@ -42,7 +42,7 @@ def candidate_current(artifact, *, visual=False):
             or not review or review.kind != "review" or review.payload.get("passed") is not True
             or review.input_hash != artifact.input_hash or current_input.sha256 != artifact.input_hash
             or review.blueprint_hash != artifact.blueprint_hash or blueprint.sha256 != artifact.blueprint_hash
-            or task.artifacts.order_by("-version").values_list("pk", flat=True).first() != artifact.pk):
+            or task.artifacts.filter(family=artifact.family).order_by("-version").values_list("pk", flat=True).first() != artifact.pk):
         return False
     chapter_hashes = {}
     for chapter in task.revisions.filter(kind="chapter", input_hash=current_input.sha256, blueprint_hash=blueprint.sha256).order_by("version"):

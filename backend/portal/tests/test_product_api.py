@@ -95,8 +95,8 @@ class ProductApiTests(PortalTestCase):
                 payload["intent"]["requested_outputs"],
                 [
                     {"type": "technical_solution", "status": "blocked", "code": "model_not_authorized"},
-                    {"type": "feasibility", "status": "not_started", "code": "p2_not_authorized"},
-                    {"type": "presentation", "status": "not_started", "code": "p2_not_authorized"},
+                    {"type": "feasibility", "status": "not_started", "code": "approved_content_required"},
+                    {"type": "presentation", "status": "not_started", "code": "approved_content_required"},
                 ],
             )
             source = DocumentSource.objects.get(task_id=payload["task"]["id"])

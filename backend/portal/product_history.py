@@ -130,7 +130,8 @@ def task_history(request, task_id):
     current_blueprint = task.revisions.filter(kind=DocumentRevision.Kind.BLUEPRINT, version=task.blueprint_version).first()
     for artifact in task.artifacts.order_by("created_at", "pk"):
         access = input_access.get(artifact.input_hash, False)
-        current = bool(access and current_input and current_blueprint
+        latest = task.artifacts.filter(family=artifact.family).order_by("-version").first()
+        current = bool(access and current_input and current_blueprint and latest and latest.pk == artifact.pk
                        and artifact.input_hash == current_input.sha256
                        and artifact.blueprint_hash == current_blueprint.sha256)
         timeline.append({

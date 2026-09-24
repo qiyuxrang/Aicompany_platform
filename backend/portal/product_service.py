@@ -348,7 +348,7 @@ def artifact_releasable(artifact):
             and review.payload.get("passed") is True
             and review.input_hash == artifact.input_hash == input_revision.sha256
             and review.blueprint_hash == artifact.blueprint_hash == blueprint.sha256
-            and task.artifacts.order_by("-version").values_list("pk", flat=True).first() == artifact.pk):
+            and task.artifacts.filter(family=artifact.family).order_by("-version").values_list("pk", flat=True).first() == artifact.pk):
         return False
     current_hashes = {}
     for chapter in task.revisions.filter(

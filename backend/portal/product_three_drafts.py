@@ -1,12 +1,11 @@
-"""Existing worker lease drives three independent, review-only artifacts."""
+"""Existing worker lease drives independent report drafts and approved-content PPT."""
 
 from django.db import transaction
 from django.db.models import Max
 
 from .product_documents import content_document, render_report_draft
-from .product_models import DocumentArtifact, DocumentTask
+from .product_models import DocumentArtifact
 from .product_pair import pair_snapshot, save_report_content
-from .product_presentation import render_presentation_draft
 from .product_service import ProductError, digest
 from .product_storage import verified_artifact
 
@@ -32,14 +31,22 @@ def generate_three_drafts(task, fence, attempt_id, input_revision, blueprint):
         with transaction.atomic():
             fresh = _guard(task.pk, fence)
             report = save_report_content(fresh, family, content, input_hash=input_revision.sha256,
-                                         blueprint_hash=blueprint.sha256, actor=fresh.owner)
+                                         blueprint_hash=blueprint.sha256, actor=None)
             version = (fresh.artifacts.aggregate(value=Max("version"))["value"] or 0) + 1
             DocumentArtifact.objects.create(task=fresh, family=family, version=version, path=generated["path"],
                 sha256=generated["sha256"], input_hash=input_revision.sha256, blueprint_hash=blueprint.sha256,
                 template_hash=generated["template_hash"], generation_hash=report_hash,
-                render_evidence={**generated["render_evidence"], "report_id": str(report.pk), "kind": "draft"})
+                render_evidence={**generated["render_evidence"], "report_id": str(report.pk), "kind": "draft",
+                                 "attempt_id": str(attempt_id)})
+    return _finish(task.pk, fence, attempt_id, "WAITING_REVIEW", "FINAL_REVIEW")
+
+
+def generate_presentation(task, fence, attempt_id, input_revision, blueprint):
+    from .product_presentation import render_presentation_draft
+    from .product_worker import _finish, _guard, _renew
+
     _renew(task.pk, fence)
-    pair = pair_snapshot(DocumentTask.objects.get(pk=task.pk))
+    pair = pair_snapshot(task)
     generation_hash = digest({"kind": "presentation", "pair": pair["sha256"], "title": task.title})
     existing = DocumentArtifact.objects.filter(task=task, generation_hash=generation_hash).first()
     if existing:
@@ -54,5 +61,6 @@ def generate_three_drafts(task, fence, attempt_id, input_revision, blueprint):
             DocumentArtifact.objects.create(task=fresh, family="presentation", version=version,
                 path=generated["path"], sha256=generated["sha256"], input_hash=input_revision.sha256,
                 blueprint_hash=blueprint.sha256, template_hash=generated["template_hash"],
-                generation_hash=generation_hash, render_evidence=generated["render_evidence"])
+                generation_hash=generation_hash,
+                render_evidence={**generated["render_evidence"], "attempt_id": str(attempt_id)})
     return _finish(task.pk, fence, attempt_id, "WAITING_REVIEW", "FINAL_REVIEW")
