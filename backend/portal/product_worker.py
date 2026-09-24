@@ -11,9 +11,9 @@ from django.utils import timezone
 from .model_gateway import generate_for_use
 from .models import ModelRoute, User
 from .product_models import DocumentApproval, DocumentArtifact, DocumentAttempt, DocumentRevision, DocumentTask
-from .product_service import append_revision, approved_blueprint, current_revision, digest, task_for, input_authorized, source_ids_belong
+from .product_service import (ProductError, append_revision, approved_blueprint, current_revision,
+                              digest, input_authorized, source_ids_belong, task_for)
 from .security import audit
-from .product_budget import reserve_call
 from .product_rules import ProductRulesError, rules_hash, stage_rules
 
 
@@ -41,7 +41,10 @@ def _guard(task_id, fence):
     if task.state != "RUNNING" or task.fence != fence or not task.lease_until or task.lease_until <= timezone.now():
         raise ExecutionError("lease_lost")
     owner = User.objects.get(pk=task.owner_id)
-    task_for(owner, task.pk, write=True)
+    try:
+        task_for(owner, task.pk, write=True)
+    except ProductError:
+        raise ExecutionError("permission_changed") from None
     if task.checkpoint.get("grant_version") != owner.grant_version:
         raise ExecutionError("permission_changed")
     if task.pending_action != "retrieve" and not input_authorized(task, current_revision(task, "input")):
@@ -106,7 +109,6 @@ def _model(task_id, fence, attempt_id, route, payload):
         used = DocumentAttempt.objects.filter(task=task).aggregate(total=Sum("model_calls"))["total"] or 0
         if used >= settings.PRODUCT_MAX_MODEL_CALLS:
             raise ExecutionError("model_call_limit")
-        reserve_call(task, route)
         attempt = DocumentAttempt.objects.select_for_update().get(pk=attempt_id, fence=fence, status="running")
         attempt.model_calls += 1
         attempt.save(update_fields=["model_calls"])
@@ -376,9 +378,7 @@ def execute_claim(task_id, fence, attempt_id):
     except Exception as error:
         code = "product_rules_unavailable" if isinstance(error, ProductRulesError) else getattr(error, "code", "execution_failed")
         allowed = {"model_authorization_required", "input_required", "blueprint_approval_required", "chapters_incomplete", "template_unavailable",
-                   "product_rules_unavailable",
-                   "budget_authorization_required", "budget_exceeded", "budget_currency_mismatch", "budget_ledger_invalid",
-                   "template_approval_required", "candidate_content_unresolved", "content_review_required", "office_render_disabled", "office_render_timeout", "office_render_unavailable",
+                   "product_rules_unavailable", "template_approval_required", "candidate_content_unresolved", "content_review_required", "office_render_disabled", "office_render_timeout", "office_render_unavailable",
                    "office_render_failed", "office_render_invalid_output", "artifact_hash_mismatch", "invalid_path",
                    "retrieval_disabled", "retrieval_authorization_required", "retrieval_auth_failed", "retrieval_unavailable", "retrieval_invalid_response", "retrieval_source_conflict",
                    "model_call_limit", "attempt_limit", "output_truncated", "lease_lost", "permission_changed", "invalid_model_output",
@@ -387,7 +387,7 @@ def execute_claim(task_id, fence, attempt_id):
         if code not in allowed:
             code = "execution_failed"
         state = "WAITING_INPUT" if code in {"model_authorization_required", "input_required", "template_unavailable", "model_call_limit", "attempt_limit", "unconfigured", "missing_key",
-            "budget_authorization_required", "budget_exceeded", "budget_currency_mismatch", "template_approval_required", "content_review_required", "office_render_disabled",
+            "template_approval_required", "content_review_required", "office_render_disabled",
             "retrieval_disabled", "retrieval_authorization_required"} else "FAILED"
         _finish(task_id, fence, attempt_id, state, task.stage, code)
 

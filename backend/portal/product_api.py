@@ -205,11 +205,6 @@ def _task_blockers(actions):
                 "code": "model_authorization_required",
                 "detail": "D-01 尚未批准真实模型调用与资料外发，当前不能执行模型生成。",
             }
-        elif not getattr(settings, "PRODUCT_COST_POLICY", {}):
-            blockers[action] = {
-                "code": "budget_authorization_required",
-                "detail": "尚无覆盖当前模型路由的真实预算批准记录，不能发起调用。",
-            }
     if "queue_render" in actions and not getattr(settings, "PRODUCT_TEMPLATE_APPROVAL", {}):
         blockers["queue_render"] = {
             "code": "template_approval_required",
