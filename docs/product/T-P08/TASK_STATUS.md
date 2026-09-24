@@ -14,7 +14,7 @@
 | 正式审核 | `BLOCKED`；三类 artifact 的正式批准请求均返回 `formal_release_blocked` |
 | 真实模型 / RAGFlow | `NOT_VERIFIED`；本任务调用次数均为 0 |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
-| Checkpoint | 待本轮本地 checkpoint 后回填 |
+| Checkpoint | `2b98d99`（格式基线、既有 v13-v16 Evidence、公司标识、动态目录与 Mermaid 临时源码规则） |
 
 ## 已完成范围
 
