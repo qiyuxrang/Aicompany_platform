@@ -166,6 +166,10 @@ function TaskWorkspace() {
     </section>
     {!selected ? <section className="product-conversation-empty">
       <div className="assistant-message"><span aria-hidden="true">✦</span><div><strong>创建一个项目成果任务</strong><p>上传设备清单和项目背景，或直接粘贴服务器已授权的资料路径。我会将它们作为三个成果的共同依据。</p></div></div>
+      <section className="product-empty-overview" aria-label="工作流程概览">
+        <div><h3>四步完成</h3><ol className="product-progress">{["资料接收", "事实与边界", "成果编制", "统一审校"].map(label => <li key={label}>{label}</li>)}</ol></div>
+        <div><h3>三类成果</h3>{Object.values(outputLabels).map(label => <article className="product-output-card locked" key={label}><strong>{label}</strong><span>创建任务后显示进度与版本</span></article>)}</div>
+      </section>
       <form className="product-composer" onSubmit={event => { event.preventDefault(); void create(); }}>
         {pendingMessage && !busy && <p role="note">{pendingTask ? `任务已创建，仍有 ${files.length} 个附件待上传；继续不会重复创建任务或上传已成功附件。` : "上次请求结果尚未确认，重试会复用相同内容和幂等键。"}</p>}
         <label className="sr-only" htmlFor="conversation-message">描述任务、文件或资料路径</label>

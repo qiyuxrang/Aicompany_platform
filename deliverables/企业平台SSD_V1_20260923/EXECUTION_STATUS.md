@@ -54,6 +54,7 @@
 | `T-P07` | `docs/product/T-P07/TASK_STATUS.md` | 2026-09-24 |
 | `T-P06` | `docs/product/T-P06/TASK_STATUS.md` | 2026-09-24 |
 | `T-P08` | `docs/product/T-P08/TASK_STATUS.md` | 2026-09-24 |
+| `T-R01` | `docs/product/T-R01/TASK_STATUS.md` | 2026-09-24 |
 | `T-H01`～`T-H04` | 尚未建立 | — |
 | `T-B01`～`T-B03` | 尚未建立 | — |
 | `T-E01`～`T-E03` | 尚未建立 | — |
@@ -86,7 +87,7 @@
 | 范围 | 技术测试 | 真实依赖验证 | 浏览器验收 | 业务签认 | 部署验收 |
 | --- | --- | --- | --- | --- | --- |
 | P0 技术基线 | 历史引用（见 §6） | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` |
-| P1 三件套 | `BLOCKED`（T-P05/T-P06/T-P08 自动化 Core 与前端 Core 已验证；T-G04、T-R01 未完成） | `BLOCKED`（真实模型/RAGFlow 未授权） | `NOT_RUN` | `BLOCKED` | `NOT_RUN` |
+| P1 三件套 | `BLOCKED`（T-P05/T-P06/T-P08 自动化 Core 与前端 Core 已验证；T-G04、T-R01 未完成） | `BLOCKED`（真实模型/RAGFlow 未授权） | `NOT_VERIFIED`（仅完成隔离快速可见性冒烟） | `BLOCKED` | `NOT_RUN` |
 | HR / 经营 / 工程 / Tender | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` | `NOT_RUN` |
 
 ## 5. 项目级证据索引
@@ -137,3 +138,4 @@
 | 2026-09-24 | P1 前端业务链 Core 接入完成 | checkpoint `9621f56`；T-P01～T-P06 及 T-P07 版本链已接入统一 React 工作台；后端产品回归 110 项中 109 PASS/1 SKIP，前端 135/135 与 build 通过；Browser E2E 仍为 `NOT_RUN`，未记 Task/P1 PASS |
 | 2026-09-24 | T-P08 三类成果质量回归完成自动化范围 | v12 在隔离链生成技术方案 Word 9 页、可研 Word 9 页和 PPT 7 页并经 Microsoft Office 实际渲染；产品回归 110 PASS/1 SKIP；正式模板/业务视觉/审核、真实模型/RAGFlow 与 Browser E2E 未通过，未记 Task/P1 PASS |
 | 2026-09-24 | 技术方案/可研临时版式基线 v2 固化 | 公司名称与用户提供 Logo 纳入冻结资产；目录层级按实际标题确定；技术图统一由 Mermaid 临时生成且不保留源码，只留渲染图、来源与 hash。v16 是此前真实渲染证据；本轮新增 v2 规则按用户要求未重测，D-02 正式企业母版与业务签认仍未解除 |
+| 2026-09-24 | T-R01 快速可见性冒烟 | 独立 SQLite 与代表性 v16 成果副本在本机 18320 启动；真实 Chromium 登录并进入产品事业部流水线，显示三类成果；技术方案下载端点在登录会话返回 200。未执行完整双角色 E2E、文件落盘、真实模型/RAGFlow、T-G04、业务签认或部署验收，状态仍为 `NOT_VERIFIED` |
