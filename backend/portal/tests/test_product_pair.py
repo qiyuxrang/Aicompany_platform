@@ -5,7 +5,7 @@ from django.test import override_settings
 
 from portal.product_models import DocumentApproval, DocumentArtifact
 from portal.product_pair import pair_snapshot, save_report_content
-from portal.product_service import ProductError, append_revision, approval_authorization
+from portal.product_service import ProductError, append_revision, approval_authorization, digest
 from portal.product_storage import verified_artifact
 from .test_product_api import ProductApiTests
 from .base import PortalTestCase
@@ -22,9 +22,20 @@ class PairDraftTests(PortalTestCase):
         created = self.create_task()
         task = self._task(self.save_blueprint(created))
         input_revision = task.revisions.get(kind="input", version=task.input_version)
-        blueprint_hash = task.revisions.get(kind="blueprint", version=task.blueprint_version).sha256
-        first = save_report_content(task, "technical-solution", {"blocks": [{"id": "same", "text": "技术路线", "source_ids": ["SINPUT"]}], "pending": [{"id": "P1", "text": "同一待确认事项"}]}, input_hash=input_revision.sha256, blueprint_hash=blueprint_hash, actor=self.owner)
-        second = save_report_content(task, "feasibility", {"blocks": [{"id": "same", "text": "条件评估", "source_ids": ["SINPUT"]}], "pending": [{"id": "P2", "text": "同一待确认事项"}]}, input_hash=input_revision.sha256, blueprint_hash=blueprint_hash, actor=self.owner)
+        blueprint = task.revisions.get(kind="blueprint", version=task.blueprint_version)
+        reports = []
+        for version, (family, text, pending_id) in enumerate((("technical-solution", "技术路线", "P1"), ("feasibility", "条件评估", "P2")), 1):
+            chapter = append_revision(task, "chapter", {"chapter_id": "overview", "title": "项目概述", "paragraphs": [text], "source_ids": ["1"]},
+                                      input_hash=input_revision.sha256, blueprint_hash=blueprint.sha256,
+                                      actor=self.owner, family=family, reason="test_lineage")
+            report = save_report_content(task, family, {"blocks": [{"id": "same", "text": text, "source_ids": ["SINPUT"]}], "pending": [{"id": pending_id, "text": "同一待确认事项"}]}, input_hash=input_revision.sha256, blueprint_hash=blueprint.sha256, actor=self.owner)
+            generation_hash = digest({"family": family, "input": input_revision.sha256, "blueprint": blueprint.sha256,
+                                      "chapters": [chapter.sha256], "title": task.title})
+            DocumentArtifact.objects.create(task=task, family=family, version=version, path=f"legacy/{family}.docx",
+                sha256=str(version) * 64, input_hash=input_revision.sha256, blueprint_hash=blueprint.sha256,
+                template_hash="a" * 64, generation_hash=generation_hash, render_evidence={"report_id": str(report.pk)})
+            reports.append(report)
+        first, second = reports
         with self.assertRaises(ProductError) as caught:
             pair_snapshot(task)
         self.assertEqual(caught.exception.code, "report_approval_required")
@@ -59,8 +70,10 @@ class PairDraftTests(PortalTestCase):
             artifact = DocumentArtifact.objects.create(task=task, version=1, family="feasibility", path=path.relative_to(directory).as_posix(), sha256=hashlib.sha256(b"draft").hexdigest(), input_hash=current.sha256, blueprint_hash=report.blueprint_hash, template_hash="a" * 64, render_evidence={"report_id": str(report.pk)})
             url = f"/api/product/outputs/{artifact.pk}/download/"
             self.assertEqual(self.other_client.get(url).status_code, 404)
-            response = self.owner_client.get(url)
+            self.assertEqual(self.owner_client.get(url).status_code, 409)
+            response = self.owner_client.get(url + "?history=1")
             self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["X-Product-Artifact-Current"], "false")
             for closer in response._resource_closers:
                 closer()
             response._resource_closers.clear()

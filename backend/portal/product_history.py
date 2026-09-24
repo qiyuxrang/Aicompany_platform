@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from .product_api import product_endpoint
 from .product_models import DocumentRevision
+from .product_pair import output_current
 from .product_service import approval_current, input_authorized, task_for
 from .security import audit
 
@@ -126,14 +127,9 @@ def task_history(request, task_id):
             "error_code": attempt.error_code,
             "created_at": attempt.start_at.isoformat(),
         })
-    current_input = task.revisions.filter(kind=DocumentRevision.Kind.INPUT, version=task.input_version).first()
-    current_blueprint = task.revisions.filter(kind=DocumentRevision.Kind.BLUEPRINT, version=task.blueprint_version).first()
     for artifact in task.artifacts.order_by("created_at", "pk"):
         access = input_access.get(artifact.input_hash, False)
-        latest = task.artifacts.filter(family=artifact.family).order_by("-version").first()
-        current = bool(access and current_input and current_blueprint and latest and latest.pk == artifact.pk
-                       and artifact.input_hash == current_input.sha256
-                       and artifact.blueprint_hash == current_blueprint.sha256)
+        current = bool(access and output_current(task, artifact))
         timeline.append({
             "event": "artifact",
             "id": str(artifact.pk),

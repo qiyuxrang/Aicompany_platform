@@ -9,11 +9,15 @@ function task(overrides: Partial<DocumentTask> = {}): DocumentTask {
     id: "task-1", title: "真实项目", state: "DRAFT", stage: "INTAKE", version: 2, input_version: 1, blueprint_version: 1,
     input: { project: "已有项目", requirements: "真实需求", background: "已有背景", items: [], conditions: [] },
     blueprint: { id: "blueprint-1", version: 1, sha256: "blueprint-sha", payload: { purpose: "已确认目标", audience: "产品人员", chapters: [], conditions: [], missing: [], conflicts: [], template_version: "v1" } },
-    chapters: [{ id: "revision-1", version: 1, payload: { chapter_id: "chapter-1", title: "建设目标", paragraphs: ["已核实正文"], source_ids: ["source-1"] } }],
-    artifacts: [{ id: "artifact-1", version: 1, sha256: "old-sha" }, { id: "artifact-2", version: 2, sha256: "new-sha", render_evidence: { kind: "candidate", status: "rendered", page_count: 2, pages: [{ page: 1, sha256: "page-1-sha" }, { page: 2, sha256: "page-2-sha" }] } }],
+    chapters: [{ id: "revision-1", family: "technical-solution", version: 1, payload: { chapter_id: "chapter-1", title: "建设目标", paragraphs: ["已核实正文"], source_ids: ["source-1"] } }],
+    artifacts: [{ id: "artifact-1", family: "technical-solution", version: 1, sha256: "old-sha" }, { id: "artifact-2", family: "technical-solution", version: 2, sha256: "new-sha", render_evidence: { kind: "candidate", status: "rendered", page_count: 2, pages: [{ page: 1, sha256: "page-1-sha" }, { page: 2, sha256: "page-2-sha" }] } }],
+    reports: [
+      { id: "report-tech", family: "technical-solution", version: 1, sha256: "report-tech-sha", input_hash: "input-sha", blueprint_hash: "blueprint-sha", current: true, approved: false, created_at: "2026-09-24T01:00:00Z" },
+      { id: "report-feas", family: "feasibility", version: 2, sha256: "report-feas-sha", input_hash: "input-sha", blueprint_hash: "blueprint-sha", current: true, approved: true, created_at: "2026-09-24T02:00:00Z" },
+    ],
     sources: [{ id: "source-1", original_name: "真实背景.txt" }], approvals: [], issues: [], error_code: "", reviewer_id: 2, owner_id: 1,
     input_issues: [], impact: {},
-    actions: ["edit", "add_source", "assign_reviewer", "review_input", "add_statement", "queue_retrieve", "queue_blueprint", "save_blueprint", "review_blueprint", "queue_write", "save_chapter", "queue_render", "queue_candidate", "verify_artifact", "review_artifact", "cancel", "retry"],
+    actions: ["edit", "add_source", "assign_reviewer", "review_input", "add_statement", "queue_retrieve", "queue_blueprint", "save_blueprint", "review_blueprint", "queue_write", "save_chapter", "review_report", "queue_render", "queue_three_drafts", "queue_presentation", "queue_candidate", "verify_artifact", "review_artifact", "cancel", "retry"],
     blockers: {},
     ...overrides,
   };
@@ -31,6 +35,16 @@ beforeEach(() => {
     const custom = override(path, init);
     if (custom) return custom;
     if (path === "/api/csrf/") return response({ csrfToken: "test-csrf" });
+    if (path === "/api/product/tasks/task-1/outputs/") return response({ task_version: current.version, outputs: [
+      { id: "artifact-1", family: "technical-solution", version: 1, sha256: "old-sha", current: false, stale: true, draft: true, approved: false, review_status: "stale", engine: "frozen-word", content_version: 1, content_sha256: "report-tech-old", content_approved: false, source_versions: [] },
+      { id: "artifact-2", family: "technical-solution", version: 2, sha256: "new-sha", current: true, stale: false, draft: true, approved: false, review_status: "pending_review", engine: "frozen-word", content_version: 2, content_sha256: "report-tech-sha", content_approved: false, source_versions: [] },
+      { id: "feasibility-old", family: "feasibility", version: 1, sha256: "feas-old-sha", current: false, stale: true, draft: true, approved: false, review_status: "stale", engine: "frozen-word", content_version: 1, content_sha256: "report-feas-old", content_approved: false, source_versions: [] },
+      { id: "feasibility-current", family: "feasibility", version: 2, sha256: "feas-sha", current: true, stale: false, draft: true, approved: false, review_status: "pending_review", engine: "frozen-word", content_version: 2, content_sha256: "report-feas-sha", content_approved: true, source_versions: [] },
+      { id: "presentation-current", family: "presentation", version: 3, sha256: "ppt-sha", current: true, stale: false, draft: true, approved: false, review_status: "pending_review", engine: "python-pptx-simple-draft", content_version: null, content_sha256: null, content_approved: null, source_versions: [{ family: "technical-solution", version: 2, sha256: "report-tech-sha", approval_id: "approval-1" }, { family: "feasibility", version: 2, sha256: "report-feas-sha", approval_id: "approval-2" }] },
+    ] });
+    if (path === "/api/product/tasks/task-1/history/") return response({ task_id: "task-1", task_version: current.version, history_immutable: true, tamper_claim: "application_read_only_not_forensic_immutability", timeline: [
+      { event: "revision", id: "report-feas", family: "feasibility", kind: "report", version: 2, sha256: "report-feas-sha", parent_sha256: "report-feas-old", reason: "manual_chapter_edit", source_refs: ["source-1"], actor: { type: "editor", id: 1, name: "owner" } },
+    ] });
     if (path === "/api/product/tasks/" && !init.method?.match(/POST/)) return response([current, task({ id: "task-2", title: "第二任务" })]);
     if (path === "/api/product/tasks/task-2/") return response(task({ id: "task-2", title: "第二任务", input: { ...current.input!, project: "第二任务项目" } }));
     return response(current);
@@ -78,7 +92,7 @@ describe("技术方案任务前端交互（mock，不验证模型或 Word 格式
 
     window.history.replaceState({}, "", "/centers/product/documents?task=task-1&artifact=artifact-2");
     render(<DocumentWorkspace />);
-    expect((await screen.findByLabelText("选择审核文档版本") as HTMLSelectElement).value).toBe("artifact-2");
+    expect((await screen.findByLabelText("选择审核技术方案版本") as HTMLSelectElement).value).toBe("artifact-2");
     cleanup();
 
     window.history.replaceState({}, "", "/centers/product/documents?task=task-2&artifact=artifact-1");
@@ -230,12 +244,22 @@ describe("技术方案任务前端交互（mock，不验证模型或 Word 格式
     expect((uploads[2].init.body as FormData).get("expected_version")).toBe("4");
   });
 
-  it("任务对话区显示真实状态和资料，P2 成果保持授权阻断", async () => {
+  it("任务对话区显示三类成果的后端 current、批准与来源状态", async () => {
     await openTask();
     expect(screen.getByRole("region", { name: "对话任务工作区" }).textContent).toContain("当前阶段：需求录入");
     expect(screen.getByRole("complementary", { name: "任务概览" }).textContent).toContain("真实背景.txt");
-    expect(screen.getByText("可行性研究报告").nextSibling?.textContent).toBe("已纳入任务 · P2 授权后生成");
-    expect(screen.getByText("汇报 PPT").nextSibling?.textContent).toBe("已纳入任务 · P2 授权后生成");
+    expect(screen.getAllByText("可行性研究报告")[0].nextSibling?.textContent).toContain("草稿 v2 · 待人工审核");
+    expect(screen.getByText("汇报 PPT").parentElement?.textContent).toContain("技术方案 v2、可行性研究报告 v2");
+    expect(screen.getAllByRole("link", { name: "下载当前草稿" })).toHaveLength(3);
+  });
+
+  it("成果状态刷新失败时清除旧下载链接，不沿用上一次 current", async () => {
+    await openTask();
+    expect(screen.getAllByRole("link", { name: "下载当前草稿" })).toHaveLength(3);
+    override = path => path.endsWith("/outputs/") ? response({ detail: "暂时不可用" }, 503) : undefined;
+    await click("重新加载服务端状态（保留编辑）");
+    expect(await screen.findByText(/成果状态读取失败/)).toBeTruthy();
+    expect(screen.queryAllByRole("link", { name: "下载当前草稿" })).toHaveLength(0);
   });
 
   it("保存 draft 带版本；409 保留编辑并要求显式重载", async () => {
@@ -301,7 +325,7 @@ describe("技术方案任务前端交互（mock，不验证模型或 Word 格式
 
   it("排队、蓝图保存、章节人工修改、取消重试使用版本合同", async () => {
     await openTask();
-    for (const [name, action] of [["发起授权检索（默认未授权，可能被拒）", "retrieve"], ["生成蓝图", "blueprint"], ["生成正文", "write"], ["生成 Word 草稿", "render"], ["生成正式候选并后台 Office 渲染（非发布）", "candidate"]]) {
+    for (const [name, action] of [["发起授权检索（默认未授权，可能被拒）", "retrieve"], ["生成蓝图", "blueprint"], ["生成正文", "write"], ["生成 Word 草稿", "render"], ["生成技术方案与可研 Word 待审核草稿", "three_drafts"], ["从已批准内容生成 PPT 草稿", "presentation"], ["生成正式候选并后台 Office 渲染（非发布）", "candidate"]]) {
       await click(name);
       expect(writes().at(-1)!.path).toBe("/api/product/tasks/task-1/queue/");
       expect(bodyOfLastWrite()).toEqual({ expected_version: 2, action });
@@ -311,11 +335,14 @@ describe("技术方案任务前端交互（mock，不验证模型或 Word 格式
     fill("蓝图 JSON", JSON.stringify(editedBlueprint)); await click("保存蓝图");
     expect(bodyOfLastWrite()).toEqual({ expected_version: 2, payload: editedBlueprint });
     expect(writes().at(-1)!.init.method).toBe("PATCH");
-    await click("编辑 建设目标（版本 1）");
+    await click("编辑 技术方案 · 建设目标（版本 1）");
     const editedChapter = { ...current.chapters[0].payload, paragraphs: ["人工更正正文"] };
-    fill("章节 JSON", JSON.stringify(editedChapter)); await click("保存人工章节");
+    fill("章节 JSON", JSON.stringify(editedChapter)); await click("保存所选成果章节");
     expect(bodyOfLastWrite()).toEqual({ expected_version: 2, ...editedChapter });
     expect(writes().at(-1)!.path).toContain("/chapters/");
+    fill("保存目标成果", "feasibility"); await click("保存所选成果章节");
+    expect(bodyOfLastWrite()).toEqual({ expected_version: 2, family: "feasibility", ...editedChapter });
+    expect(writes().at(-1)!.path).toContain("/report-chapters/");
     await click("取消任务"); expect(writes().at(-1)!.path).toContain("/cancel/");
     await click("重试任务"); expect(writes().at(-1)!.path).toContain("/retry/");
     expect(bodyOfLastWrite()).toEqual({ expected_version: 2 });
@@ -328,15 +355,20 @@ describe("技术方案任务前端交互（mock，不验证模型或 Word 格式
       await click(name);
       expect(bodyOfLastWrite()).toEqual({ expected_version: 2, target: "blueprint", target_id: "blueprint-1", sha256: "blueprint-sha", decision, comment: "人工核对意见" });
     }
-    fill("选择审核文档版本", "artifact-1"); await click("批准所选文档");
+    fill("选择审核技术方案版本", "artifact-1"); await click("批准所选文档");
     expect(bodyOfLastWrite()).toMatchObject({ target: "artifact", target_id: "artifact-1", sha256: "old-sha", decision: "approve" });
     await click("退回所选文档"); expect(bodyOfLastWrite()).toMatchObject({ decision: "revise" });
-    expect(screen.getByRole("link", { name: "下载版本 1" }).getAttribute("href")).toBe("/api/product/artifacts/artifact-1/download/");
-    expect(screen.getByRole("link", { name: "下载版本 2" }).getAttribute("href")).toBe("/api/product/artifacts/artifact-2/download/");
+    await click("批准技术方案内容 v1");
+    expect(bodyOfLastWrite()).toMatchObject({ target: "report", target_id: "report-tech", sha256: "report-tech-sha", decision: "approve" });
+    await click("退回可行性研究报告内容 v2");
+    expect(bodyOfLastWrite()).toMatchObject({ target: "report", target_id: "report-feas", sha256: "report-feas-sha", decision: "revise" });
+    expect(screen.getByRole("link", { name: "下载历史草稿（已过期）技术方案 v1" }).getAttribute("href")).toBe("/api/product/artifacts/artifact-1/download/?history=1");
+    expect(screen.getByRole("link", { name: "下载历史草稿（已过期）可行性研究报告 v1" }).getAttribute("href")).toBe("/api/product/outputs/feasibility-old/download/?history=1");
+    expect(screen.getByRole("list", { name: "版本来源链" }).textContent).toContain("manual_chapter_edit");
   });
 
   it("正式候选必须逐页手动核对后提交核验，且不替代批准", async () => {
-    await openTask(); fill("选择审核文档版本", "artifact-2");
+    await openTask(); fill("选择审核技术方案版本", "artifact-2");
     const verifyButton = screen.getByRole("button", { name: "提交正式候选核验" }) as HTMLButtonElement;
     expect(verifyButton.disabled).toBe(true);
     expect((screen.getByLabelText("第 1 页已人工核对并通过") as HTMLInputElement).checked).toBe(false);
@@ -367,8 +399,8 @@ describe("技术方案任务前端交互（mock，不验证模型或 Word 格式
 
   it("没有后端 actions 不显示可用业务操作", async () => {
     current = task({ actions: [] }); await openTask();
-    fill("选择审核文档版本", "artifact-2");
-    for (const name of ["保存服务端草稿", "指定或改派审核人", "提交补充判断", "发起授权检索（默认未授权，可能被拒）", "生成蓝图", "批准服务端蓝图", "退回蓝图", "生成正文", "生成 Word 草稿", "生成正式候选并后台 Office 渲染（非发布）", "提交正式候选核验", "取消任务", "重试任务"]) {
+    fill("选择审核技术方案版本", "artifact-2");
+    for (const name of ["保存服务端草稿", "指定或改派审核人", "提交补充判断", "发起授权检索（默认未授权，可能被拒）", "生成蓝图", "批准服务端蓝图", "退回蓝图", "生成正文", "生成 Word 草稿", "生成技术方案与可研 Word 待审核草稿", "从已批准内容生成 PPT 草稿", "保存所选成果章节", "批准技术方案内容 v1", "生成正式候选并后台 Office 渲染（非发布）", "提交正式候选核验", "取消任务", "重试任务"]) {
       expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
     }
     expect((screen.getByLabelText("第 1 页已人工核对并通过") as HTMLInputElement).disabled).toBe(true);

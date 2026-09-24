@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import unquote
 from zipfile import ZipFile
 
 from portal.product_models import DocumentArtifact, DocumentTask
@@ -37,6 +38,7 @@ class ThreeDraftFlowTests(PortalTestCase):
         outputs = self.owner_client.get(f"/api/product/tasks/{task_id}/outputs/").json()["outputs"]
         self.assertEqual({item["family"] for item in outputs}, {"technical-solution", "feasibility"})
         self.assertEqual({item["family"] for item in current["reports"]}, {"technical-solution", "feasibility"})
+        self.assertTrue(all(report["current"] for report in current["reports"]))
         self.assertTrue(all(not report["approved"] for report in current["reports"]))
         blocked = self.owner_client.post(f"/api/product/tasks/{task_id}/queue/",
             json_body(expected_version=current["version"], action="presentation"), content_type="application/json")
@@ -76,10 +78,47 @@ class ThreeDraftFlowTests(PortalTestCase):
         self.assertEqual(self.other_client.get(f"/api/product/tasks/{task_id}/outputs/").status_code, 404)
         current_record = DocumentTask.objects.get(pk=task_id)
         from portal.product_service import append_revision
+        technical_chapter = current_record.revisions.filter(kind="chapter", family="technical-solution").order_by("-version").first()
+        append_revision(current_record, "chapter", {**technical_chapter.payload, "paragraphs": ["技术方案章节已修改。"]},
+                        input_hash=technical_chapter.input_hash, blueprint_hash=technical_chapter.blueprint_hash,
+                        actor=self.owner, family="technical-solution", reason="test_stale_chapter")
+        chapter_outputs = {item["family"]: item for item in self.owner_client.get(f"/api/product/tasks/{task_id}/outputs/").json()["outputs"]}
+        self.assertFalse(chapter_outputs["technical-solution"]["current"])
+        self.assertTrue(chapter_outputs["technical-solution"]["stale"])
+        self.assertTrue(chapter_outputs["feasibility"]["current"])
+        self.assertFalse(chapter_outputs["presentation"]["current"])
+        technical_artifact = DocumentArtifact.objects.filter(task_id=task_id, family="technical-solution").order_by("-version").first()
+        technical_url = f"/api/product/artifacts/{technical_artifact.pk}/download/"
+        self.assertEqual(self.owner_client.get(technical_url).status_code, 409)
+        technical_history = self.owner_client.get(technical_url + "?history=1")
+        self.assertEqual(technical_history["X-Product-Artifact-Current"], "false")
+        b"".join(technical_history.streaming_content)
+        for closer in technical_history._resource_closers:
+            closer()
+        technical_history._resource_closers.clear()
+        chapter_reports = {item["family"]: item for item in self.owner_client.get(f"/api/product/tasks/{task_id}/").json()["reports"]}
+        self.assertFalse(chapter_reports["technical-solution"]["current"])
+        self.assertTrue(chapter_reports["feasibility"]["current"])
         input_revision = current_record.revisions.get(kind="input", version=current_record.input_version)
         later = append_revision(current_record, "input", {**input_revision.payload, "requirements": "来源已更改"},
                                 actor=self.owner, reason="test_stale_input")
         current_record.input_version = later.version
         current_record.save(update_fields=["input_version"])
+        stale_task = self.owner_client.get(f"/api/product/tasks/{task_id}/").json()
+        self.assertTrue(all(not report["current"] for report in stale_task["reports"]))
+        history_timeline = self.owner_client.get(f"/api/product/tasks/{task_id}/history/").json()["timeline"]
+        ppt_history = next(item for item in history_timeline if item["event"] == "artifact" and item["id"] == str(ppt.pk))
+        self.assertFalse(ppt_history["current"])
+        self.assertTrue(ppt_history["stale"])
         self.assertEqual(self.owner_client.get(f"/api/product/outputs/{ppt.pk}/download/").status_code, 409)
+        self.assertEqual(self.owner_client.get(f"/api/product/outputs/{ppt.pk}/download/?history=yes").status_code, 409)
+        self.assertEqual(self.other_client.get(f"/api/product/outputs/{ppt.pk}/download/?history=1").status_code, 404)
+        history = self.owner_client.get(f"/api/product/outputs/{ppt.pk}/download/?history=1")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history["X-Product-Artifact-Current"], "false")
+        self.assertIn("历史草稿-已过期", unquote(history["Content-Disposition"]))
+        b"".join(history.streaming_content)
+        for closer in history._resource_closers:
+            closer()
+        history._resource_closers.clear()
         self.assertTrue((Path(self.storage.name) / ppt.path).is_file())

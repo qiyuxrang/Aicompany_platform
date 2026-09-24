@@ -113,7 +113,12 @@ class ProductReleaseFlowTests(PortalTestCase):
         artifact.refresh_from_db()
         self.assertEqual(artifact.render_evidence["document_title"], original_title)
         response = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
-        self.assertEqual(b"".join(response.streaming_content), self.draft_content)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=yes").status_code, 409)
+        history = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=1")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history["X-Product-Artifact-Current"], "false")
+        self.assertEqual(b"".join(history.streaming_content), self.draft_content)
 
     def approve(self, task, artifact):
         task.refresh_from_db()
@@ -133,7 +138,10 @@ class ProductReleaseFlowTests(PortalTestCase):
         self.assertEqual(b"".join(response.streaming_content), self.final_content)
         with override_settings(PRODUCT_REVIEWER_IDS=()):
             response = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
-            self.assertEqual(b"".join(response.streaming_content), self.draft_content)
+            self.assertEqual(response.status_code, 409)
+            history = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=1")
+            self.assertEqual(history["X-Product-Artifact-Current"], "false")
+            self.assertEqual(b"".join(history.streaming_content), self.draft_content)
 
     def test_missing_pages_failed_check_or_mutated_evidence_cannot_approve(self):
         task, artifact = self.rendered_task()

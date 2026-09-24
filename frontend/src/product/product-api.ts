@@ -18,6 +18,8 @@ export interface BlueprintPayload {
   template_version: string;
 }
 export interface ChapterPayload { chapter_id: string; title: string; paragraphs: string[]; source_ids: string[] }
+export type OutputFamily = "technical-solution" | "feasibility" | "presentation";
+export interface DraftOutput { id: string; family: OutputFamily; version: number; sha256: string; current: boolean; stale: boolean; draft: boolean; approved: boolean; review_status: "stale" | "approved" | "pending_review"; engine: string; content_version: number | null; content_sha256: string | null; content_approved: boolean | null; source_versions: { family: string; version: number; sha256: string; approval_id?: string }[] }
 export type ReviewCategory = "fact" | "inference" | "conflict" | "missing";
 export interface InputIssue { issue_hash: string; [key: string]: unknown }
 export interface RenderEvidence {
@@ -26,7 +28,10 @@ export interface RenderEvidence {
   page_count: number;
   pages: { page: number; sha256: string }[];
 }
-export interface Artifact { id: string; version: number; sha256: string; render_evidence?: RenderEvidence }
+export interface Artifact { id: string; family?: OutputFamily; version: number; sha256: string; approved?: boolean; draft?: boolean; render_evidence?: RenderEvidence }
+export interface ReportRevision { id: string; family: Exclude<OutputFamily, "presentation">; version: number; sha256: string; input_hash: string; blueprint_hash: string; current: boolean; approved: boolean; created_at: string }
+export interface HistoryEvent { event: string; id: string; family?: OutputFamily; kind?: string; version?: number; sha256?: string; parent_sha256?: string; reason?: string; source_refs?: string[]; actor?: { type: string; id: string | number | null; name: string } }
+export interface TaskHistory { task_id: string; task_version: number; history_immutable: boolean; tamper_claim: string; timeline: HistoryEvent[] }
 export interface ContentChecks {
   facts: boolean;
   quantities: boolean;
@@ -48,7 +53,8 @@ export interface DocumentTask extends TaskSummary {
   blueprint_version: number;
   input: TaskInput | null;
   blueprint: (Artifact & { payload: BlueprintPayload }) | null;
-  chapters: { id: string; version?: number; payload: ChapterPayload }[];
+  chapters: { id: string; family: Exclude<OutputFamily, "presentation">; version?: number; payload: ChapterPayload }[];
+  reports: ReportRevision[];
   artifacts: Artifact[];
   sources: { id: string; original_name: string }[];
   approvals: unknown[];
@@ -93,6 +99,11 @@ export const updateTask = (id: string, endpoint: string, body: object, signal: A
   method: endpoint === "" || endpoint === "blueprint/" ? "PATCH" : "POST", body: JSON.stringify(body), signal,
 });
 export const artifactDownload = (id: string) => `/api/product/artifacts/${encodeURIComponent(id)}/download/`;
+export const artifactHistoryDownload = (id: string) => `${artifactDownload(id)}?history=1`;
+export const draftDownload = (id: string) => `/api/product/outputs/${encodeURIComponent(id)}/download/`;
+export const draftHistoryDownload = (id: string) => `${draftDownload(id)}?history=1`;
+export const getDraftOutputs = (id: string, signal: AbortSignal) => apiRequest<{ task_version: number; outputs: DraftOutput[] }>(`${pathFor(id)}outputs/`, { signal });
+export const getTaskHistory = (id: string, signal: AbortSignal) => apiRequest<TaskHistory>(`${pathFor(id)}history/`, { signal });
 export const artifactPreview = (id: string, page: number) => `/api/product/artifacts/${encodeURIComponent(id)}/preview/?page=${encodeURIComponent(String(page))}`;
 export const verifyArtifact = (id: string, body: ArtifactVerification, signal: AbortSignal) => apiRequest<unknown>(`/api/product/artifacts/${encodeURIComponent(id)}/verification/`, {
   method: "POST", body: JSON.stringify(body), signal,

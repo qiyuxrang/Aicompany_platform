@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../api";
 import { Field } from "../centers/shared";
-import { artifactDownload, artifactPreview, continueConversation, createConversationTask, getTask, listTasks, updateTask, uploadSource, verifyArtifact } from "./product-api";
-import type { BlueprintPayload, ChapterPayload, ContentChecks, DocumentTask, ReviewCategory, TaskInput, TaskSummary } from "./product-api";
+import { artifactDownload, artifactHistoryDownload, artifactPreview, continueConversation, createConversationTask, draftDownload, draftHistoryDownload, getDraftOutputs, getTask, getTaskHistory, listTasks, updateTask, uploadSource, verifyArtifact } from "./product-api";
+import type { BlueprintPayload, ChapterPayload, ContentChecks, DocumentTask, DraftOutput, OutputFamily, ReportRevision, ReviewCategory, TaskHistory, TaskInput, TaskSummary } from "./product-api";
 import "./product-workspace.css";
 
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
@@ -38,6 +38,8 @@ const labels: Record<string, string> = {
   content_check: "内容检查", final_review: "最终审核", blueprint: "蓝图", write: "正文", render: "Word 草稿",
   input: "需求录入", blueprint_review: "蓝图待审核", artifact_review: "文档待审核",
 };
+const outputLabels = { "technical-solution": "技术方案", feasibility: "可行性研究报告", presentation: "汇报 PPT" } as const;
+const outputReviewLabels = { stale: "已过期", approved: "已批准", pending_review: "待人工审核" } as const;
 const status = (value: string) => labels[value.toLowerCase()] || `待确认状态（${value || "未提供"}）`;
 const active = (task: TaskSummary) => ["queued", "running"].includes(task.state.toLowerCase());
 function errorMessage(error: unknown) {
@@ -182,10 +184,15 @@ function TaskWorkspace() {
 
 function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string; requestedArtifact: string; deepLinked: boolean; onFatal: (message: string) => void }) {
   const [task, setTask] = useState<DocumentTask | null>(null);
+  const [outputs, setOutputs] = useState<DraftOutput[]>([]);
+  const [outputsError, setOutputsError] = useState("");
+  const [history, setHistory] = useState<TaskHistory | null>(null);
+  const [historyError, setHistoryError] = useState("");
   const [title, setTitle] = useState("");
   const [input, setInput] = useState("");
   const [blueprint, setBlueprint] = useState("");
   const [chapter, setChapter] = useState(pretty(emptyChapter));
+  const [chapterFamily, setChapterFamily] = useState<Exclude<OutputFamily, "presentation">>("technical-solution");
   const [comment, setComment] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [artifactId, setArtifactId] = useState("");
@@ -210,12 +217,23 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
   const mounted = useRef(false);
   const mutation = useRef<AbortController | null>(null);
   const reading = useRef<AbortController | null>(null);
+  const related = useRef<AbortController | null>(null);
   function receive(result: DocumentTask) {
     if (requestedArtifact && !result.artifacts.some(item => String(item.id) === requestedArtifact)) {
       setTask(null); onFatal("指定成果不存在、无权访问或不属于当前产品任务。");
       return;
     }
     setTask(result);
+    related.current?.abort();
+    setOutputs([]); setHistory(null); setOutputsError(""); setHistoryError("");
+    const controller = new AbortController();
+    related.current = controller;
+    void getDraftOutputs(id, controller.signal).then(data => {
+      if (!controller.signal.aborted && data.task_version === result.version) setOutputs(Array.isArray(data.outputs) ? data.outputs : []);
+    }).catch(reason => { if (!controller.signal.aborted) { setOutputs([]); setOutputsError(errorMessage(reason)); } });
+    void getTaskHistory(id, controller.signal).then(data => {
+      if (!controller.signal.aborted && data.task_version === result.version) setHistory(data);
+    }).catch(reason => { if (!controller.signal.aborted) { setHistory(null); setHistoryError(errorMessage(reason)); } });
     if (!initial.current) {
       initial.current = true;
       setTitle(result.title); setInput(pretty(editableInput(result.input || emptyInput()))); setBlueprint(pretty(result.blueprint?.payload || emptyBlueprint));
@@ -229,7 +247,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
   }
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; reading.current?.abort(); mutation.current?.abort(); };
+    return () => { mounted.current = false; reading.current?.abort(); related.current?.abort(); mutation.current?.abort(); };
   }, []);
   useEffect(() => {
     const controller = new AbortController();
@@ -246,7 +264,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     const controller = new AbortController();
     reading.current = controller;
     const timer = window.setTimeout(() => {
-      void getTask(id, controller.signal).then(result => { if (!controller.signal.aborted) setTask(result); })
+      void getTask(id, controller.signal).then(result => { if (!controller.signal.aborted) receive(result); })
         .catch(reason => { if (!controller.signal.aborted) setError(errorMessage(reason)); })
         .finally(() => { if (!controller.signal.aborted) setPollRound(value => value + 1); });
     }, 3000);
@@ -275,9 +293,9 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
   const allows = (action: string) => Array.isArray(task.actions) ? task.actions.includes(action) : task.actions?.[action] === true;
   const disabled = (action: string) => busy || conflict || !allows(action) || Boolean(task.blockers?.[action]);
   const send = (endpoint: string, body: object) => perform(signal => updateTask(id, endpoint, { expected_version: task.version, ...body }, signal));
-  const saveJson = (endpoint: string, text: string, kind: "input" | "payload" | "chapter") => perform(signal => {
+  const saveJson = (endpoint: string, text: string, kind: "input" | "payload" | "chapter", extra: object = {}) => perform(signal => {
     const parsed = jsonObject<object>(text);
-    return updateTask(id, endpoint, { ...(kind === "chapter" ? parsed : { [kind]: parsed }), expected_version: task.version, ...(kind === "input" ? { title } : {}) }, signal);
+    return updateTask(id, endpoint, { ...(kind === "chapter" ? parsed : { [kind]: parsed }), ...extra, expected_version: task.version, ...(kind === "input" ? { title } : {}) }, signal);
   });
   const inputIssues = task.input_issues || [];
   const reviewSources = Array.from(new Map([
@@ -285,7 +303,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     ...(task.input?.items || []).filter(item => String(item.row_id)).map(item => ({ id: String(item.row_id), original_name: `清单行 ${item.row_id}：${item.name}` })),
     ...(task.input?.knowledge_sources || []).map(source => ({ id: source.id, original_name: `知识来源：${source.location}` })),
   ].map(source => [source.id, source])).values());
-  const taskArtifacts = task.artifacts;
+  const reviewArtifacts = task.artifacts.filter(item => !item.family || item.family === "technical-solution");
   const taskVersion = task.version;
   const artifact = task.artifacts.find(item => String(item.id) === artifactId);
   const evidence = artifact?.render_evidence?.kind === "candidate" ? artifact.render_evidence : undefined;
@@ -309,7 +327,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     });
   }
   function selectArtifact(nextId: string) {
-    const next = taskArtifacts.find(item => item.id === nextId);
+    const next = reviewArtifacts.find(item => item.id === nextId);
     setArtifactId(nextId);
     setVerification({ artifactId: nextId, sha256: next?.sha256 || "", pages: {}, content_checks: emptyContentChecks() });
   }
@@ -349,8 +367,8 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
       if (!controller.signal.aborted && mounted.current) setConversationError(errorMessage(reason));
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
   }
-  function decision(target: "blueprint" | "artifact", choice: "approve" | "revise") {
-    const revision = target === "blueprint" ? task?.blueprint : artifact;
+  function decision(target: "blueprint" | "report" | "artifact", choice: "approve" | "revise", record?: ReportRevision) {
+    const revision = target === "blueprint" ? task?.blueprint : target === "report" ? record : artifact;
     if (revision) void send("decisions/", { target, target_id: revision.id, sha256: revision.sha256, decision: choice, comment });
   }
   const progress = task.artifacts.length ? 4 : task.blueprint ? 3 : task.sources.length ? 2 : 1;
@@ -373,7 +391,16 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     <aside className="product-task-aside" aria-label="任务概览">
       <section><h3>共享项目底稿 <span>{task.sources.length}</span></h3>{task.sources.length ? <><ul>{task.sources.map(source => <li key={source.id}>{source.original_name}</li>)}</ul><p>以上资料由三个成果共同复用。</p></> : <p>尚未添加附件；路径资料由后端校验后形成快照。</p>}</section>
       <section><h3>流水线进度</h3><ol className="product-progress">{["资料接收", "事实与边界", "成果编制", "统一审校"].map((label, index) => <li className={index < progress ? "done" : ""} key={label}>{label}</li>)}</ol></section>
-      <section><h3>项目成果</h3><article className="product-output-card ready"><strong>技术方案</strong><span>{task.artifacts.length ? `已有 ${task.artifacts.length} 个版本` : "等待统一底稿后推进"}</span></article><article className="product-output-card locked"><strong>可行性研究报告</strong><span>已纳入任务 · P2 授权后生成</span></article><article className="product-output-card locked"><strong>汇报 PPT</strong><span>已纳入任务 · P2 授权后生成</span></article></section>
+      <section><h3>项目成果</h3>{outputsError && <p role="alert">成果状态读取失败：{outputsError}</p>}{(["technical-solution", "feasibility", "presentation"] as const).map(family => {
+        const latest = outputs.filter(item => item.family === family).at(-1);
+        return <article className={`product-output-card ${latest?.current ? "ready" : "locked"}`} key={family}>
+          <strong>{outputLabels[family]}</strong>
+          <span>{latest ? `${latest.draft ? "草稿" : "成果"} v${latest.version} · ${outputReviewLabels[latest.review_status]} · ${latest.sha256.slice(0, 12)}` : "尚未生成"}</span>
+          {latest?.current && <a href={family === "technical-solution" ? artifactDownload(latest.id) : draftDownload(latest.id)}>下载当前草稿</a>}
+          {latest?.content_version != null && <small>内容 v{latest.content_version} · {latest.content_approved ? "已批准" : "未批准"}</small>}
+          {latest?.source_versions.length ? <small>来源：{latest.source_versions.map(source => `${outputLabels[source.family as keyof typeof outputLabels] || source.family} v${source.version}`).join("、")}</small> : null}
+        </article>;
+      })}</section>
     </aside>
   </section>
   <details className="center-panel product-advanced-workbench">
@@ -437,15 +464,32 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     <button disabled={disabled("review_blueprint") || !task.blueprint} onClick={() => decision("blueprint", "revise")}>退回蓝图</button>
     <h3>正文与人工章节</h3>
     <button disabled={disabled("queue_write")} onClick={() => void send("queue/", { action: "write" })}>生成正文</button>
-    <ul aria-label="章节修订">{task.chapters.map(revision => <li key={revision.id}><button disabled={busy} onClick={() => setChapter(pretty(revision.payload))}>编辑 {revision.payload.title || revision.id}（版本 {revision.version ?? "未提供"}）</button></li>)}</ul>
+    <ul aria-label="章节修订">{task.chapters.map(revision => <li key={revision.id}><button disabled={busy} onClick={() => { setChapterFamily(revision.family); setChapter(pretty(revision.payload)); }}>编辑 {outputLabels[revision.family]} · {revision.payload.title || revision.id}（版本 {revision.version ?? "未提供"}）</button></li>)}</ul>
     <Field id="chapter-json" label="章节 JSON" hint="chapter_id 对应章节标识；title 标题；paragraphs 正文字符串数组；source_ids 引用资料 ID 数组。手动选择章节才载入，自动刷新不覆盖。"><textarea id="chapter-json" rows={10} value={chapter} onChange={event => setChapter(event.target.value)} /></Field>
-    <button disabled={disabled("save_chapter")} onClick={() => void saveJson("chapters/", chapter, "chapter")}>保存人工章节</button>
-    <h3>Word 草稿与历史版本</h3>
+    <label htmlFor="chapter-family">保存目标成果</label><select id="chapter-family" value={chapterFamily} onChange={event => setChapterFamily(event.target.value as Exclude<OutputFamily, "presentation">)}><option value="technical-solution">技术方案</option><option value="feasibility">可行性研究报告</option></select>
+    <button disabled={disabled("save_chapter")} onClick={() => void saveJson(chapterFamily === "technical-solution" ? "chapters/" : "report-chapters/", chapter, "chapter", chapterFamily === "feasibility" ? { family: "feasibility" } : {})}>保存所选成果章节</button>
+    <h3>结构化内容审核</h3>
+    <p>技术方案与可研内容分别审核；按钮是否可用完全由后端 review_report 决定。</p>
+    <ul aria-label="结构化内容版本">{(task.reports || []).map(report => <li key={report.id}>
+      {outputLabels[report.family]}内容 v{report.version} · {report.current ? "当前" : "已过期"} · SHA256：{report.sha256} · {report.approved ? "已批准" : "待审核"}
+      <button disabled={!report.current || disabled("review_report")} onClick={() => decision("report", "approve", report)}>批准{outputLabels[report.family]}内容 v{report.version}</button>
+      <button disabled={!report.current || disabled("review_report")} onClick={() => decision("report", "revise", report)}>退回{outputLabels[report.family]}内容 v{report.version}</button>
+    </li>)}</ul>
+    <h3>Word / PPT 草稿与历史版本</h3>
     <button disabled={disabled("queue_render")} onClick={() => void send("queue/", { action: "render" })}>生成 Word 草稿</button>
+    <button disabled={disabled("queue_three_drafts")} onClick={() => void send("queue/", { action: "three_drafts" })}>生成技术方案与可研 Word 待审核草稿</button>
+    <button disabled={disabled("queue_presentation")} onClick={() => void send("queue/", { action: "presentation" })}>从已批准内容生成 PPT 草稿</button>
     <button disabled={disabled("queue_candidate")} onClick={() => void send("queue/", { action: "candidate" })}>生成正式候选并后台 Office 渲染（非发布）</button>
     <p>检索与正式候选默认可能因未授权被拒；候选生成或渲染成功也不表示已经批准或发布。</p>
-    <ul aria-label="文档历史版本">{task.artifacts.map(item => <li key={item.id}>版本 {item.version} · SHA256：{item.sha256} · 渲染证据：{item.render_evidence?.status || "未提供"} <a href={artifactDownload(item.id)} download>下载版本 {item.version}</a></li>)}</ul>
-    <label htmlFor="artifact-review">选择审核文档版本</label><select id="artifact-review" value={artifactId} onChange={event => selectArtifact(event.target.value)}><option value="">请选择版本</option>{task.artifacts.map(item => <option key={item.id} value={item.id}>版本 {item.version}</option>)}</select>
+    {historyError && <p role="alert">版本链读取失败：{historyError}</p>}
+    <ul aria-label="成果历史版本">{outputs.map(item => <li key={item.id}>
+      {outputLabels[item.family]} v{item.version} · {item.current ? "当前" : "已过期"} · SHA256：{item.sha256}
+      <a href={item.family === "technical-solution" ? item.current ? artifactDownload(item.id) : artifactHistoryDownload(item.id) : item.current ? draftDownload(item.id) : draftHistoryDownload(item.id)} download>
+        下载{item.current ? "当前" : "历史草稿（已过期）"}{outputLabels[item.family]} v{item.version}
+      </a>
+    </li>)}</ul>
+    <details><summary>查看版本与来源链</summary><p>服务端记录为应用级只读历史，不宣称法证级不可篡改。</p><ul aria-label="版本来源链">{(history?.timeline || []).filter(item => item.event === "revision").map(item => <li key={item.id}>{item.family ? `${outputLabels[item.family] || item.family} · ` : ""}{item.kind} v{item.version} · SHA256：{item.sha256} · 原因：{item.reason || "未提供"} · 操作者：{item.actor?.name || "未提供"} · 来源：{item.source_refs?.join("、") || "无"}</li>)}</ul></details>
+    <label htmlFor="artifact-review">选择审核技术方案版本</label><select id="artifact-review" value={artifactId} onChange={event => selectArtifact(event.target.value)}><option value="">请选择版本</option>{reviewArtifacts.map(item => <option key={item.id} value={item.id}>版本 {item.version}</option>)}</select>
     {artifact && <>
       <h3>正式候选逐页核验</h3>
       {!evidence ? <p>所选版本没有公开的正式候选渲染证据，不能提交核验。</p> : <>

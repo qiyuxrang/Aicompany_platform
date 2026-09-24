@@ -25,7 +25,7 @@ from .product_service import (ProductError, append_revision, approved_blueprint,
                               validate_chapter, validate_input)
 from .product_storage import StorageError, remove_relative, verified_artifact
 from .product_release import CONTENT_CHECKS, candidate_current, evidence_file, public_evidence
-from .product_pair import effective_report_approval, latest_report_content, pair_snapshot
+from .product_pair import effective_report_approval, latest_report_content, output_current, pair_snapshot, report_current
 from .security import audit
 from .models import User
 
@@ -258,12 +258,13 @@ def _task_detail(task, user):
     blueprint = _blueprint_revision(task)
     chapters = [{
         "id": str(record.pk), "version": record.version, "sha256": record.sha256,
-        "payload": record.payload, "input_hash": record.input_hash,
+        "family": record.family, "payload": record.payload, "input_hash": record.input_hash,
         "blueprint_hash": record.blueprint_hash, "created_at": record.created_at.isoformat(),
     } for record in task.revisions.filter(kind=DocumentRevision.Kind.CHAPTER).order_by("version") if input_access.get(record.input_hash, False)]
     reports = [{
         "id": str(record.pk), "family": record.family, "version": record.version, "sha256": record.sha256,
         "input_hash": record.input_hash, "blueprint_hash": record.blueprint_hash,
+        "current": report_current(task, record),
         "approved": effective_report_approval(record) is not None, "created_at": record.created_at.isoformat(),
     } for record in task.revisions.filter(kind=DocumentRevision.Kind.REPORT).order_by("family", "version")
         if input_access.get(record.input_hash, False)]
@@ -736,7 +737,9 @@ def _decision_target(task, target, target_id):
         if target == "report":
             record = task.revisions.get(pk=target_id, kind=DocumentRevision.Kind.REPORT)
             current = latest_report_content(task, record.family)
-            if current is None or current.pk != record.pk or record.input_hash != _input_revision(task).sha256:
+            blueprint = _blueprint_revision(task)
+            if (current is None or current.pk != record.pk or record.input_hash != _input_revision(task).sha256
+                    or blueprint is None or record.blueprint_hash != blueprint.sha256):
                 raise DocumentRevision.DoesNotExist
             return record
         if target == "artifact":
@@ -934,6 +937,10 @@ def download(request, artifact_id):
     task = task_for(request.user, artifact.task_id)
     if not input_authorized(task, task.revisions.filter(kind="input", sha256=artifact.input_hash).first()):
         raise ProductError("source_permission_changed", "资料授权已变化，成果不可下载。", 404)
+    current = output_current(task, artifact)
+    history = request.query_params.get("history") == "1"
+    if not current and not history:
+        raise ProductError("stale_output", "此成果已过期；如需追溯，请显式下载历史版本。", 409)
     approved = effective_artifact_approval(artifact) is not None
     try:
         if artifact.render_evidence.get("kind") == "candidate" and not approved:
@@ -944,10 +951,16 @@ def download(request, artifact_id):
         raise ProductError(error.code, error.detail, 409) from error
     document_title = artifact.render_evidence.get("document_title", task.title)
     safe_title = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", document_title).strip(" .") or "技术方案"
-    filename = f"{'' if approved else '草稿-'}{safe_title}-v{artifact.version}{target.suffix or '.docx'}"
+    prefix = "" if approved else "草稿-"
+    if not current:
+        prefix = "历史草稿-已过期-"
+    filename = f"{prefix}{safe_title}-v{artifact.version}{target.suffix or '.docx'}"
     stream = target.open("rb")
     response = FileResponse(stream, as_attachment=True, filename=filename)
-    _audit(request, "product_artifact_download", task, target=artifact.pk)
+    response["X-Product-Artifact-Current"] = "true" if current else "false"
+    response["Cache-Control"] = "no-store"
+    _audit(request, "product_artifact_download", task, target=artifact.pk,
+           changes=["current" if current else "history", artifact.family, artifact.sha256])
     return response
 
 

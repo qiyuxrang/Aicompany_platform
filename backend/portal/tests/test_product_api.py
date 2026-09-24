@@ -629,7 +629,7 @@ class ProductApiTests(PortalTestCase):
             blueprint_hash="b" * 64, input_hash=record.revisions.get(kind="input", version=record.input_version).sha256, template_hash="t" * 64,
         )
         denied = self.other_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
-        traversal = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
+        traversal = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=1")
 
         self.assertEqual(denied.status_code, 404)
         self.assertEqual(traversal.status_code, 409)
@@ -667,7 +667,8 @@ class ProductApiTests(PortalTestCase):
             ),
             content_type="application/json",
         )
-        download = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
+        self.assertEqual(self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/").status_code, 409)
+        download = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=1")
 
         self.assertEqual(blocked.status_code, 409)
         self.assertEqual(blocked.json()["code"], "formal_release_blocked")
@@ -729,7 +730,7 @@ class ProductApiTests(PortalTestCase):
         with override_settings(PRODUCT_FORMAL_RELEASE_ENABLED=True, PRODUCT_REVIEWER_IDS=()):
             revoked = self.owner_client.get(f"/api/product/tasks/{task['id']}/")
             self.assertFalse(revoked.json()["artifacts"][0]["approved"])
-            draft_download = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
+            draft_download = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=1")
             self.assertIn("%E8%8D%89%E7%A8%BF", draft_download.headers["Content-Disposition"])
             self.assertEqual(b"".join(draft_download.streaming_content), content)
 

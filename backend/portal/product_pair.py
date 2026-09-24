@@ -1,8 +1,8 @@
 """Persisted report content and its exact two-family provenance."""
 
 from .product_models import DocumentApproval, DocumentRevision
-from .product_service import (ProductError, append_revision, approval_current,
-                              current_revision, digest, reviewer_allowed)
+from .product_service import (ProductError, append_revision, approval_current, approved_blueprint,
+                              current_revision, digest, input_authorized, reviewer_allowed)
 
 FAMILIES = ("technical-solution", "feasibility")
 
@@ -37,6 +37,61 @@ def latest_report_content(task, family):
     return task.revisions.filter(kind=DocumentRevision.Kind.REPORT, family=family).order_by("-version").first()
 
 
+def _chapter_hashes(task, family, current_input, blueprint):
+    found = {}
+    for revision in task.revisions.filter(kind=DocumentRevision.Kind.CHAPTER, family=family,
+                                          input_hash=current_input.sha256, blueprint_hash=blueprint.sha256).order_by("version"):
+        found[revision.payload.get("chapter_id")] = revision.sha256
+    required = [chapter["id"] for chapter in blueprint.payload["chapters"]]
+    return {chapter_id: found[chapter_id] for chapter_id in required} if set(found) == set(required) else None
+
+
+def _report_generation_hash(task, family, current_input, blueprint):
+    chapters = _chapter_hashes(task, family, current_input, blueprint)
+    if chapters is None:
+        return None
+    return digest({"family": family, "input": current_input.sha256, "blueprint": blueprint.sha256,
+                   "chapters": list(chapters.values()), "title": task.title})
+
+
+def report_current(task, report):
+    current_input = current_revision(task, DocumentRevision.Kind.INPUT)
+    blueprint = current_revision(task, DocumentRevision.Kind.BLUEPRINT)
+    latest = latest_report_content(task, report.family)
+    if (not current_input or not blueprint or not input_authorized(task, current_input) or not latest or latest.pk != report.pk
+            or report.input_hash != current_input.sha256 or report.blueprint_hash != blueprint.sha256):
+        return False
+    artifact = next((item for item in task.artifacts.filter(family=report.family)
+                     if item.render_evidence.get("report_id") == str(report.pk)), None)
+    if artifact is None:
+        return False
+    expected = _report_generation_hash(task, report.family, current_input, blueprint)
+    return bool(expected and artifact and artifact.generation_hash == expected)
+
+
+def output_current(task, artifact):
+    current_input = current_revision(task, DocumentRevision.Kind.INPUT)
+    blueprint = approved_blueprint(task)
+    latest = task.artifacts.filter(family=artifact.family).order_by("-version").first()
+    if (not current_input or not blueprint or not input_authorized(task, current_input) or not latest or latest.pk != artifact.pk
+            or artifact.input_hash != current_input.sha256 or artifact.blueprint_hash != blueprint.sha256):
+        return False
+    if not artifact.generation_hash:
+        return False
+    if artifact.family == "presentation":
+        try:
+            return artifact.render_evidence.get("pair_hash") == pair_snapshot(task)["sha256"]
+        except ProductError:
+            return False
+    report_id = artifact.render_evidence.get("report_id")
+    if report_id:
+        report = task.revisions.filter(pk=report_id, kind=DocumentRevision.Kind.REPORT).first()
+        return bool(report and report_current(task, report))
+    chapters = _chapter_hashes(task, artifact.family, current_input, blueprint)
+    return bool(chapters and artifact.review and artifact.review.payload.get("chapter_hashes") == chapters
+                and artifact.render_evidence.get("document_title", task.title) == task.title)
+
+
 def effective_report_approval(report):
     task = report.task
     if not task.reviewer_id or task.owner_id == task.reviewer_id:
@@ -55,7 +110,8 @@ def pair_snapshot(task):
     if current_input is None or blueprint is None or current_input.version != task.input_version or blueprint.version != task.blueprint_version:
         raise ProductError("stale_pair", "项目输入或蓝图已变化。", 409)
     reports = [latest_report_content(task, family) for family in FAMILIES]
-    if any(report is None or report.input_hash != current_input.sha256 or report.blueprint_hash != blueprint.sha256 for report in reports):
+    if any(report is None or report.input_hash != current_input.sha256 or report.blueprint_hash != blueprint.sha256
+           or not report_current(task, report) for report in reports):
         raise ProductError("stale_pair", "两份报告尚未生成或来源已变化。", 409)
     approvals = [effective_report_approval(report) for report in reports]
     if any(record is None for record in approvals):

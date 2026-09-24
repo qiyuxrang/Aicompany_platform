@@ -1,0 +1,20 @@
+Creating test database for alias 'default'...
+
+........................................E.................................................s...................
+======================================================================
+ERROR: test_full_isolated_approval_download_and_revocation (portal.tests.test_product_release_flow.ProductReleaseFlowTests.test_full_isolated_approval_download_and_revocation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\BJRunner\Desktop\ai������ƽ̨\backend\portal\tests\test_product_release_flow.py", line 141, in test_full_isolated_approval_download_and_revocation
+    self.assertEqual(b"".join(response.streaming_content), self.draft_content)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Response' object has no attribute 'streaming_content'
+
+----------------------------------------------------------------------
+Ran 110 tests in 141.191s
+
+FAILED (errors=1, skipped=1)
+Destroying test database for alias 'default'...
+
+Found 110 test(s).
+System check identified no issues (0 silenced).

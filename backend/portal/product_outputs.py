@@ -10,29 +10,11 @@ from rest_framework.response import Response
 
 from .product_api import product_endpoint, _body, _expected, _task_detail
 from .product_models import DocumentArtifact, DocumentRevision
-from .product_pair import FAMILIES, effective_report_approval, latest_report_content, pair_snapshot
-from .product_service import (ProductError, approved_blueprint, current_revision, input_authorized,
+from .product_pair import FAMILIES, effective_report_approval, latest_report_content, output_current
+from .product_service import (ProductError, approved_blueprint, current_revision, effective_artifact_approval, input_authorized,
                               require_owner, require_version, task_for, source_ids_belong, validate_chapter, append_revision)
 from .product_storage import StorageError, verified_artifact
 from .security import audit
-
-
-def _current(task, artifact):
-    current_input = current_revision(task, DocumentRevision.Kind.INPUT)
-    blueprint = approved_blueprint(task)
-    latest = task.artifacts.filter(family=artifact.family).order_by("-version").first()
-    if (not current_input or not blueprint or current_input.version != task.input_version or latest is None or latest.pk != artifact.pk
-            or artifact.input_hash != current_input.sha256 or artifact.blueprint_hash != blueprint.sha256):
-        return False
-    if artifact.family == "presentation":
-        try:
-            return artifact.render_evidence.get("pair_hash") == pair_snapshot(task)["sha256"]
-        except ProductError:
-            return False
-    if artifact.family == "feasibility":
-        report = latest_report_content(task, "feasibility")
-        return bool(report and artifact.render_evidence.get("report_id") == str(report.pk))
-    return True
 
 
 @api_view(["GET"])
@@ -47,14 +29,18 @@ def outputs(request, task_id):
         if not input_authorized(task, revision):
             continue
         report = task.revisions.filter(pk=artifact.render_evidence.get("report_id"), kind=DocumentRevision.Kind.REPORT).first()
+        current = output_current(task, artifact)
+        approved = effective_artifact_approval(artifact) is not None
         result.append({"id": str(artifact.pk), "family": artifact.family, "version": artifact.version,
-                       "sha256": artifact.sha256, "current": _current(task, artifact), "draft": True,
+                       "sha256": artifact.sha256, "current": current, "stale": not current,
+                       "draft": not approved, "approved": approved,
+                       "review_status": "stale" if not current else "approved" if approved else "pending_review",
                        "engine": artifact.render_evidence.get("engine", "frozen-word"),
                        "content_version": report.version if report else None,
                        "content_sha256": report.sha256 if report else None,
                        "content_approved": effective_report_approval(report) is not None if report else None,
                        "source_versions": artifact.render_evidence.get("source_versions", [])})
-    return Response({"outputs": result})
+    return Response({"task_version": task.version, "outputs": result})
 
 
 @api_view(["GET"])
@@ -69,16 +55,21 @@ def draft_download(request, artifact_id):
         raise ProductError("not_found", "对象不存在。", 404)
     if not input_authorized(task, task.revisions.filter(kind="input", sha256=artifact.input_hash).first()):
         raise ProductError("source_permission_changed", "来源授权已变化。", 404)
-    if not _current(task, artifact):
+    current = output_current(task, artifact)
+    history = request.query_params.get("history") == "1"
+    if not current and not history:
         raise ProductError("stale_output", "此成果已过期，仅保留历史记录。", 409)
     try:
         target = verified_artifact(artifact)
     except StorageError as error:
         raise ProductError(error.code, error.detail, 409) from error
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", task.title).strip(" .") or "报告"
+    prefix = "草稿" if current else "历史草稿-已过期"
     response = FileResponse(target.open("rb"), as_attachment=True,
-                            filename=f"草稿-{title}-{artifact.family}-v{artifact.version}{target.suffix}")
-    audit(request.user, "product_artifact_download", f"{artifact.pk}:v{task.version}")
+                            filename=f"{prefix}-{title}-{artifact.family}-v{artifact.version}{target.suffix}")
+    response["X-Product-Artifact-Current"] = "true" if current else "false"
+    response["Cache-Control"] = "no-store"
+    audit(request.user, "product_artifact_download", f"{artifact.pk}:v{task.version}:{artifact.family}:{'current' if current else 'history'}:{artifact.sha256}")
     return response
 
 
