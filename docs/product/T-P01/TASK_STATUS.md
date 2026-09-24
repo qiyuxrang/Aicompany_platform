@@ -10,6 +10,7 @@
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；生成、状态、历史与下载操作已接入后端合同 |
 | Browser E2E | `NOT_RUN`；留待 T-R01，不得据组件测试记 PASS |
 | Checkpoint | `f99b03f` (`docs: checkpoint T-P01 document baseline`) |
+| Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 
 ## 执行记录
 

@@ -14,6 +14,7 @@
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；技术方案生成、审核、版本、stale、历史与下载操作已接入 |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
 | Checkpoint | `4daa940` (`docs: checkpoint T-P05 technical solution draft`) |
+| Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 | Next Action | 停止；不得自动进入 T-P06 |
 
 ## 执行记录

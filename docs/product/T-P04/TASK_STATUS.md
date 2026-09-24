@@ -10,6 +10,7 @@
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；版本来源链、current/stale、历史下载与刷新失败清理已接入 |
 | Browser E2E | `NOT_RUN`，因此整个 Task 不记 PASS |
 | Checkpoint | `733be16` (`docs: checkpoint T-P04 impact baseline`) |
+| Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 
 ## 执行记录
 

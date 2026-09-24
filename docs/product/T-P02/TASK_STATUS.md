@@ -11,6 +11,7 @@
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；上传、解析问题、来源引用与检索 blocker 已接入后端合同 |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
 | Checkpoint | `65a7909` (`docs: checkpoint T-P02 retrieval baseline`) |
+| Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 
 ## 执行记录
 

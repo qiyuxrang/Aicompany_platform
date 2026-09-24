@@ -13,6 +13,7 @@
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；可研/PPT 分阶段生成、独立内容审核、版本、stale 与下载已接入 |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
 | Checkpoint | `a0a2784` (`feat: complete P1 feasibility and presentation core`) |
+| Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 
 ## 已完成范围
 

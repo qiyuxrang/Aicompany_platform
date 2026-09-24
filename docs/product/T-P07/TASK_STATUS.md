@@ -11,6 +11,7 @@
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；版本原因、操作者、hash、来源引用、current/stale 与历史下载已接入 |
 | Browser E2E | `NOT_RUN`，因此整个 Task 不记 PASS |
 | Checkpoint | `0355aaa` (`feat: add product version lineage history`) |
+| Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 
 ## 执行记录
 

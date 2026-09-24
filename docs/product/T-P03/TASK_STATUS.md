@@ -11,6 +11,7 @@
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；蓝图查看/保存/批准/退回绑定后端 action、ID、version 与 hash |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
 | Checkpoint | `9a9f532` (`docs: checkpoint T-P03 approval baseline`) |
+| Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 
 ## 执行记录
 

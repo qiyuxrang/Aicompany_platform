@@ -4,6 +4,7 @@
 
 - 唯一规范权威：`docs/SPEC.md`，SHA-256 `a26368d6ef7e9821a7d716784d803594a303980a683de289b2f021a5cd66df0b`。
 - 基线 HEAD：`8470a1a05e9d68ab926c9a19ce482bc236acf2bf`。
+- 实现 checkpoint：`9621f56`（`feat: complete P1 frontend business chain core`）。
 - 范围：补齐 T-P01～T-P06 及 T-P07 版本链在现有 React 工作台中的 Core 业务操作，不执行 Browser E2E、不调用真实模型/RAGFlow、不做业务签认。
 - 结论：`FRONTEND_CORE_IMPLEMENTED / BROWSER_NOT_RUN`。本证据不构成任一 Task、P1、Release 或 Production Ready 的 PASS。
 

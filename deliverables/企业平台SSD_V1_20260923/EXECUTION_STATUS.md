@@ -132,4 +132,4 @@
 | 2026-09-23 | T-P05 代表性技术方案草稿核心链完成 | 真实 API/Worker/Word 生成 8 页草稿与完整 hash 链；内容检查未通过、RAGFlow/模型未配置、正式批准被拒，P1 未记 PASS；按指令停止于 T-P05 |
 | 2026-09-24 | T-P07 版本留痕核心合同完成 | 只读同权限时间线覆盖主体、原因、diff、hash、来源、批准、artifact current/stale 与外部作者未核实边界；产品后端 109/109 通过；Browser E2E 按 `FRONTEND_DEFERRED` 未记 PASS |
 | 2026-09-24 | T-P06 可研与 PPT Core 完成 | 两份 report 内容分别批准后才允许生成 PPT；可研 Word 9 页与可编辑 PPTX 7 页经 Microsoft Office 实际渲染并完成技术视觉复核；产品后端 126/126 通过；正式模板/业务签认、真实模型/RAGFlow 与 Browser E2E 未通过，未记 Task/P1 PASS |
-| 2026-09-24 | P1 前端业务链 Core 接入完成 | T-P01～T-P06 及 T-P07 版本链已接入统一 React 工作台；后端产品回归 110 项中 109 PASS/1 SKIP，前端 135/135 与 build 通过；Browser E2E 仍为 `NOT_RUN`，未记 Task/P1 PASS |
+| 2026-09-24 | P1 前端业务链 Core 接入完成 | checkpoint `9621f56`；T-P01～T-P06 及 T-P07 版本链已接入统一 React 工作台；后端产品回归 110 项中 109 PASS/1 SKIP，前端 135/135 与 build 通过；Browser E2E 仍为 `NOT_RUN`，未记 Task/P1 PASS |
