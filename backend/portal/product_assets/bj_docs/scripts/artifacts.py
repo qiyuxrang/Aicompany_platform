@@ -95,17 +95,12 @@ def add_header_part(parts, value, policy):
     parts['[Content_Types].xml']=dump(types)
     return rel_id
 
-def configure_section_header(section, default_id, first_id=None):
+def clear_section_headers(section):
     for node in section.findall('w:headerReference',NS)+section.findall('w:titlePg',NS): section.remove(node)
-    reference=E.Element(q('w:headerReference')); reference.set(q('w:type'),'default'); reference.set(q('r:id'),default_id)
-    section.insert(0,reference)
-    if first_id:
-        first=E.Element(q('w:headerReference')); first.set(q('w:type'),'first'); first.set(q('r:id'),first_id)
-        section.insert(1,first); section.insert(2,E.Element(q('w:titlePg')))
-    for node in section.findall('w:pgNumType',NS): section.remove(node)
 
-def section_break(section, default_id, first_id, policy):
-    copy=deepcopy(section); configure_section_header(copy,default_id,first_id)
+
+def section_break(section, policy):
+    copy=deepcopy(section); clear_section_headers(copy)
     ensure(copy,'w:type').set(q('w:val'),'nextPage')
     p=E.Element(q('w:p')); pp=E.SubElement(p,q('w:pPr')); pp.append(copy)
     return format_paragraph(p,'body',policy)
@@ -126,14 +121,14 @@ def set_toc_depth(root, level):
         if node.text and re.search(r'\bTOC\b',node.text,re.I):
             found=True
             if re.search(r'\\o\s+"1-\d+"',node.text,re.I):
-                node.text=re.sub(r'\\o\s+"1-\d+"',replacement,node.text,flags=re.I)
+                node.text=re.sub(r'\\o\s+"1-\d+"',lambda _: replacement,node.text,flags=re.I)
             else:
                 node.text=node.text.rstrip()+' '+replacement+' '
     for node in root.findall('.//w:fldSimple',NS):
         instruction=node.get(q('w:instr'),'')
         if re.search(r'\bTOC\b',instruction,re.I):
             found=True
-            node.set(q('w:instr'),re.sub(r'\\o\s+"1-\d+"',replacement,instruction,flags=re.I))
+            node.set(q('w:instr'),re.sub(r'\\o\s+"1-\d+"',lambda _: replacement,instruction,flags=re.I))
     if not found: raise ValueError('template TOC field not found')
 
 def add_cover_identity(doc, data, policy):
@@ -147,10 +142,6 @@ def add_cover_identity(doc, data, policy):
     logo_paragraph=title.insert_paragraph_before(); logo_paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER
     logo_paragraph.paragraph_format.space_after=Pt(6)
     logo_paragraph.add_run().add_picture(str(logo),width=Mm(identity['cover_logo_width_mm']))
-    if data['family']=='technical-solution':
-        company=title.insert_paragraph_before(); company.alignment=WD_ALIGN_PARAGRAPH.CENTER
-        company.paragraph_format.space_after=Pt(8)
-        run=company.add_run(identity['name']); run.font.name='宋体'; run.font.size=Pt(12)
 
 def bookmark_name(identifier):
     if re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,39}',identifier): return identifier
@@ -195,18 +186,16 @@ def _write_word(data,out,content_dir):
     heading_levels=[block['level'] for block in data['blocks'] if block['type']=='heading']
     set_toc_depth(root,max(heading_levels,default=1))
     for name in list(parts):
-        if re.fullmatch(r'word/(header|footer)\d+\.xml',name):
-            story=xml(parts[name]); fixed_replace(story,metadata)
-            normalize_header(story,policy) if '/header' in name else normalize_footer(story,policy)
+        if re.fullmatch(r'word/footer\d+\.xml',name):
+            story=xml(parts[name]); fixed_replace(story,metadata); normalize_footer(story,policy)
             parts[name]=dump(story)
     def prototype(kind,key):
         return proto.get(kind,key)
     emitted=[]; figures=[]; bookmark_map={}; counters=[0,0,0]; table_counts={}; figure_counts={}; current_section=body.find('w:sectPr',NS)
     existing_sections=root.findall('.//w:sectPr',NS)
-    for section in existing_sections: normalize_page(section)
-    ordinary_header_id=add_header_part(parts,policy['header_footer']['ordinary_header'],policy)
-    configure_section_header(current_section,ordinary_header_id)
-    front_break_needed=(len(existing_sections)==1 and current_section.find('w:headerReference',NS) is not None)
+    for section in existing_sections:
+        normalize_page(section); clear_section_headers(section)
+    front_break_needed=False
     def available_width():
         sz=current_section.find('w:pgSz',NS); mar=current_section.find('w:pgMar',NS)
         return int(sz.get(q('w:w')))-int(mar.get(q('w:left')))-int(mar.get(q('w:right')))-int(mar.get(q('w:gutter'),'0'))
@@ -342,23 +331,9 @@ def _write_word(data,out,content_dir):
         outline=node.find('w:pPr/w:outlineLvl',NS) if node.tag==q('w:p') else None
         if outline is not None and outline.get(q('w:val'))=='0': heading_indexes.append((index,text(node)))
     if heading_indexes:
-        heading_by_index={index:(number,title) for number,(index,title) in enumerate(heading_indexes)}
-        chapter_headers=[add_header_part(parts,re.sub(r'^\d+(?:\.\d+)*\s+','',title),policy)
-                         for _,title in heading_indexes]
-        rebuilt=[]; current_chapter=-1; content_since_front=False
-        for index,node in enumerate(emitted):
-            if index in heading_by_index:
-                if current_chapter<0:
-                    if content_since_front: rebuilt.append(section_break(current_section,ordinary_header_id,None,policy))
-                else:
-                    rebuilt.append(section_break(current_section,ordinary_header_id,chapter_headers[current_chapter],policy))
-                current_chapter+=1
-                pp=node.find('w:pPr',NS)
-                for flag in pp.findall('w:pageBreakBefore',NS): pp.remove(flag)
-            rebuilt.append(node)
-            if not (node.find('w:pPr/w:sectPr',NS) is not None): content_since_front=True
-        emitted=rebuilt
-        configure_section_header(current_section,ordinary_header_id,chapter_headers[-1])
+        for index,_ in heading_indexes:
+            pp=emitted[index].find('w:pPr',NS)
+            for flag in pp.findall('w:pageBreakBefore',NS): pp.remove(flag)
     for i,node in enumerate(emitted): body.insert(insertion+i,node)
     parts['word/document.xml']=dump(root); audit_package(parts); save_package(out,parts)
     if figures or policy.get('company_identity'):
