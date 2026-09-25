@@ -31,7 +31,16 @@ class ProductDocumentTests(SimpleTestCase):
                             if entry["path"] == "assets/document-format-policy.json")
         policy = json.loads((Path(__file__).parents[1] / "product_assets" / "bj_docs" /
                              policy_entry["path"]).read_text(encoding="utf-8"))
-        self.assertEqual(policy["status"], "approved_interim_baseline")
+        self.assertEqual(policy["status"], "approved_interim_baseline_v3")
+        self.assertEqual(policy["company_identity"]["logo_sha256"],
+                         "9211d67a0a52e0445fb85e11c032eeec4ff6f3ad6870b8afac7a9d1a463f8a3e")
+        root = Path(__file__).parents[1] / "product_assets" / "bj_docs"
+        for relative in ("assets/company/company-logo.png", "assets/technical-solution/template.docx",
+                         "assets/feasibility/template.docx", "assets/document-format-policy.json"):
+            entry = next(item for item in manifest["files"] if item["path"] == relative)
+            target = root / relative
+            self.assertEqual(entry["bytes"], target.stat().st_size)
+            self.assertEqual(entry["sha256"], hashlib.sha256(target.read_bytes()).hexdigest())
         self.assertEqual(policy["typography"]["body"], {
             "font": "宋体", "size_pt": 12, "line_spacing_pt": 18,
         })
@@ -74,44 +83,27 @@ class ProductDocumentTests(SimpleTestCase):
                     self.assertIsNotNone(heading_run.find(f"{self.W}rPr/{self.W}b"))
                     self.assertNotIn("第一章", archive.read("word/document.xml").decode())
 
-                    active_headers = []
-                    for name in archive.namelist():
-                        if name.startswith("word/header") and name.endswith(".xml"):
-                            header = ET.fromstring(archive.read(name))
-                            value = "".join(node.text or "" for node in header.iter(self.W + "t"))
-                            if value:
-                                active_headers.append((header, value))
-                    self.assertTrue(any(value == "西安工业大学毕业设计（论文）"
-                                        for _, value in active_headers))
-                    normalized = next(header for header, value in active_headers
-                                      if value == "西安工业大学毕业设计（论文）")
-                    self.assertEqual(normalized.find(f".//{self.W}bottom").get(self.W + "val"), "double")
-                    relationships = ET.fromstring(archive.read("word/_rels/document.xml.rels"))
-                    relationship_targets = {item.get("Id"): item.get("Target") for item in relationships}
-                    relationship_id = sections[-1].find(self.W + "headerReference").get(
-                        "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
-                    linked_header = ET.fromstring(archive.read("word/" + relationship_targets[relationship_id]))
-                    self.assertEqual("".join(node.text or "" for node in linked_header.iter(self.W + "t")),
-                                     "西安工业大学毕业设计（论文）")
-                    chapter_headers = []
-                    for section in sections:
-                        first = next((item for item in section.findall(self.W + "headerReference")
-                                      if item.get(self.W + "type") == "first"), None)
-                        if first is None:
-                            continue
-                        target = relationship_targets[first.get(
-                            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")]
-                        header = ET.fromstring(archive.read("word/" + target))
-                        chapter_headers.append("".join(node.text or "" for node in header.iter(self.W + "t")))
-                    self.assertIn("项目概述", chapter_headers)
-                    self.assertIn("待确认事项", chapter_headers)
-
+                    self.assertTrue(all(section.find(self.W + "headerReference") is None for section in sections))
                     if family == "technical-solution":
-                        self.assertGreaterEqual(len(sections), 2)
-                        self.assertIsNone(sections[0].find(self.W + "headerReference"))
-                        self.assertIsNotNone(sections[-1].find(self.W + "headerReference"))
                         self.assertTrue(any(paragraph_text(item).startswith("表 1.1 ")
                                             for item in paragraphs))
+
+    def test_word_cover_contains_only_logo_and_document_topic_without_text_header(self):
+        with tempfile.TemporaryDirectory() as directory, override_settings(PRODUCT_STORAGE_ROOT=directory):
+            for family, expected_title in (("technical-solution", "合成隔离技术方案"),
+                                           ("feasibility", "合成隔离技术方案（可行性研究报告）")):
+                result = render_report_draft(self.task, self.input_revision, self.blueprint, [self.chapter], family)
+                with ZipFile(Path(directory) / result["path"]) as archive:
+                    document = archive.read("word/document.xml").decode("utf-8")
+                    headers = "".join(archive.read(name).decode("utf-8") for name in archive.namelist()
+                                      if name.startswith("word/header") and name.endswith(".xml"))
+                    media = [name for name in archive.namelist() if name.startswith("word/media/")]
+                self.assertIn(expected_title, document)
+                self.assertEqual(len(media), 1)
+                self.assertNotIn("西安工业大学毕业设计（论文）", headers)
+                self.assertNotIn("陕西省一二三数字信息技术有限公司", document)
+                self.assertNotIn("建设单位", document)
+                self.assertNotIn("编制单位", document)
 
     def test_feasibility_is_separate_draft_and_uses_its_own_template(self):
         content = content_document(self.task, self.input_revision, self.blueprint, [self.chapter], family="feasibility")

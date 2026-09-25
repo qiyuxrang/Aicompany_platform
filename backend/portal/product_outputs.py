@@ -10,7 +10,7 @@ from rest_framework.response import Response
 
 from .product_api import product_endpoint, _body, _expected, _task_detail
 from .product_models import DocumentArtifact, DocumentRevision
-from .product_pair import FAMILIES, effective_report_approval, latest_report_content, output_current
+from .product_pair import FAMILIES, latest_report_content, output_current
 from .product_service import (ProductError, approved_blueprint, current_revision, effective_artifact_approval, input_authorized,
                               require_owner, require_version, task_for, source_ids_belong, validate_chapter, append_revision)
 from .product_storage import StorageError, verified_artifact
@@ -38,7 +38,7 @@ def outputs(request, task_id):
                        "engine": artifact.render_evidence.get("engine", "frozen-word"),
                        "content_version": report.version if report else None,
                        "content_sha256": report.sha256 if report else None,
-                       "content_approved": effective_report_approval(report) is not None if report else None,
+                       "content_approved": False if report else None,
                        "source_versions": artifact.render_evidence.get("source_versions", [])})
     return Response({"task_version": task.version, "outputs": result})
 

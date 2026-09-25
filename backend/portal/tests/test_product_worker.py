@@ -21,6 +21,19 @@ from .base import PortalTestCase
 })
 class ProductWorkerTests(PortalTestCase):
     @patch("portal.product_worker.generate_for_use")
+    def test_blueprint_prompt_lists_only_current_authorized_source_ids(self, model):
+        self.task.pending_action = "blueprint"
+        self.task.stage = "BLUEPRINT"
+        self.task.save(update_fields=["pending_action", "stage"])
+        model.return_value = {"content": json.dumps(self.blueprint_payload), "prompt_tokens": 1, "completion_tokens": 1}
+
+        run_once()
+
+        payload = json.loads(model.call_args.args[2][1]["content"])
+        self.assertEqual(payload["allowed_source_ids"], ["r1"])
+        self.assertEqual(payload["schema"]["chapters"][0]["source_ids"], ["r1"])
+
+    @patch("portal.product_worker.generate_for_use")
     def test_stage_rules_are_sent_and_bound_to_call_evidence(self, model):
         from portal.product_rules import rules_hash
         from portal.product_worker import _model
@@ -62,12 +75,18 @@ class ProductWorkerTests(PortalTestCase):
 
     @override_settings(PRODUCT_COST_POLICY={})
     @patch("portal.product_worker.generate_for_use")
-    def test_missing_cost_approval_blocks_before_any_outbound(self, model):
+    def test_missing_cost_policy_does_not_block_model_call(self, model):
+        self.task.pending_action = "blueprint"
+        self.task.stage = "BLUEPRINT"
+        self.task.save(update_fields=["pending_action", "stage"])
+        model.return_value = {"content": json.dumps(self.blueprint_payload), "prompt_tokens": 10, "completion_tokens": 20}
+
         run_once()
+
         self.task.refresh_from_db()
-        self.assertEqual(self.task.error_code, "budget_authorization_required")
-        self.assertEqual(self.task.state, "WAITING_INPUT")
-        model.assert_not_called()
+        self.assertEqual(self.task.error_code, "")
+        model.assert_called_once()
+        self.assertNotIn("budget", self.task.checkpoint)
 
     def setUp(self):
         self.owner = self.create_user("writer", "product")
@@ -88,7 +107,7 @@ class ProductWorkerTests(PortalTestCase):
         self.settings_override = override_settings(PRODUCT_STORAGE_ROOT=self.temporary.name, PRODUCT_REVIEWER_IDS=[self.reviewer.pk])
         self.settings_override.enable()
         self.addCleanup(self.settings_override.disable)
-        DocumentApproval.objects.create(task=self.task, revision=self.blueprint, actor=self.reviewer, decision="approve", sha256=self.blueprint.sha256, authorization=approval_authorization(self.task, self.reviewer))
+        DocumentApproval.objects.create(task=self.task, revision=self.blueprint, actor=self.owner, decision="approve", sha256=self.blueprint.sha256, authorization=approval_authorization(self.task, self.owner))
 
     def reply(self, chapter_id):
         chapter = next(chapter for chapter in self.blueprint_payload["chapters"] if chapter["id"] == chapter_id)
@@ -202,11 +221,11 @@ class ProductWorkerTests(PortalTestCase):
         self.assertEqual({issue["code"] for issue in result["issues"]}, {"source_review_required", "unsupported_number"})
 
     @patch("portal.product_worker.generate_for_use")
-    def test_reviewer_revocation_prevents_approved_work(self, model):
-        self.reviewer.roles.clear()
+    def test_owner_revocation_prevents_approved_work(self, model):
+        self.owner.roles.clear()
         run_once()
         self.task.refresh_from_db()
-        self.assertEqual(self.task.error_code, "blueprint_approval_required")
+        self.assertIn(self.task.error_code, {"blueprint_approval_required", "permission_changed"})
         model.assert_not_called()
 
     @patch("portal.product_worker.generate_for_use")
