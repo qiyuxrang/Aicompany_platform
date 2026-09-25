@@ -1,7 +1,7 @@
 # 产品三件套单用户真实模型冒烟 Evidence
 
-日期：2026-09-24  
-分支：`feature/product-department-phase1`  
+日期：2026-09-24
+分支：`feature/product-department-phase1`
 实现 checkpoint：`4f01631`
 
 ## 范围
