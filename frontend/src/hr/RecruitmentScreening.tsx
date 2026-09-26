@@ -3,7 +3,7 @@ import { Batch, Jd, Result, get, mutate, upload, root, statusText, message } fro
 
 export default function RecruitmentScreening({ results = false }: { results?: boolean }) {
   const [batches, setBatches] = useState<Batch[]>([]), [jds, setJds] = useState<Jd[]>([]);
-  const [selected, setSelected] = useState(''), [jd, setJd] = useState(''), [files, setFiles] = useState<File[]>([]);
+  const [selected, setSelected] = useState(new URLSearchParams(window.location.search).get('batch') || ''), [jd, setJd] = useState(''), [files, setFiles] = useState<File[]>([]);
   const [batch, setBatch] = useState<Batch | null>(null), [rows, setRows] = useState<Result[]>([]);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
   const [sort, setSort] = useState('score'), [verdict, setVerdict] = useState('');
@@ -60,6 +60,9 @@ export default function RecruitmentScreening({ results = false }: { results?: bo
         <p className="hr-muted">辅助匹配不是录用或淘汰决定；缺少证据显示 UNKNOWN。</p></>}
       </>}
     </section>
-    {detail && <section className="hr-card"><h2>证据矩阵与解析记录</h2><pre>{JSON.stringify(detail, null, 2)}</pre><button onClick={() => setDetail(null)}>关闭详情</button></section>}
+    {detail && <section className="hr-card"><h2>证据矩阵与解析记录</h2>
+      <div className="hr-table-wrap"><table><thead><tr><th>岗位要求</th><th>判断</th><th>引用证据</th><th>来源位置</th></tr></thead><tbody>
+        {((detail.match as { matrix?: Result['matrix'] })?.matrix || []).map(item => <tr key={item.id}><td>{item.text}</td><td>{item.verdict}</td><td style={{ whiteSpace: 'normal' }}>{item.evidence.map(e => e.quote).join('；') || '无有效证据'}</td><td>{item.evidence.map(e => e.locator).join('；')}</td></tr>)}
+      </tbody></table></div><details><summary>查看结构化解析和来源记录</summary><pre>{JSON.stringify(detail, null, 2)}</pre></details><button onClick={() => setDetail(null)}>关闭详情</button></section>}
   </>;
 }

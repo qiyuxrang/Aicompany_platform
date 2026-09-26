@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiRequest } from '../api';
 import { CenterLink } from '../centers/shared';
 import { get, mutate, message, Requirement, Jd } from './recruitment-api';
@@ -10,6 +10,11 @@ const empty = Object.fromEntries(fields.map(([key]) => [key, ''])) as Record<typ
 const channels = [['general', '通用版'], ['boss', 'BOSS直聘'], ['zhaopin', '智联招聘'], ['51job', '前程无忧'], ['liepin', '猎聘'], ['custom', '自定义']];
 
 export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }) {
+  const requested = new URLSearchParams(window.location.search).get('task') || '';
+  const initialForm = useRef(JSON.stringify(empty));
+  const selectionVersion = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; selectionVersion.current += 1; }; }, []);
   const [rows, setRows] = useState<Requirement[]>([]), [selected, setSelected] = useState<Requirement | null>(null);
   const [form, setForm] = useState(empty), [versions, setVersions] = useState<Jd[]>([]);
   const [jd, setJd] = useState<Jd | null>(null), [body, setBody] = useState('');
@@ -18,9 +23,13 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
   const [history, setHistory] = useState<{ id: string; title: string; revisions: { id: string; version: number; body: string }[] }[]>([]);
   async function load() { setRows(await get<Requirement[]>('requests/')); }
   async function choose(row: Requirement) {
+    const selection = ++selectionVersion.current;
     setSelected(row); setJd(null); setVersions([]); setBody('');
-    setForm(Object.fromEntries(fields.map(([key]) => [key, Array.isArray(row[key]) ? row[key].join('\n') : String(row[key] ?? '')])) as typeof empty);
-    const list = await get<Jd[]>(`requests/${row.id}/jd-versions/`); setVersions(list);
+    const nextForm = Object.fromEntries(fields.map(([key]) => [key, Array.isArray(row[key]) ? row[key].join('\n') : String(row[key] ?? '')])) as typeof empty;
+    initialForm.current = JSON.stringify(nextForm); setForm(nextForm);
+    const list = await get<Jd[]>(`requests/${row.id}/jd-versions/`);
+    if (!mounted.current || selection !== selectionVersion.current) return;
+    setVersions(list);
     const current = list.find(item => item.id === row.current_jd_id); if (current) { setJd(current); setBody(current.body); }
   }
   async function work(action: () => Promise<void>) {
@@ -30,9 +39,28 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
   useEffect(() => {
     const controller = new AbortController();
     if (legacy) apiRequest<typeof history>('/api/hr/jobs/', { signal: controller.signal }).then(setHistory).catch(e => { if (!controller.signal.aborted) setError(message(e)); });
-    else get<Requirement[]>('requests/', controller.signal).then(data => { setRows(data); }).catch(e => { if (!controller.signal.aborted) setError(message(e)); });
+    else get<Requirement[]>('requests/', controller.signal).then(async data => {
+      if (controller.signal.aborted) return;
+      setRows(data);
+      if (requested) {
+        const row = data.find(item => item.id === requested);
+        if (!row) throw new Error('指定岗位不存在或没有访问权限。');
+        await choose(row);
+      }
+    }).catch(e => { if (!controller.signal.aborted) setError(message(e)); });
     return () => controller.abort();
-  }, [legacy]);
+  }, [legacy, requested]);
+  const dirty = JSON.stringify(form) !== initialForm.current || (!!jd && body !== jd.body);
+  useEffect(() => {
+    if (!dirty || legacy) return;
+    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    const navigate = (event: MouseEvent) => {
+      const link = (event.target as Element).closest?.('a');
+      if (link && !window.confirm('有未保存修改，确定离开吗？')) { event.preventDefault(); event.stopPropagation(); }
+    };
+    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
+    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
+  }, [dirty, legacy]);
   const base = selected ? `requests/${selected.id}/` : '';
   async function refreshJd(result: Jd) {
     setJd(result); setBody(result.body); setVersions(await get<Jd[]>(base + 'jd-versions/'));
@@ -43,8 +71,8 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
   return <><header className="hr-title"><div><h1>招聘与 JD</h1><p>统一岗位事实，生成并确认 JD，再适配招聘平台。</p></div>
     <CenterLink href="/centers/hr/history" className="hr-outline">历史 JD</CenterLink></header>
     {error && <div className="hr-error" role="alert">{error}</div>}
-    <section className="hr-card"><div className="hr-card-head"><h2>招聘需求</h2><button disabled={busy} onClick={() => { setSelected(null); setForm(empty); setJd(null); setVersions([]); setBody(''); }}>＋ 新建招聘需求</button></div>
-      <label>选择岗位<select value={selected?.id || ''} disabled={busy} onChange={e => { const row = rows.find(r => r.id === e.target.value); if (row) void work(() => choose(row)); }}>
+    <section className="hr-card"><div className="hr-card-head"><h2>招聘需求</h2><button disabled={busy} onClick={() => { if (dirty && !window.confirm('放弃未保存修改？')) return; selectionVersion.current += 1; initialForm.current = JSON.stringify(empty); setSelected(null); setForm(empty); setJd(null); setVersions([]); setBody(''); }}>＋ 新建招聘需求</button></div>
+      <label>选择岗位<select value={selected?.id || ''} disabled={busy} onChange={e => { const row = rows.find(r => r.id === e.target.value); if (row && (!dirty || window.confirm('放弃未保存修改并切换岗位？'))) void work(() => choose(row)); }}>
         <option value="">新招聘需求</option>{rows.map(row => <option key={row.id} value={row.id}>{row.position_name || '未命名岗位'}</option>)}</select></label>
       <form onSubmit={e => { e.preventDefault(); void work(async () => {
         const payload = { ...form, headcount: form.headcount ? Number(form.headcount) : undefined,
