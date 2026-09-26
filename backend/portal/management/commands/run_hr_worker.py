@@ -5,6 +5,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, close_old_connections
 
 from portal.hr_screening_worker import claim_one, process_one
+from portal.hr_retention import cleanup_history
+from portal.product_storage import StorageError
 
 
 def execute(claim):
@@ -28,8 +30,17 @@ class Command(BaseCommand):
             raise CommandError('并发仅允许 1 或 2，受平台网关限制。')
         if connection.vendor != 'postgresql' and width != 1:
             raise CommandError('SQLite 不支持本轮并行验收，请使用 PostgreSQL。')
+        next_cleanup = 0.0
         with ThreadPoolExecutor(max_workers=width) as executor:
             while True:
+                if time.monotonic() >= next_cleanup:
+                    try:
+                        report = cleanup_history()
+                        if report['failures']:
+                            self.stderr.write(f'招聘清理待重试: {report["failures"]}')
+                    except StorageError as error:
+                        self.stderr.write(f'招聘清理待重试: {error.code}')
+                    next_cleanup = time.monotonic() + 3600
                 claims = []
                 for _ in range(width):
                     claim = claim_one()

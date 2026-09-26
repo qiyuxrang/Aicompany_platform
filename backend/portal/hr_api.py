@@ -9,6 +9,7 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
 
+from .hr_retention import active_requests
 from .hr_models import HrJobRevision, HrJobTask, ProbationCase, ProbationRevision, ProbationTransition
 from .models import Module, User
 from .security import audit, authorized_modules
@@ -77,7 +78,7 @@ def _job_for(request, task_id, *, write=False):
     _require_hr(request)
     queryset = HrJobTask.objects.select_for_update() if write else HrJobTask.objects.select_related("current_revision", "official_revision")
     try:
-        return queryset.get(pk=task_id, owner=request.user)
+        return active_requests(queryset).get(pk=task_id, owner=request.user)
     except (HrJobTask.DoesNotExist, ValueError, TypeError):
         raise HrError("not_found", "对象不存在。", 404) from None
 
@@ -123,7 +124,7 @@ def jobs(request):
     request.hr_audit_action = "hr_job_create" if request.method == "POST" else "hr_job_list"
     _require_hr(request)
     if request.method == "GET":
-        return Response([_job_data(task) for task in HrJobTask.objects.filter(owner=request.user).select_related("current_revision", "official_revision")])
+        return Response([_job_data(task) for task in active_requests(HrJobTask.objects.filter(owner=request.user)).select_related("current_revision", "official_revision")])
     raise HrError("legacy_read_only", "旧版 JD 仅供历史查看，请使用招聘与 JD。", 405)
 
 

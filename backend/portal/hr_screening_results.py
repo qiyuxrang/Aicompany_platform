@@ -10,6 +10,8 @@ from rest_framework.response import Response
 from .hr_api import HrError, _body, _expected, _require_hr, hr_endpoint
 from .hr_screening_api import owned_batch, batch_data, artifact_data
 from .hr_screening_models import ResumeArtifact
+from .hr_retention import active_artifacts
+from .hr_matching import is_age_requirement, score_matrix
 from .security import audit
 
 
@@ -35,14 +37,25 @@ def queue(request, batch_id, retry=False):
     return Response(batch_data(batch))
 
 
+def public_match(item):
+    """Legacy stored matrices also cannot expose age as a scored requirement."""
+    match = item.match or {}
+    matrix = match.get('matrix', [])
+    safe = [row for row in matrix if not is_age_requirement(row.get('text', ''))]
+    if len(safe) != len(matrix):
+        return {**match, 'matrix': safe, 'score': score_matrix(safe)}
+    return match
+
+
 def _rows(batch, params):
     rows = []
     for item in batch.artifacts.all():
-        score = item.match.get('score', {})
+        match = public_match(item)
+        score = match.get('score', {})
         rows.append({**artifact_data(item), 'score': score.get('total'),
                      'unknown_count': score.get('unknown_count'),
                      'hard_gap_count': len(score.get('hard_gap', [])),
-                     'matrix': item.match.get('matrix', []), 'stale': batch.stale,
+                     'matrix': match.get('matrix', []), 'stale': batch.stale,
                      'rule_version': score.get('rule_version')})
     verdict = params.get('verdict')
     if verdict:
@@ -68,12 +81,12 @@ def summary(request, batch_id):
 def detail(request, artifact_id):
     _require_hr(request)
     try:
-        item = ResumeArtifact.objects.select_related('batch__jd_version__request').get(
+        item = active_artifacts(ResumeArtifact.objects.select_related('batch__jd_version__request')).get(
             pk=artifact_id, batch__created_by=request.user)
     except ResumeArtifact.DoesNotExist:
         raise HrError('not_found', '对象不存在。', 404) from None
     return Response({**artifact_data(item), 'stale': item.batch.stale, 'profile': item.profile,
-                     'match': item.match, 'extraction': item.extraction})
+                     'match': public_match(item), 'extraction': item.extraction})
 
 
 def _csv_text(value):

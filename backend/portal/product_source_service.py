@@ -18,7 +18,7 @@ def add_contribution(payload, source, parsed, *, replacing=False):
         **{key: item[key] for key in ("row_id", "name", "quantity", "unit")},
         "source_id": source_id, "source_row": item.get("source_row"),
         "source_item_id": f"{source_id}:{item.get('block_id', index)}", "source_location": item.get("source_location", {"row": item.get("source_row", 0)}),
-    } for index, item in enumerate(parsed.get("items", []), 1))
+    } for index, item in enumerate(parsed.get("items", []) if source.purpose != "background" else [], 1))
     checksum = extraction_hash(parsed)
     if parsed.get("schema_version"):
         payload.setdefault("source_materials", []).append({"source_id": source_id, "extraction_hash": checksum,
@@ -42,7 +42,7 @@ def save_extraction(task, source, parsed, user, reason, *, initial=False):
     payload = copy.deepcopy(previous.payload)
     if initial:
         payload.setdefault("sources", []).append({"id": str(source.pk), "original_name": source.original_name,
-            "media_type": source.media_type, "sha256": source.sha256})
+            "media_type": source.media_type, "sha256": source.sha256, "purpose": source.purpose})
     add_contribution(payload, source, parsed, replacing=not initial)
     revision = append_revision(task, "input", payload, actor=user, reason=reason)
     if parsed.get("schema_version"):

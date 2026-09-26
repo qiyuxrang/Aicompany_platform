@@ -2,6 +2,8 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { isApiError, launchModule, PortalModule } from "../api";
 import { CenterLink, EmptyPanel, SectionHeader } from "./shared";
 
+import BusinessBoards from './BusinessBoards';
+
 const legacyAreas = [
   { title: "经营总览", description: "在原系统查看项目台账与商机管理，沿用现有经营口径。", items: "项目台账 · 商机管理" },
   { title: "销售台账", description: "查看原销售台账，不在新门户复制或重新计算销售数据。", items: "原销售业务视图" },
@@ -49,8 +51,11 @@ export default function ManagerWorkspace({ section, preview, module, businessPan
     <p className="center-note">可信数据调用不等于浏览器单点登录。已经返回的内容无法远程收回；刷新时按当前权限重新查询。</p>
   </section>;
 
+  if (['engineering', 'finance', 'presales'].includes(section)) return <BusinessBoards initial={section as 'engineering' | 'finance' | 'presales'} preview={preview} />;
+
   return <>
-    {section === "overview" && <section className="center-manager-intro"><div><p className="eyebrow">经营入口 · 原有口径</p><h2>台账看板，回到同一工作入口</h2><p>原经营系统继续管理项目、台账和数据权限。这里提供统一导航及已授权的只读项目入口，不复制原系统，也不填充虚构经营指标。</p><div className="center-actions">{launchButton}<CenterLink href="/centers/business/projects" className="button secondary">查看授权项目</CenterLink></div></div><div className="center-boundaries"><div><strong>台账业务归属</strong><span>原监控看板保持独立运行</span></div><div><strong>浏览器登录</strong><span>保留原系统登录，未实现单点登录</span></div><div><strong>访问边界</strong><span>只按本人已获授权的范围访问</span></div></div></section>}
+    {section === 'overview' && <BusinessBoards preview={preview} />}
+    {section === "overview" && <section className="center-manager-intro"><div><p className="eyebrow">经营入口 · 原有口径</p><h2>台账看板，回到同一工作入口</h2><p>原经营系统继续管理项目和业务权限。上方看板分析当前账号导入的台账快照；也可进入原系统或查询已授权项目。</p><div className="center-actions">{launchButton}<CenterLink href="/centers/business/projects" className="button secondary">查看授权项目</CenterLink></div></div><div className="center-boundaries"><div><strong>台账业务归属</strong><span>原监控看板保持独立运行</span></div><div><strong>浏览器登录</strong><span>保留原系统登录，未实现单点登录</span></div><div><strong>访问边界</strong><span>只按本人已获授权的范围访问</span></div></div></section>}
     <section className="center-panel">
       <SectionHeader title="台账与经营视图" description="以下是现有监控看板已具备的菜单。原系统使用内部切换，没有独立菜单网址；进入后再选择相应栏目。" />
       <div className="center-feature-grid">{legacyAreas.map((area) => <article className="center-feature-card" key={area.title}><span className="eyebrow">原系统菜单</span><h3>{area.title}</h3><p>{area.description}</p><span>{area.items}</span></article>)}</div>

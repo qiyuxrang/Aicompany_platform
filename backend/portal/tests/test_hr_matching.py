@@ -40,3 +40,14 @@ class MatchingTests(SimpleTestCase):
         profile = parse_profile(json.dumps(data), '姓名：测试人')
         self.assertEqual(profile['name']['status'], 'extracted')
         self.assertEqual(profile['skills']['status'], 'unknown')
+
+    def test_age_notes_never_become_scores_or_exclusions(self):
+        required = requirements_for({'education_requirement': '本科',
+            'required_requirements': '年龄不超过35岁\n熟悉SQL',
+            'preferred_requirements': '30岁以下优先', 'skill_requirements': ['Python', 'age under 35']})
+        self.assertEqual([r['text'] for r in required], ['本科', 'Python', '熟悉SQL'])
+        legacy_age = {'id': 'age', 'text': '年龄小于35岁', 'category': 'hard', 'verdict': 'NOT_MATCH'}
+        score = score_matrix([legacy_age])
+        self.assertEqual(score['full_max'], 0)
+        self.assertEqual(score['hard_gap'], [])
+        self.assertEqual(match_matrix('{"requirements": []}', [legacy_age], '36岁'), [])

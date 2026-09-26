@@ -167,6 +167,12 @@ def _finish(task_id, fence, attempt_id, state, stage, error_code=""):
     if task.lease_until is None or task.lease_until <= timezone.now():
         return False
     task.state, task.stage, task.error_code = state, stage, error_code
+    if error_code and task.pending_action == 'blueprint':
+        progress = dict(task.checkpoint.get('analysis_progress', {}))
+        for phase, record in progress.items():
+            if record.get('status') == 'running':
+                progress[phase] = {**record, 'status': 'failed', 'updated_at': timezone.now().isoformat()}
+        task.checkpoint = {**task.checkpoint, 'analysis_progress': progress}
     task.lease_until = None
     task.version += 1
     if state in {"WAITING_REVIEW", "DRAFT", "COMPLETED"}:
@@ -231,6 +237,70 @@ def model_input(task, payload, source_ids=None):
         context["background"] += "\n\n" + "\n\n".join(f"[资料 {item['source_id']} · {item['status']} · {item['extraction_hash']}]\n{item['text']}" for item in selected_materials)
     context["issues"] = payload.get("issues", []) if allowed is None else []
     return context
+
+
+@transaction.atomic
+def _analysis_progress(task_id, fence, phase, status, **details):
+    task = _guard(task_id, fence)
+    progress = dict(task.checkpoint.get("analysis_progress", {}))
+    progress[phase] = {**progress.get(phase, {}), "status": status,
+        "updated_at": timezone.now().isoformat(), **details}
+    task.checkpoint = {**task.checkpoint, "analysis_progress": progress}
+    task.version += 1
+    task.lease_until = timezone.now() + timedelta(seconds=settings.PRODUCT_LEASE_SECONDS)
+    task.save(update_fields=["checkpoint", "version", "lease_until", "updated_at"])
+
+
+def _analyze_blueprint_input(task_id, fence, task, revision):
+    from .product_intake import extraction_hash
+    from .product_service import require_project_materials, validate_input
+
+    _analysis_progress(task_id, fence, "documents", "running")
+    require_project_materials(task)
+    # Validate persisted extraction snapshots and consolidate only the exact current
+    # project sources. Parsing occurred on upload; this phase analyzes those results.
+    sources = list(task.sources.all())
+    snapshots = {row['id']: row for row in revision.payload.get('sources', [])}
+    for source in sources:
+        snapshot = snapshots.get(str(source.pk), {})
+        if snapshot.get('sha256') != source.sha256:
+            raise ExecutionError('source_snapshot_changed')
+        if snapshot.get('extraction_hash') and snapshot['extraction_hash'] != extraction_hash(source.parsed):
+            raise ExecutionError('source_snapshot_changed')
+        if source.parsed.get('status') == 'failed':
+            raise ExecutionError('source_analysis_required')
+    context = model_input(task, revision.payload)
+    _analysis_progress(task_id, fence, "documents", "completed",
+        source_count=sum(source.purpose != 'equipment' for source in sources),
+        character_count=len(context.get('background', '')))
+    _analysis_progress(task_id, fence, "equipment", "running")
+    facts = {key: revision.payload[key] for key in ('project', 'requirements', 'background', 'conditions')}
+    facts['items'] = [{key: item.get(key, '') for key in ('row_id', 'name', 'quantity', 'unit')}
+        for item in revision.payload.get('items', [])]
+    checked = validate_input(facts)
+    if task.checkpoint.get('intake_mode') == 'equipment_background' and not checked['items']:
+        raise ExecutionError('equipment_analysis_required')
+    # Include validation findings without silently correcting source quantities.
+    context['issues'] = [*context.get('issues', []), *checked['issues']]
+    _analysis_progress(task_id, fence, "equipment", "completed",
+        item_count=len(checked['items']), issue_count=len(checked['issues']))
+    return context
+
+
+def _blueprint_revision_feedback(task, input_revision):
+    previous = task.revisions.filter(kind='blueprint', version=task.blueprint_version,
+        input_hash=input_revision.sha256).first()
+    if previous is None:
+        return {}
+    # Read the immutable approved/returned version and decision record, not just a
+    # free-floating comment from a possibly stale checkpoint.
+    decision = previous.approvals.filter(actor_id=task.owner_id, decision='revise',
+        sha256=previous.sha256).order_by('-created_at').first()
+    if decision is None:
+        return {}
+    return {'previous_blueprint': previous.payload,
+        'revision_request': {'target_id': str(previous.pk), 'sha256': previous.sha256,
+            'comment': decision.comment, 'approval_id': str(decision.pk)}}
 
 
 def content_checks(input_payload, blueprint_payload, chapters):
@@ -355,13 +425,17 @@ def execute_claim(task_id, fence, attempt_id):
         if task.pending_action == "blueprint":
             from .product_service import validate_blueprint
 
+            context = _analyze_blueprint_input(task_id, fence, task, input_revision)
+            feedback = _blueprint_revision_feedback(task, input_revision)
+            _analysis_progress(task_id, fence, "blueprint", "running")
+
             allowed_source_ids = sorted({
                 *[str(item.get("row_id")) for item in input_revision.payload.get("items", []) if item.get("row_id") not in (None, "")],
                 *[str(source.pk) for source in task.sources.all()],
                 *[str(source.get("id")) for source in input_revision.payload.get("knowledge_sources", []) if source.get("id")],
             })
             payload = _model(task_id, fence, attempt_id, settings.PRODUCT_BLUEPRINT_ROUTE,
-                             {"action": "blueprint", "input": model_input(task, input_revision.payload),
+                             {"action": "blueprint", "input": context, **feedback,
                               "allowed_source_ids": allowed_source_ids,
                               "schema": {"purpose": "string", "audience": "string",
                                          "chapters": [{"id": "stable-id", "title": "string", "scope": "string",
@@ -372,6 +446,7 @@ def execute_claim(task_id, fence, attempt_id):
             if not source_ids_belong(task, [source for chapter in payload["chapters"] for source in chapter["source_ids"]]):
                 raise ExecutionError("invalid_model_output")
             _store(task_id, fence, "blueprint", payload, input_revision.sha256)
+            _analysis_progress(task_id, fence, 'blueprint', 'completed')
             return _finish(task_id, fence, attempt_id, "WAITING_REVIEW", "BLUEPRINT")
         blueprint = current_revision(task, "blueprint")
         if (blueprint is None or blueprint.input_hash != input_revision.sha256
@@ -446,7 +521,7 @@ def execute_claim(task_id, fence, attempt_id):
         _render(task, fence, attempt_id, input_revision, blueprint, ordered)
     except Exception as error:
         code = "product_rules_unavailable" if isinstance(error, ProductRulesError) else getattr(error, "code", "execution_failed")
-        allowed = {"model_authorization_required", "input_required", "blueprint_approval_required", "chapters_incomplete", "template_unavailable",
+        allowed = {"equipment_analysis_required", "source_analysis_required", "source_snapshot_changed", "equipment_source_required", "background_source_required", "model_authorization_required", "input_required", "blueprint_approval_required", "chapters_incomplete", "template_unavailable",
                    "product_rules_unavailable", "template_approval_required", "candidate_content_unresolved", "content_review_required", "office_render_disabled", "office_render_timeout", "office_render_unavailable",
                    "office_render_failed", "office_render_invalid_output", "artifact_hash_mismatch", "invalid_path",
                    "retrieval_disabled", "retrieval_authorization_required", "retrieval_auth_failed", "retrieval_unavailable", "retrieval_invalid_response", "retrieval_source_conflict",
@@ -455,7 +530,7 @@ def execute_claim(task_id, fence, attempt_id):
                    "unconfigured", "invalid_response", "request_too_large", "response_too_large", "document_validation_failed", "document_render_failed", "stale_pair", "invalid_report", "report_approval_required", "presentation_unavailable"}
         if code not in allowed:
             code = "execution_failed"
-        state = "WAITING_INPUT" if code in {"model_authorization_required", "input_required", "template_unavailable", "model_call_limit", "attempt_limit", "unconfigured", "missing_key",
+        state = "WAITING_INPUT" if code in {"equipment_analysis_required", "source_analysis_required", "source_snapshot_changed", "equipment_source_required", "background_source_required", "model_authorization_required", "input_required", "template_unavailable", "model_call_limit", "attempt_limit", "unconfigured", "missing_key",
             "template_approval_required", "content_review_required", "office_render_disabled",
             "retrieval_disabled", "retrieval_authorization_required"} else "FAILED"
         _finish(task_id, fence, attempt_id, state, task.stage, code)

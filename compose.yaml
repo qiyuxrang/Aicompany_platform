@@ -29,6 +29,7 @@ services:
       PORTAL_BEHIND_PROXY: "1"
       PORTAL_DB_HOST: db
       PORTAL_DB_PORT: "5432"
+      PORTAL_HR_STORAGE_ROOT: /app/.runtime/hr-private
     command:
       - sh
       - -ceu
@@ -45,6 +46,7 @@ services:
           config.wsgi:application
     volumes:
       - product_private_data:/app/.runtime/product-private
+      - hr_private_data:/app/.runtime/hr-private
     ports:
       - "127.0.0.1:${PORTAL_HTTP_PORT:-8100}:8100"
     depends_on:
@@ -70,6 +72,52 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  hr-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enterprise-portal-phase1:local
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      PORTAL_DEBUG: "0"
+      PORTAL_HTTPS: "1"
+      PORTAL_DB_HOST: db
+      PORTAL_DB_PORT: "5432"
+      PORTAL_HR_STORAGE_ROOT: /app/.runtime/hr-private
+    command: [python, manage.py, run_hr_worker, --concurrency, "1"]
+    volumes:
+      - hr_private_data:/app/.runtime/hr-private
+    depends_on:
+      backend:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 180s
+
+  product-worker:
+    profiles: [product]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enterprise-portal-phase1:local
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      PORTAL_DEBUG: "0"
+      PORTAL_HTTPS: "1"
+      PORTAL_DB_HOST: db
+      PORTAL_DB_PORT: "5432"
+    command: [python, manage.py, run_product_worker]
+    volumes:
+      - product_private_data:/app/.runtime/product-private
+    depends_on:
+      backend:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 180s
+
   model-gateway:
     profiles: [models]
     build:
@@ -92,3 +140,4 @@ services:
 volumes:
   phase1_pg_data:
   product_private_data:
+  hr_private_data:

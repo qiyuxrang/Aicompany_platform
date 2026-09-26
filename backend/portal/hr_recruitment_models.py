@@ -18,6 +18,11 @@ class RecruitmentRequest(models.Model):
     skill_requirements = models.JSONField(default=list)
     work_location = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
+    salary = models.TextField(blank=True)
+    benefits = models.TextField(blank=True)
+    social_insurance = models.TextField(blank=True)
+    original_text = models.TextField(blank=True)
+    intake_source = models.CharField(max_length=16, default='structured')
     input_version = models.PositiveIntegerField(default=1)
     current_jd = models.ForeignKey('JDVersion', null=True, blank=True, on_delete=models.SET_NULL,
                                   related_name='current_for_requests')
@@ -51,6 +56,7 @@ class JDVersion(models.Model):
     state = models.CharField(max_length=16, default='draft', choices=[('draft', '草稿'), ('confirmed', '已确认')])
     source = models.CharField(max_length=16, default='skill')
     body = models.TextField()
+    requirements = models.JSONField(default=dict)
     channel = models.CharField(max_length=20, default='general')
     custom_label = models.CharField(max_length=100, blank=True)
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='children')
@@ -73,3 +79,16 @@ class JDVersion(models.Model):
     def stale(self):
         return (self.input_version != self.request.input_version
                 or bool(self.source_jd_id and self.source_jd_id != self.request.official_jd_id))
+
+
+class RecruitmentMessage(models.Model):
+    request = models.ForeignKey(RecruitmentRequest, on_delete=models.CASCADE, related_name='messages')
+    role = models.CharField(max_length=16, choices=[('user', '用户'), ('assistant', '助手')])
+    content = models.TextField()
+    input_version = models.PositiveIntegerField()
+    jd_version = models.ForeignKey(JDVersion, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name='messages')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']

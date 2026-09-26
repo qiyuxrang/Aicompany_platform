@@ -61,6 +61,8 @@ export interface ArtifactVerification {
 }
 export interface TaskSummary { id: string; title: string; state: string; stage: string; version: number; created_at?: string; updated_at?: string; owner_name?: string; reviewer_name?: string | null; pending_action?: string; error_code?: string }
 export interface DocumentTask extends TaskSummary {
+  intake_mode?: 'manual' | 'equipment_background';
+  analysis_progress?: Partial<Record<'documents' | 'equipment' | 'blueprint', { status: 'running' | 'completed' | 'failed'; updated_at: string; source_count?: number; item_count?: number; issue_count?: number }>>;
   blueprint_approved?: boolean;
   input_version: number;
   blueprint_version: number;
@@ -69,7 +71,7 @@ export interface DocumentTask extends TaskSummary {
   chapters: { id: string; family: Exclude<OutputFamily, "presentation">; version?: number; payload: ChapterPayload }[];
   reports: ReportRevision[];
   artifacts: Artifact[];
-  sources: { id: string; original_name: string; size?: number; media_type?: string; sha256?: string; created_at?: string; warnings?: SourceWarning[]; parsed?: ExtractionSummary }[];
+  sources: { id: string; original_name: string; purpose?: '' | 'equipment' | 'background'; size?: number; media_type?: string; sha256?: string; created_at?: string; warnings?: SourceWarning[]; parsed?: ExtractionSummary }[];
   approvals: unknown[];
   issues: unknown[];
   error_code: string;
@@ -81,7 +83,7 @@ export interface DocumentTask extends TaskSummary {
   input_issues: InputIssue[];
   impact: Record<string, unknown>;
 }
-export interface CreateTask { title: string; input: TaskInput; reviewer_id?: number }
+export interface CreateTask { title: string; input: TaskInput; reviewer_id?: number; intake_mode?: 'equipment_background' }
 export interface ConversationTaskResult {
   task: DocumentTask;
   intent: {
@@ -137,10 +139,11 @@ export const artifactPreview = (id: string, page: number) => `/api/product/artif
 export const verifyArtifact = (id: string, body: ArtifactVerification, signal: AbortSignal) => apiRequest<unknown>(`/api/product/artifacts/${encodeURIComponent(id)}/verification/`, {
   method: "POST", body: JSON.stringify(body), signal,
 });
-export async function uploadSource(id: string, file: File, version: number, signal: AbortSignal): Promise<DocumentTask> {
+export async function uploadSource(id: string, file: File, version: number, signal: AbortSignal, purpose?: 'equipment' | 'background'): Promise<DocumentTask> {
   const body = new FormData();
   body.append("file", file);
   body.append("expected_version", String(version));
+  if (purpose) body.append('purpose', purpose);
   const result = await apiRequest<{ source_id: string; task: DocumentTask }>(`${pathFor(id)}sources/`, { method: "POST", body, signal });
   return result.task;
 }

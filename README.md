@@ -1,84 +1,148 @@
-# 企业 AI 业务协同平台
+# 企业智能体平台
 
-面向产品、工程、人事与经营管理场景的企业级 AI 应用与协同门户。平台以任务为中心，通过统一账号与权限、业务工作台、文档生成与人工审核、版本留痕、模型网关和运维审计，将 AI 能力接入可控的业务交付流程。
+让产品、人事、工程和总经理在各自的工作台上处理业务：整理项目资料、生成方案、筛选简历、查看企业台账。账号、权限和首次改密统一管理，重要结论由人确认。
 
-项目采用 React + TypeScript 构建前端，Django/DRF 提供门户、权限和业务服务，FastAPI 承载独立模型网关，并支持 PostgreSQL 与 Docker Compose 部署。当前处于 Phase 1，已完成平台底座和产品文档链路的阶段性实现；真实模型、外部知识库与生产系统接入仍以授权和验收结果为准。
+**先了解当前边界：** 平台已经包含业务页面、持久化流程和服务适配代码，但克隆仓库并不等于接通真实模型、RAGFlow 或企业原台账。未配置的服务会明确提示，不会用示例回答或虚构经营数字代替。
 
-## 产品事业部工作台（2026-09-26）
+## 平台能做什么
 
-产品部门入口 `/centers/product` 已整理为按项目持续推进的业务工作台：新建项目与附件上传、项目搜索、资料与底稿编辑、项目所有者确认蓝图、当前成果及历史版本。沿用原有持久任务、模型网关、Worker、权限和批准链；原专业工作台 `/centers/product/documents` 保留。
+| 工作台 | 主要工作 | 入口 |
+| --- | --- | --- |
+| 产品事业部 | 上传项目资料、审核蓝图、生成技术方案／可行性报告／PPT、知识库问答 | `/centers/product` |
+| 人事部 | JD 生成、简历筛选、历史筛选记录 | `/centers/hr` |
+| 工程部 | 统一登录、独立工程页面与原业务系统入口 | `/centers/cost` |
+| 总经理 | 工程、财务、售前三类台账 BI 看板，保留原系统入口 | `/centers/business` |
+| 平台管理 | 分配账号与部门权限、配置模型、查看运行状态 | `/ops`、`/admin/` |
 
-首页指标按当前账号授权范围统计，生成状态来自服务端。上传支持 PDF、DOCX、XLSX/XLS、CSV/TXT 与常见图片；原生提取与本地中文 OCR 保留来源定位、核对提示和解析历史。真实模型、外部知识库、Office 渲染与正式发布仍遵守既有授权条件。此分支未修改日常服务、真实账号或生产数据。
+工程部当前保留已有业务边界；本轮需求没有定义工程测算或项目执行细则，因此不会把尚未接入的工程功能标为完成。总经理的工程看板与工程部业务操作是不同入口。
 
-当前结构、brainstorm 与路由见 [产品事业部开发导览](docs/product/WORKBENCH_DEVELOPMENT_MAP.md)，本轮逐项验证、可复现步骤与尚未验证部分见 [工作台验证记录](docs/product/WORKBENCH_VALIDATION.md)。以下章节保留历史阶段记录，不能代替最新验收结论。
+## 各部门怎么使用
 
-多格式解析的能力边界、版本模型、隔离运行环境、安装与容器资料迁移注意事项见 [多格式资料解析](docs/product/MULTIFORMAT_INTAKE.md)，截图和本轮验证见 [资料解析验收](docs/product/evidence/intake-20260926/README.md)。原工作台验证记录属于首轮历史基线；最新解析范围以此处为准。
+### 产品事业部：从资料到交付物
 
-## PR 分支整合（2026-09-26）
+新建项目，上传 **1 份设备清单和多份项目背景材料**，核对识别出的资料类型、设备与需求。背景材料可以是甲方调研结果、项目现状或建设要求。上传支持 PDF、Word、Excel、CSV／TXT 和常见图片；具体限制见[资料解析说明](docs/product/MULTIFORMAT_INTAKE.md)。
 
-HR 招聘分支与产品多格式工作台已在同一套模型、权限和路由中对齐。产品沿用该分支的单用户流程：所有者确认准确蓝图版本后自动生成三件套草稿；资料核对、来源校正与历史访问保护继续保留。HR 招聘需求、JD、简历和筛选结果保持独立业务边界。升级须应用 `0016_merge_product_intake_hr_recruitment`，兼容先升级产品或先升级 HR 的数据库。冲突取舍及本轮验证见 [PR 整合记录](docs/PR_GOVERNANCE_20260926.md)。以下旧阶段记录不代表最新测试或已部署状态。
+新建项目向导会分别管理设备清单和背景材料：开始生成前，必须有一份设备清单和至少一份背景材料。资料不完整时可先保存草稿，之后按类型补充。旧版手工项目保留原输入方式，不自动改写历史附件分类。
 
-## 当前进展
+开始生成后，页面展示服务端实际进度。生成蓝图后先由项目所有者审核：填写修改意见可生成新版本；确认准确版本后，流程自动继续生成技术方案、可行性报告和 PPT 三件套草稿。资料、意见、批准记录和成果版本保持关联，不会覆盖成一个无法追溯的文件。
 
-新增独立 FastAPI 模型网关及 Django Admin 配置入口：模型服务商、网关模型、业务用途绑定、只读调用日志。日常18210保留，网关18410仅监听本机；未配置真实厂商密钥，尚未验证真实推理，不代表部门AI业务已接入。配置、验证边界与回退见 [MODEL_GATEWAY](docs/MODEL_GATEWAY.md)。
+“知识库问答”是独立的多轮对话入口。后端通过 RAGFlow 检索当前账号获准的资料，再调用模型回答并附上来源。没有检索结果时会直接说明；没有授权的资料、其他账号的对话和已撤销授权的历史不会返回给浏览器。
 
-当前界面默认浅色科技商务风，并支持顶部太阳／月亮图标一键切换日夜风格，记住当前浏览器选择，管理后台沿用同一偏好。日常18210刷新即可查看，账号密码不变。195项前端回归及110项颜色检查通过；使用、证据与回退见 [THEME_SELECTION](docs/THEME_SELECTION.md)，前次视觉改造见 [BUSINESS_LIGHT_UI](docs/BUSINESS_LIGHT_UI.md)。
+> 三件套草稿与正式交付不是同一状态。真实模型调用、文档渲染环境、模板批准和正式发布条件分别校验；尚未满足时展示实际阻塞原因。
 
-## 四类工作台前端 V0.2（2026-09-21）
+### 人事部：招聘需求、JD 与简历
 
-产品、工程、人事、总经理共16个可交互页面已交付，详见 [FRONTEND_WORKSPACES](docs/FRONTEND_WORKSPACES.md)。现有18210账号登录后，管理员从“业务页面预览”查看全部前端，业务人员从已授权入口进入；账号密码不变。前端177项、后端150项回归通过，隔离真实项目对照和内嵌浏览器实测已归档。当前是前端准备与导航，不代表生成、测算、招聘筛选或审批已接入；整体阶段状态仍为部分完成。
+侧边栏提供 **JD 生成、简历筛选、历史筛选记录** 三个主要入口，原有转正业务保留在工作概览中。
 
-**阶段状态：部分完成。** 2026-09-21已完成获批四文件旧端桥接，在独立工作树、独立PostgreSQL和合成测试数据上通过真实双向HTTP身份/权限/只读项目对照，不再只是平台Mock。普通浏览器后台补验仍受连接条件阻塞，原经营实例尚未部署桥接。最新验收、回退及遗留项见 [PHASE1_CLOSURE](docs/PHASE1_CLOSURE.md)。浏览器SSO未实现且不在本轮范围；本阶段验证平台底座，不代表AI文档链路已验证。
+在 JD 生成中，可用自然语言描述岗位、学历、薪资、福利和五险一金，也可继续编辑结构化字段。系统保留原始说明，未知条件标为待补充。通用 JD 核对确认后，可生成 BOSS 直聘、智联招聘等平台版本；平台适配只生成文案，不自动对外发布招聘信息。
+
+简历筛选可以上传 JD，也可以选择已有的已确认 JD。核对 JD 正文和筛选条件后，点击“进行筛选”进入执行页，选择简历文件或文件夹。文件夹中的文件按批次上传，支持 TXT、DOCX 和含文本的 PDF，单份不超过 2 MiB。页面展示真实处理计数、证据、匹配结果与异常原因，最终取舍仍由人判断。年龄等信息不作为自动打分或排除依据。
+
+**招聘资料暂存 15 天。** 招聘需求及其对话、JD 从需求创建时间计时；筛选批次及简历取批次与所属需求的较早截止时间，编辑和上传不会续期。到期即停止读取、修改和下载；HR Worker 定时删除关联记录与私有原文件。转正档案不在这项清理范围内。
+
+### 总经理：企业台账 BI
+
+总经理登录后进入企业台账，可切换工程、财务和售前三个看板，查看指标、状态分布和项目明细，并按项目或状态筛选。
+
+当前 BI 数据来自**当前账号导入的 CSV 台账快照**。每个看板都提供空白模板；填写真实数据、选择台账截止日期后导入。一次导入一个部门的完整快照，最多 2,000 行、2 MiB。页面显示文件来源、台账截止日期和导入时间；没有数据时显示“—”，而不是零或演示数值。
+
+财务金额统一按人民币元计算，待收余额为“合同金额－已收金额”；逾期按快照截止日期判断。该指标不替代会计确认口径。导入仅更新平台快照，不修改原业务系统，也不意味着旧系统已实现自动同步。
+
+## 账号与登录
+
+账号由管理员预先分配，不开放自行注册，也没有内置默认密码。首次登录会弹出新密码、确认密码两个输入框；保存后初始密码和旧会话失效，需要重新登录。
+
+单部门账号登录后直接进入对应部门；具有多个部门角色的账号从统一工作台选择入口。平台管理员默认不获得部门资料权限，业务账号不能通过隐藏菜单或直接访问 URL 绕过后端校验。
 
 ## 本地启动
 
-后续补验见 [PHASE1_FOLLOWUP](docs/PHASE1_FOLLOWUP.md)：最终旧端真实联调、27次并发回调以及过期票据清理已验证；门户后端现为143项回归通过。整体仍不包含普通浏览器全量验收、正式上线或浏览器SSO。
+需要 Python 3.13、uv、Node.js 24 和 Corepack。依赖版本固定在 `uv.lock`、`frontend/package.json` 和 `frontend/pnpm-lock.yaml` 中。
 
-2026-09-21新增管理员运维工作台（六页），说明见 [OPS_WORKSPACE](docs/OPS_WORKSPACE.md)。日常预览仍为 `http://127.0.0.1:18210/`，使用 `.runtime/ops-validation.env`；原8100和8018未重启/重配。后续获批桥接验收仅用18310/18318，完成后已停止并撤销测试凭据，不能把这两个地址当作持续开放的业务环境。不要向日常库执行验收清理脚本；`bjrunner` 账号和密码保持不变。
-
-需要本机已有 Python 3.13、uv、Node 24、pnpm；容器部署另需 Docker Compose。版本以 uv.lock、frontend/pnpm-lock.yaml、Dockerfile 为准。
+在 Windows PowerShell 中，从仓库根目录运行：
 
 ```powershell
 .\scripts\start-local.ps1
 ```
 
-脚本建立独立 SQLite 开发环境并绑定 `http://127.0.0.1:8100`，不修改旧项目。首次另开终端创建管理员（交互输入密码，不存在默认账号密码）：
+脚本安装依赖、构建前端、迁移数据库并启动 `http://127.0.0.1:8100`。首次运行会根据配置样例创建 `.runtime/local.env`，使用独立 SQLite 数据库和随机生成的平台密钥；不会覆盖企业原有数据库或启动其他项目。
+
+另开终端创建管理员：
 
 ```powershell
-uv run --env-file .runtime/local.env python backend/manage.py bootstrap_admin portal_admin
+uv run --frozen --env-file .runtime/local.env python backend/manage.py bootstrap_admin portal_admin
 ```
 
-管理员首次登录须修改初始密码；之后重新登录，从工作台进入 `/admin/` 管理账号、角色、模块及映射。管理员默认没有业务模块授权。`Ctrl+C` 停止本地服务。
+按提示设置初始密码。首次登录改密后，在平台管理中创建部门账号、分配角色，按需配置模型与知识库。`Ctrl+C` 停止本地服务。
 
-本次验收实际运行的是独立 PostgreSQL 链路，不是 SQLite：`127.0.0.1:8100` → 手工容器 `enterprise-portal-phase1-db` / 回环 `55438`。该链路使用 `.runtime/validation.env`，**不要与 local.env 的 SQLite 混用**。若使用该现成验证实例，管理员创建命令改用 `--env-file .runtime/validation.env`。验收专用账号在验证结束后停用，不作为默认业务账号。
+### 让长任务和自动清理持续运行
 
-## 检查与测试
+Web 服务与任务执行器是独立进程。使用同一份环境配置，在两个终端分别运行需要的执行器：
 
 ```powershell
-uv run --env-file .runtime/validation.env python backend/manage.py check
-uv run --env-file .runtime/validation.env python backend/manage.py test portal.tests --verbosity 2
-pnpm --dir frontend test
-pnpm --dir frontend typecheck
-pnpm --dir frontend build
+# 人事：处理排队简历，并定期清理到期招聘资料
+uv run --frozen --env-file .runtime/local.env python backend/manage.py run_hr_worker
+
+# 产品：启用产品流程及相关模型权限后运行
+uv run --frozen --env-file .runtime/local.env python backend/manage.py run_product_worker
 ```
 
-数据库测试会创建 `test_portal_phase1`，只可在已隔离的验证库运行。HTTP 验收脚本依赖一次性 QA 凭据，账号停用后不可直接重复使用；补验须先安排新一轮受控测试账号。不要把合成测试结果当作真实经营集成。
+HR Worker 启动时清理一次，此后定期清理。Worker 停止不影响到期访问拦截，但物理删除需要 Worker 恢复或运行下面的维护命令。清理失败会报告错误并保留可重试记录：
 
-在本次隔离PG验证库补验，可依次运行 `validation/prepare_qa.py --rotate-closed-fixtures`、`validation/http_acceptance.py`、`validation/close_qa.py`（均使用 `uv run --env-file .runtime/validation.env python` 前缀）。轮换仅接受已经关闭的完整QA账号组，不覆盖业务用户；失败时也必须执行close_qa关闭临时账号。
+```powershell
+uv run --frozen --env-file .runtime/local.env python backend/manage.py cleanup_hr_history --limit 100
+```
 
-## 交付文档
+不要把开发配置、验收账号或清理命令指向日常业务数据库。生产使用 PostgreSQL；SQLite 仅用于本地开发和隔离测试。
 
-2026-09-22 SDD增量：产品P1持久任务入口为`/centers/product/documents`，默认关闭，仅面向获准隔离验证；不改变既有账号密码。当前状态、实测证据与阻塞见`deliverables/企业平台SDD_20260921/EXECUTION_STATUS.md`，启动及恢复见同目录`P1_RUNBOOK.md`。合成模型测试不代表真实模型链路或正式Word验收通过。
+## 接入模型与知识库
 
-- [范围、权限表、模块清单、页面结构](docs/PHASE1_SCOPE.md)
-- [可信身份、撤权与只读接口契约](docs/INTEGRATION_CONTRACT.md)
-- [实际验收报告与证据](docs/ACCEPTANCE_REPORT.md)
-- [部署、启动、备份与恢复](docs/DEPLOYMENT.md)
-- [独立审查及修复](docs/REVIEW_REPORT.md)
-- [交接与待批准事项](docs/HANDOFF.md)
+平台的智能体执行层是**Django 持久任务与独立 Worker，加上 FastAPI 模型网关**，不是直接调用个人电脑里的 Codex、Pi 或其他交互式代理会话。
 
-开源选型已经结束；保留现有 React + Django/DRF + Django Admin，未引入四项候选依赖，也未做 Unfold 改造。历史评估保留在 `docs/OPEN_SOURCE_REUSE_REVIEW.md`。
+模型服务商、模型、用途路由在管理后台维护，密钥保留在服务端。产品蓝图、写作、审查与知识问答使用独立用途路由。配置步骤见[模型网关](docs/MODEL_GATEWAY.md)。
 
-## 下一轮审批状态
+RAGFlow 问答采用原生 `/api/v1/retrieval` 接口，配置与旧的蓝图检索适配器分开：
 
-本地阶段基线：`8f6db91254e060118a9b51212df72297f373bf52`（未推送）。旧端实施先审阅 `docs/INTEGRATION_APPROVAL.md`，批准后才在隔离worktree修改；后台普通浏览器补验清单为 `docs/ADMIN_BROWSER_ACCEPTANCE.md`。当前两项均未新增验收通过结论，整体仍为部分完成。
+| 环境变量 | 用途 |
+| --- | --- |
+| `PORTAL_PRODUCT_KNOWLEDGE_ENABLED` | 设为 `1` 启用知识问答 |
+| `PORTAL_PRODUCT_KNOWLEDGE_AI_CALLS_ALLOWED` | 设为 `1` 明确允许调用外部服务 |
+| `PORTAL_PRODUCT_KNOWLEDGE_URL` | 受信任的 HTTPS RAGFlow 检索地址 |
+| `PORTAL_PRODUCT_KNOWLEDGE_ALLOWED_URLS` | 允许访问的完整地址列表 |
+| `PORTAL_PRODUCT_KNOWLEDGE_TOKEN_ENV` | 存放 RAGFlow API Token 的环境变量名，不是 Token 本身 |
+| `PORTAL_PRODUCT_KNOWLEDGE_MODEL_ROUTE` | 回答模型用途路由，默认 `product_knowledge` |
+| `PORTAL_PRODUCT_KNOWLEDGE_AUTHORIZATIONS` | 当前用户 ID 到知识库、文档 ID 的明确授权映射 |
+| `PORTAL_PRODUCT_KNOWLEDGE_AUTHORIZATION_REVISION` | 可选的授权版本标识；变更后旧授权范围的对话不再展示 |
+
+例如授权映射的形状为 `{"12":{"dataset_id":["document_id_1","document_id_2"]}}`。使用部署环境中的实际 ID；当前不接受通配符授权。入口地址须为 HTTPS、默认 443 端口、路径 `/api/v1/retrieval`，服务端拒绝重定向。配置好产品角色和专用模型路由后，页面会显示可用状态。
+
+详细范围、保留期、台账统计和验收边界见[本轮需求对照](docs/PRD_COMPLETION_20260926.md)。
+
+## 部署与测试
+
+Docker Compose 包含 PostgreSQL、Web 服务和 HR Worker；HR 文件使用独立持久卷。模型网关使用 `models` profile，产品 Worker 使用 `product` profile。启用对应功能前应完成环境变量、模型路由、私有文件卷和渲染依赖配置。详见[部署说明](docs/DEPLOYMENT.md)，不要将“容器启动成功”当作外部业务联调通过。
+
+运行不读取现有环境文件的隔离后端测试：
+
+```powershell
+uv run --frozen python qa/run_prd_tests.py
+```
+
+运行前端测试与构建时，先进入前端目录，使 Corepack 使用该目录锁定的 pnpm 版本：
+
+```powershell
+cd frontend
+corepack pnpm install --frozen-lockfile
+corepack pnpm test
+corepack pnpm typecheck
+corepack pnpm build
+```
+
+真实模型、RAGFlow、Office 渲染和企业旧台账的连通性，需要在获准环境使用实际服务单独验收。测试中的合成数据不会被当作企业经营数据。
+
+## 文档导航
+
+- [本轮需求对照与边界](docs/PRD_COMPLETION_20260926.md) · [产品开发导览](docs/product/WORKBENCH_DEVELOPMENT_MAP.md) · [人事模块](docs/hr/README.md)
+- [多格式资料解析](docs/product/MULTIFORMAT_INTAKE.md) · [模型网关](docs/MODEL_GATEWAY.md)
+- [部署与恢复](docs/DEPLOYMENT.md) · [账号与运维](docs/OPS_WORKSPACE.md) · [旧系统集成契约](docs/INTEGRATION_CONTRACT.md)
+
+历史方案与阶段验收保留在 `docs/` 和 `deliverables/` 中，其中的旧端口、临时账号、测试数量和阶段状态不代表当前部署情况。

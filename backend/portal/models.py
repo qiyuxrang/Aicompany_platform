@@ -206,3 +206,5 @@ from .product_models import (DocumentApproval, DocumentArtifact, DocumentAttempt
 from .hr_models import HrJobRevision, HrJobTask, ProbationCase, ProbationTransition
 from .hr_recruitment_models import JDVersion, RecruitmentRequest
 from .hr_screening_models import ResumeArtifact, ResumeScreeningBatch
+from .business_models import BusinessLedgerSnapshot
+from .product_knowledge_models import ProductKnowledgeConversation

@@ -405,20 +405,44 @@ def input_authorized(task, revision):
     return all(authorization_current(task, snapshot)["current"] for snapshot in snapshots)
 
 
-def attach_source(user, task_id, expected_version, upload):
+def source_purpose(task, purpose):
+    if purpose is None:
+        purpose = "background" if task.checkpoint.get("intake_mode") == "equipment_background" else ""
+    if not isinstance(purpose, str) or purpose not in DocumentSource.Purpose.values:
+        raise ProductError("invalid_source_purpose", "资料类型必须为设备清单或项目背景材料。")
+    if task.checkpoint.get("intake_mode") == "equipment_background" and not purpose:
+        raise ProductError("source_purpose_required", "请明确资料属于设备清单还是项目背景材料。")
+    if purpose == "equipment" and task.sources.filter(purpose="equipment").exists():
+        raise ProductError("equipment_source_exists", "每个项目只接受一份设备清单；已上传清单可在资料页核对修订。", 409)
+    return purpose
+
+
+def require_project_materials(task):
+    # Legacy professional/manual tasks retain their input contract. The new wizard
+    # opts into an immutable task-level contract which ordinary PATCH cannot unset.
+    if task.checkpoint.get("intake_mode") != "equipment_background":
+        return
+    if task.sources.filter(purpose="equipment").count() != 1:
+        raise ProductError("equipment_source_required", "请先上传一份设备清单。", 409)
+    if not task.sources.filter(purpose="background").exists():
+        raise ProductError("background_source_required", "请至少上传一份项目背景材料。", 409)
+
+
+def attach_source(user, task_id, expected_version, upload, purpose=None):
     # Authorize before expensive parsing, then recheck under lock before committing.
     # OCR must not hold a database row lock for the lifetime of a subprocess.
     task = task_for(user, task_id)
     require_owner(task, user)
     require_version(task, expected_version)
     require_editable(task)
+    purpose = source_purpose(task, purpose)
     original_name, media_type, content, parsed, warnings = parse_upload(upload)
     with transaction.atomic():
         task = task_for(user, task_id, write=True)
         require_owner(task, user)
         require_version(task, expected_version)
         require_editable(task)
-        return _attach_parsed_source(task, user, original_name, media_type, content, parsed, warnings)
+        return _attach_parsed_source(task, user, original_name, media_type, content, parsed, warnings, purpose=purpose)
 
 
 @transaction.atomic
@@ -431,7 +455,8 @@ def attach_import_path(user, task_id, expected_version, path):
     return _attach_parsed_source(task, user, *parsed_source)
 
 
-def _attach_parsed_source(task, user, original_name, media_type, content, parsed, warnings):
+def _attach_parsed_source(task, user, original_name, media_type, content, parsed, warnings, purpose=None):
+    purpose = source_purpose(task, purpose)
     if task.sources.count() >= 50:
         raise ProductError("source_count_limit", "每个项目最多保留 50 份原始资料，请拆分项目。")
     source_id = relative = None
@@ -440,7 +465,7 @@ def _attach_parsed_source(task, user, original_name, media_type, content, parsed
         source = DocumentSource.objects.create(
             id=source_id, task=task, original_name=original_name, media_type=media_type,
             path=relative, sha256=checksum, size=len(content), parsed=parsed, warnings=warnings,
-            uploaded_by=user, author_verification="unverified",
+            uploaded_by=user, author_verification="unverified", purpose=purpose,
         )
         from .product_source_service import save_extraction
         save_extraction(task, source, parsed, user, "external_source_upload", initial=True)
@@ -452,6 +477,7 @@ def _attach_parsed_source(task, user, original_name, media_type, content, parsed
 
 
 def invalidate_generation(task):
+    task.checkpoint = {key: value for key, value in task.checkpoint.items() if key != "analysis_progress"}
     task.state = DocumentTask.State.DRAFT
     task.stage = DocumentTask.Stage.INTAKE
     task.blueprint_version = 0

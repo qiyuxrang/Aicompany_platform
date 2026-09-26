@@ -167,6 +167,44 @@ describe("product business workbench", () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(upload.mock.calls.map(call => [call[1].name, call[2]])).toEqual([[first.name, 1], [second.name, 2], [second.name, 2]]);
   });
+  it('requires separate equipment and background files before starting generation', async () => {
+    overview.mockResolvedValue({ ...sampleOverview(), capabilities: { ...sampleOverview().capabilities, model_generation: true } });
+    const user = userEvent.setup(); render(<NewProductProject/>);
+    await screen.findByLabelText('项目名称 *');
+    await user.type(screen.getByLabelText('项目名称 *'), '分类型资料项目');
+    await user.type(screen.getByLabelText('建设目标 *'), '保留设备与背景来源');
+    await user.click(screen.getByRole('button', { name: '开始生成' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('一份设备清单');
+    expect(create).not.toHaveBeenCalled();
+    const equipment = new File(['equipment data'], '设备.csv', { type: 'text/csv' });
+    const background = new File(['项目背景'], '调研.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByLabelText('设备清单文件'), { target: { files: [equipment] } });
+    fireEvent.change(screen.getByLabelText('选择项目资料文件'), { target: { files: [background] } });
+    upload.mockReset();
+    upload.mockResolvedValueOnce(sampleTask({ version: 2 })).mockResolvedValueOnce(sampleTask({ version: 3, actions: ['queue_blueprint'], blockers: {} }));
+    await user.click(screen.getByRole('button', { name: '开始生成' }));
+    await waitFor(() => expect(update).toHaveBeenCalled());
+    expect(create.mock.calls[0][0].intake_mode).toBe('equipment_background');
+    expect(upload.mock.calls.map(call => [call[1].name, call[4]])).toEqual([['设备.csv', 'equipment'], ['调研.txt', 'background']]);
+  });
+  it('renders the real persisted three-phase states without a fabricated percentage', () => {
+    const task = sampleTask({ state: 'RUNNING', stage: 'BLUEPRINT', pending_action: 'blueprint',
+      analysis_progress: { documents: { status: 'completed', updated_at: '2026-09-26T00:00:00Z', source_count: 2 },
+        equipment: { status: 'completed', updated_at: '2026-09-26T00:00:01Z', item_count: 3 },
+        blueprint: { status: 'running', updated_at: '2026-09-26T00:00:02Z' } } });
+    render(<ProjectStages {...stages(task)}/>);
+    expect(screen.getByLabelText('智能体工作状态').querySelectorAll('[data-status=completed]')).toHaveLength(2);
+    expect(screen.getByText('生成蓝图中').closest('li')?.getAttribute('data-status')).toBe('running');
+    expect(screen.getByText('3 行设备事实')).toBeTruthy();
+  });
+  it('binds modification opinions to the exact displayed blueprint', async () => {
+    window.history.replaceState({}, '', '/centers/product/projects?tab=blueprint');
+    const props = stages(blueprintTask()); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
+    await user.type(screen.getByLabelText('蓝图确认依据'), '增加分阶段实施说明');
+    await user.click(screen.getByRole('button', { name: '退回修改' }));
+    expect(props.onAction).toHaveBeenCalledWith('decisions/', expect.objectContaining({
+      decision: 'revise', target_id: 'blueprint-id', sha256: 'a'.repeat(64), comment: '增加分阶段实施说明' }));
+  });
   it("never offers a stale artifact as the current project output", () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=outputs");
     const stale: api.DraftOutput = { id: "old-artifact", family: "technical-solution", version: 1, sha256: "b".repeat(64), current: false, stale: true, draft: true, approved: false, review_status: "stale", engine: "test", content_version: 1, content_sha256: null, content_approved: false, source_versions: [] };

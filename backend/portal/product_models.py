@@ -83,9 +83,15 @@ class DocumentRevision(models.Model):
 
 
 class DocumentSource(models.Model):
+    class Purpose(models.TextChoices):
+        LEGACY = "", "历史未分类资料"
+        EQUIPMENT = "equipment", "设备清单"
+        BACKGROUND = "background", "项目背景材料"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     task = models.ForeignKey(DocumentTask, on_delete=models.CASCADE, related_name="sources")
     original_name = models.CharField(max_length=255)
+    purpose = models.CharField(max_length=16, choices=Purpose, default="", blank=True)
     media_type = models.CharField(max_length=100)
     path = models.CharField(max_length=500)
     sha256 = models.CharField(max_length=64)
@@ -95,6 +101,11 @@ class DocumentSource(models.Model):
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="uploaded_document_sources")
     author_verification = models.CharField(max_length=24, default="unverified")
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["task"], condition=Q(purpose="equipment"),
+                                               name="product_one_equipment_source_uq")]
 
 
 class DocumentAttempt(models.Model):

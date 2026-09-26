@@ -1,0 +1,33 @@
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import App from './App';
+import { clearApiSession } from './api';
+const identity = { id: 7, username: 'first', display_name: '首次用户', roles: [{ code: 'hr', name: '人事人员' }], must_change_password: true, is_platform_admin: false };
+const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+beforeEach(() => { clearApiSession(); window.history.replaceState({}, '', '/password'); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it('first-login modal has only new/confirm fields and submits both without retaining the initial password', async () => {
+  const fetcher = vi.fn((input: RequestInfo | URL) => {
+    if (String(input) === '/api/me/') return Promise.resolve(response(identity));
+    if (String(input) === '/api/csrf/') return Promise.resolve(response({ csrfToken: 'test-csrf' }));
+    if (String(input) === '/api/password/') return Promise.resolve(response({ detail: '密码已更新，请重新登录。' }));
+    return Promise.resolve(response({ detail: 'not found' }, 404));
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const { container } = render(<App />);
+  expect(await screen.findByRole('dialog', { name: '首次登录，请先修改密码' })).toBeTruthy();
+  expect(screen.queryByLabelText('当前密码')).toBeNull();
+  expect(container.querySelectorAll('input[type=password]')).toHaveLength(2);
+  await userEvent.type(screen.getByLabelText('新密码'), 'New!Password-2026');
+  await userEvent.type(screen.getByLabelText('确认新密码'), 'Different!Password');
+  await userEvent.click(screen.getByRole('button', { name: '确认修改' }));
+  expect(await screen.findByText('两次输入的新密码不一致。')).toBeTruthy();
+  expect(fetcher.mock.calls.filter(([path]) => String(path) === '/api/password/')).toHaveLength(0);
+  await userEvent.clear(screen.getByLabelText('确认新密码'));
+  await userEvent.type(screen.getByLabelText('确认新密码'), 'New!Password-2026');
+  await userEvent.click(screen.getByRole('button', { name: '确认修改' }));
+  await waitFor(() => expect(window.location.pathname).toBe('/login'));
+  const call = (fetcher.mock.calls as unknown as [RequestInfo | URL, RequestInit][]).find(([path]) => String(path) === '/api/password/');
+  expect(JSON.parse(String(call?.[1]?.body))).toEqual({ new_password: 'New!Password-2026', confirm_password: 'New!Password-2026' });
+});
