@@ -61,6 +61,13 @@ def save_file(name, content):
             'size': len(content), 'filename': name, 'version': 1}
 
 
+def remove_file(file_id):
+    try:
+        _path(file_id).unlink(missing_ok=True)
+    except OSError:
+        raise StorageError('storage_cleanup_failed', '简历临时文件清理失败，需要运维处理。') from None
+
+
 def read_file(file_id, expected_hash):
     try:
         with _path(file_id).open('rb') as stream:
