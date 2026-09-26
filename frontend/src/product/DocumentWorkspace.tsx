@@ -4,6 +4,7 @@ import { Field } from "../centers/shared";
 import { artifactDownload, artifactHistoryDownload, artifactPreview, continueConversation, createConversationTask, draftDownload, draftHistoryDownload, getDraftOutputs, getTask, getTaskHistory, listTasks, updateTask, uploadSource, verifyArtifact } from "./product-api";
 import type { BlueprintPayload, ChapterPayload, ContentChecks, DocumentTask, DraftOutput, OutputFamily, ReportRevision, ReviewCategory, TaskHistory, TaskInput, TaskSummary } from "./product-api";
 import "./product-workspace.css";
+import ProjectStages from "./ProjectStages";
 
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 const emptyInput = (): TaskInput => ({ project: "", requirements: "", items: [], background: "", conditions: [] });
@@ -182,7 +183,7 @@ function TaskWorkspace() {
   </section>;
 }
 
-function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string; requestedArtifact: string; deepLinked: boolean; onFatal: (message: string) => void }) {
+export function TaskEditor({ id, requestedArtifact, deepLinked, onFatal, business = false }: { id: string; requestedArtifact: string; deepLinked: boolean; onFatal: (message: string) => void; business?: boolean }) {
   const [task, setTask] = useState<DocumentTask | null>(null);
   const [outputs, setOutputs] = useState<DraftOutput[]>([]);
   const [outputsError, setOutputsError] = useState("");
@@ -229,10 +230,16 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     const controller = new AbortController();
     related.current = controller;
     void getDraftOutputs(id, controller.signal).then(data => {
-      if (!controller.signal.aborted && data.task_version === result.version) setOutputs(Array.isArray(data.outputs) ? data.outputs : []);
+      if (!controller.signal.aborted) {
+        if (data.task_version === result.version) setOutputs(Array.isArray(data.outputs) ? data.outputs : []);
+        else setOutputsError("成果版本已变化，请刷新项目状态后重新读取。");
+      }
     }).catch(reason => { if (!controller.signal.aborted) { setOutputs([]); setOutputsError(errorMessage(reason)); } });
     void getTaskHistory(id, controller.signal).then(data => {
-      if (!controller.signal.aborted && data.task_version === result.version) setHistory(data);
+      if (!controller.signal.aborted) {
+        if (data.task_version === result.version) setHistory(data);
+        else setHistoryError("版本链已变化，请刷新项目状态后重新读取。");
+      }
     }).catch(reason => { if (!controller.signal.aborted) { setHistory(null); setHistoryError(errorMessage(reason)); } });
     if (!initial.current) {
       initial.current = true;
@@ -265,7 +272,10 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     reading.current = controller;
     const timer = window.setTimeout(() => {
       void getTask(id, controller.signal).then(result => { if (!controller.signal.aborted) receive(result); })
-        .catch(reason => { if (!controller.signal.aborted) setError(errorMessage(reason)); })
+        .catch(reason => { if (!controller.signal.aborted) {
+          setError(errorMessage(reason));
+          if (business && reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setTask(null); onFatal("项目访问权限已变化，当前资料已隐藏。"); }
+        } })
         .finally(() => { if (!controller.signal.aborted) setPollRound(value => value + 1); });
     }, 3000);
     return () => { clearTimeout(timer); controller.abort(); };
@@ -281,14 +291,38 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
       if (controller.signal.aborted || !mounted.current) return;
       receive(result);
       if (reloading) setConflict(false);
-      setNotice("服务端状态已更新；编辑区保留原内容。蓝图生成后请点击“载入服务端蓝图”。");
+      setNotice(business ? "项目状态已更新。" : "服务端状态已更新；编辑区保留原内容。蓝图生成后请点击“载入服务端蓝图”。");
+      return true;
     } catch (reason) {
       if (!controller.signal.aborted && mounted.current) {
         setError(errorMessage(reason));
         if (reason instanceof ApiError && reason.status === 409) setConflict(true);
+        if (business && reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setTask(null); onFatal("项目访问权限已变化，当前资料已隐藏。"); }
       }
+      return false;
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
   }
+  // Idle project pages still revalidate object-level grants and reviewer changes.
+  // Versioned child editors keep their own draft and refuse to overwrite newer data.
+  useEffect(() => {
+    if (!business || !task || busy || active(task)) return;
+    let controller: AbortController | null = null;
+    const refreshAccess = () => {
+      if (document.hidden || locked.current) return;
+      controller?.abort();
+      const request = new AbortController(); controller = request; reading.current = request;
+      void getTask(id, request.signal).then(next => { if (!request.signal.aborted) receive(next); }).catch(reason => {
+        if (request.signal.aborted) return;
+        setError(errorMessage(reason));
+        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setTask(null); onFatal("项目访问权限已变化，当前资料已隐藏。"); }
+      });
+    };
+    const timer = window.setInterval(refreshAccess, 20000);
+    window.addEventListener("focus", refreshAccess);
+    document.addEventListener("visibilitychange", refreshAccess);
+    return () => { controller?.abort(); window.clearInterval(timer); window.removeEventListener("focus", refreshAccess); document.removeEventListener("visibilitychange", refreshAccess); };
+  }, [business, id, busy, task?.state, task?.version]);
+
   if (!task) return <section className="center-panel">{error ? <><p role="alert">{error}</p><button disabled={busy} onClick={() => void perform(async () => {}, true)}>重新加载服务端状态</button></> : <p role="status">正在加载任务…</p>}</section>;
   const allows = (action: string) => Array.isArray(task.actions) ? task.actions.includes(action) : task.actions?.[action] === true;
   const disabled = (action: string) => busy || conflict || !allows(action) || Boolean(task.blockers?.[action]);
@@ -361,6 +395,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
         nextTask = await uploadSource(id, remaining[0], nextTask.version, controller.signal);
         remaining = remaining.slice(1); setConversationFiles(remaining); setTask(nextTask);
       }
+      receive(nextTask);
       setConversationMessage(""); setConversationAccepted(false);
       setNotice("补充要求和资料已保存；正式审批仍需在专业工作台完成。");
     } catch (reason) {
@@ -371,6 +406,10 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     const revision = target === "blueprint" ? task?.blueprint : target === "report" ? record : artifact;
     if (revision) void send("decisions/", { target, target_id: revision.id, sha256: revision.sha256, decision: choice, comment });
   }
+  if (business) return <>
+    {error && <div className="pd-feedback" role="alert">{error}</div>}{notice && <p className="pd-inline-notice" role="status">{notice}</p>}
+    <ProjectStages task={task} outputs={outputs} history={history} outputsError={outputsError} historyError={historyError} busy={busy} conflict={conflict} disabled={disabled} onAction={send} onReload={() => void perform(async () => {}, true)} onUpload={file => perform(signal => uploadSource(id, file, task.version, signal))}/>
+  </>;
   const progress = task.artifacts.length ? 4 : task.blueprint ? 3 : task.sources.length ? 2 : 1;
   return <>
   <section className="product-task-view" aria-label="对话任务工作区">

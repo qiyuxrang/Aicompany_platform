@@ -47,6 +47,7 @@ def product_endpoint(function):
         except StorageError as error:
             response = _error(request, ProductError(error.code, error.detail, 400))
         response["X-Request-ID"] = request.product_request_id
+        response["Cache-Control"] = "private, no-store"
         return response
     return wrapped
 
@@ -166,14 +167,15 @@ def _chapters_complete(task, input_revision, blueprint):
 def _task_actions(task, user, input_revision, blueprint):
     actions = []
     ended = task.state in {DocumentTask.State.CANCELLED, DocumentTask.State.COMPLETED}
-    busy = task.state == DocumentTask.State.RUNNING
+    busy = task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING}
     queueable = not (busy or ended)
     approved = approved_blueprint(task)
 
     if task.owner_id == user.pk:
         if not ended:
-            actions.extend(["edit", "save_blueprint", "add_source"])
             actions.append("cancel")
+            if not busy:
+                actions.extend(["edit", "save_blueprint", "add_source"])
         if queueable and input_revision is not None:
             actions.extend(["queue_retrieve", "queue_blueprint"])
         if queueable and approved is not None:
@@ -204,7 +206,7 @@ def _task_actions(task, user, input_revision, blueprint):
             actions.extend(["review_artifact", "verify_artifact"])
         if reviewable and task.stage == DocumentTask.Stage.FINAL_REVIEW and task.revisions.filter(kind=DocumentRevision.Kind.REPORT).exists():
             actions.append("review_report")
-        if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended) and input_revision.payload.get("issues"):
+        if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended) and input_revision is not None and input_revision.payload.get("issues"):
             actions.append("review_input")
     return actions
 
@@ -313,6 +315,9 @@ def _task_detail(task, user):
         "id": str(task.pk), "title": task.title, "state": task.state, "stage": task.stage,
         "version": task.version, "input_version": task.input_version,
         "blueprint_version": task.blueprint_version,
+        "blueprint_approved": approved_blueprint(task) is not None,
+        "pending_action": task.pending_action,
+        "created_at": task.created_at.isoformat(), "updated_at": task.updated_at.isoformat(),
         "input": input_revision.payload if input_revision else None,
         "blueprint": _revision_data(blueprint), "chapters": chapters, "reports": reports, "artifacts": artifacts,
         "sources": sources, "approvals": approvals, "issues": issues,
@@ -675,7 +680,7 @@ def blueprint(request, task_id):
 def _queue(task, action):
     if not isinstance(action, str):
         raise ProductError("invalid_action", "任务动作无效。")
-    if task.state in {DocumentTask.State.RUNNING, DocumentTask.State.CANCELLED, DocumentTask.State.COMPLETED}:
+    if task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING, DocumentTask.State.CANCELLED, DocumentTask.State.COMPLETED}:
         raise ProductError("invalid_state", "当前状态不能排队。", 409)
     if action in {"blueprint", "retrieve"}:
         if _input_revision(task) is None:

@@ -473,6 +473,8 @@ def require_version(task, expected_version):
 
 
 def require_editable(task):
+    if task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING}:
+        raise ProductError("invalid_state", "任务正在排队或执行，请等待完成或先取消任务。", 409)
     if task.state in {DocumentTask.State.CANCELLED, DocumentTask.State.COMPLETED}:
         raise ProductError("invalid_state", "已结束任务不能修改。", 409)
 

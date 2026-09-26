@@ -1,0 +1,12 @@
+import { CenterLink } from "../centers/shared";
+import { DocumentSymbol, LoadState, outputNames, ProductIcon, useProductOverview } from "./workbench-shared";
+
+export default function ProductTemplates() {
+  const { data, error, reload } = useProductOverview();
+  if (!data) return <LoadState error={error} reload={reload}/>;
+  return <div className="pd-workspace"><div className="pd-page-title"><div><h2>模板与编制说明</h2><p>统一文档规范，分别核验三类成果；不改变原始项目事实。</p></div></div><div className="pd-output-grid">{(["technical-solution", "feasibility", "presentation"] as const).map(family => <article className="pd-panel pd-template-card" key={family}><DocumentSymbol family={family}/><h3>{outputNames[family]}</h3><p>{family === "technical-solution" ? "建设目标、系统方案、实施计划与边界条件。" : family === "feasibility" ? "必要性、方案比选、实施条件与风险。经济分析需要完整的成本与收益依据。" : "从已批准的技术方案和可研结构化内容派生，保留来源版本。"}</p><span className="pd-badge info">{family === "presentation" ? "PPTX" : "DOCX"}</span></article>)}</div>
+    {data.templates.map(template => <section className="pd-panel" key={template.id}><div className="pd-panel-heading"><h3>{template.name}</h3><span className={`pd-badge ${template.approved ? "good" : "warning"}`}>{template.approved ? "母版已签认" : "正式母版待签认"}</span></div><p>{template.description}</p><p className="pd-muted">规则版本：{template.version}</p></section>)}
+    <section className="pd-panel"><div className="pd-panel-heading"><h3>准备项目资料</h3><ProductIcon name="upload"/></div><p>当前可上传 {data.capabilities.upload_extensions.join("、")}；单个文件不超过 {(data.capabilities.upload_max_bytes / 1048576).toFixed(0)} MB。CSV 设备清单使用 UTF-8 编码，建议包含“序号、设备名称、数量、单位”。缺项保留并交由人工核对。</p><div className="pd-actions"><a className="button secondary" download="设备清单空白模板.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent("\uFEFF序号,设备名称,数量,单位\r\n")}`}><ProductIcon name="download"/>下载空白清单</a><CenterLink href="/centers/product/new" className="button primary">创建项目</CenterLink></div></section>
+    <section className="pd-panel"><h3>生成与交付边界</h3><div className="pd-capability-list">{[{ label: "模型与预算授权", enabled: data.capabilities.model_generation }, { label: "授权知识检索", enabled: data.capabilities.retrieval }, { label: "目标 Office 渲染", enabled: data.capabilities.office_preview }, { label: "正式发布许可", enabled: data.capabilities.formal_release }].map(item => <div key={item.label}><strong>{item.label}</strong><span className={`pd-badge ${item.enabled ? "good" : "neutral"}`}>{item.enabled ? "已配置" : "待配置"}</span></div>)}</div><p className="pd-muted">配置状态不等于业务验收。文件生成、内容审核、格式核验和正式批准分别执行。</p></section>
+  </div>;
+}

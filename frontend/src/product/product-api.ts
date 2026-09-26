@@ -47,8 +47,9 @@ export interface ArtifactVerification {
   content_checks: ContentChecks;
   comment: string;
 }
-export interface TaskSummary { id: string; title: string; state: string; stage: string; version: number }
+export interface TaskSummary { id: string; title: string; state: string; stage: string; version: number; created_at?: string; updated_at?: string; owner_name?: string; reviewer_name?: string | null; pending_action?: string; error_code?: string }
 export interface DocumentTask extends TaskSummary {
+  blueprint_approved?: boolean;
   input_version: number;
   blueprint_version: number;
   input: TaskInput | null;
@@ -56,7 +57,7 @@ export interface DocumentTask extends TaskSummary {
   chapters: { id: string; family: Exclude<OutputFamily, "presentation">; version?: number; payload: ChapterPayload }[];
   reports: ReportRevision[];
   artifacts: Artifact[];
-  sources: { id: string; original_name: string }[];
+  sources: { id: string; original_name: string; size?: number; media_type?: string; sha256?: string; created_at?: string; warnings?: { code: string; row?: number }[] }[];
   approvals: unknown[];
   issues: unknown[];
   error_code: string;
@@ -78,6 +79,21 @@ export interface ConversationTaskResult {
   };
   blockers: Record<string, string>;
 }
+export interface ProductOverview {
+  as_of: string;
+  scope: "authorized_projects";
+  metrics: { active: number; review: number; generation: number; completed_month: number };
+  projects: TaskSummary[];
+  pagination: { page: number; page_size: number; total: number; pages: number };
+  recent_projects: TaskSummary[];
+  todos: TaskSummary[];
+  recent_outputs: { id: string; task_id: string; title: string; family: OutputFamily; version: number; created_at: string; current: boolean; review_status: "stale" | "approved" | "pending_review" }[];
+  reviewers: { id: number; name: string }[];
+  capabilities: { model_generation: boolean; retrieval: boolean; formal_release: boolean; office_preview: boolean; upload_extensions: string[]; upload_max_bytes: number };
+  templates: { id: string; name: string; version: string; families: OutputFamily[]; approved: boolean; description: string }[];
+}
+export const getProductOverview = (query: string, signal: AbortSignal) => apiRequest<ProductOverview>(`/api/product/workspace/${query ? `?${query}` : ""}`, { signal });
+export const sourceDownload = (id: string) => `/api/product/sources/${encodeURIComponent(id)}/download/`;
 const root = "/api/product/tasks/";
 const pathFor = (id: string) => `${root}${encodeURIComponent(id)}/`;
 
