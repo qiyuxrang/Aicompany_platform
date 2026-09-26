@@ -21,6 +21,9 @@ it('岗位深链加载正确正文，未保存文本不能确认', async () => {
   fireEvent.click(screen.getByRole('link', { name: '历史 JD' }));
   expect(confirm).toHaveBeenCalled();
   expect(window.location.pathname).toBe('/centers/hr/job');
+  const navigation = new Event('portal:navigation-guard', { cancelable: true });
+  fireEvent(window, navigation);
+  expect(navigation.defaultPrevented).toBe(true);
 });
 it('无权深链不显示其他岗位正文', async () => {
   window.history.replaceState({}, '', '/centers/hr/job?task=foreign');

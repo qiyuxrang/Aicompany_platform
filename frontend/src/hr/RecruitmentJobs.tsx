@@ -54,12 +54,14 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
   useEffect(() => {
     if (!dirty || legacy) return;
     const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    const guard = (event: Event) => { event.preventDefault(); setError('存在未保存修改，请先保存或切换岗位时明确放弃。'); };
     const navigate = (event: MouseEvent) => {
       const link = (event.target as Element).closest?.('a');
       if (link && !window.confirm('有未保存修改，确定离开吗？')) { event.preventDefault(); event.stopPropagation(); }
     };
     window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
+    window.addEventListener('portal:navigation-guard', guard);
+    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); window.removeEventListener('portal:navigation-guard', guard); };
   }, [dirty, legacy]);
   const base = selected ? `requests/${selected.id}/` : '';
   async function refreshJd(result: Jd) {
