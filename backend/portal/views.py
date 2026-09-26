@@ -111,19 +111,30 @@ def sign_out(request):
     return Response(status=204)
 
 
-@sensitive_post_parameters("old_password", "new_password")
+@sensitive_post_parameters("old_password", "new_password", "confirm_password")
 @api_view(["POST"])
 def change_password(request):
     if not isinstance(request.data, Mapping):
         return Response({"detail": "请求必须是对象。"}, status=400)
     old, new = request.data.get("old_password"), request.data.get("new_password")
-    if not isinstance(old, str) or not isinstance(new, str) or len(old) > 1024 or len(new) > 1024:
+    confirmation = request.data.get("confirm_password")
+    if (not isinstance(new, str) or not new or len(new) > 1024
+            or old is not None and (not isinstance(old, str) or len(old) > 1024)):
         return Response({"detail": "密码输入无效。"}, status=400)
+    if "confirm_password" in request.data and (not isinstance(confirmation, str) or confirmation != new):
+        return Response({"detail": "两次输入的新密码不一致。"}, status=400)
     with transaction.atomic():
         user = User.objects.select_for_update().get(pk=request.user.pk)
-        if not user.check_password(old):
+        # The authenticated first-login session proves the initial password already.
+        # Keep the old-password API compatible; only the forced two-field form may omit it.
+        if old is None:
+            if not user.must_change_password:
+                return Response({"detail": "修改密码需要验证当前密码。"}, status=400)
+            if confirmation != new:
+                return Response({"detail": "请再次输入新密码进行确认。"}, status=400)
+        elif not user.check_password(old):
             return Response({"detail": "原密码不正确。"}, status=400)
-        if old == new:
+        if user.check_password(new):
             return Response({"detail": "新密码不能与原密码相同。"}, status=400)
         try:
             validate_password(new, user)

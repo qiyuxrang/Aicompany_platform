@@ -1,0 +1,5 @@
+.pd-analysis-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0 0 20px; padding: 0; }
+.pd-analysis-progress li { padding: 15px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
+.pd-analysis-progress strong { display: block; font-size: 14px; margin-bottom: 8px; }.pd-analysis-progress span, .pd-analysis-progress small { color: var(--muted); font-size: 12px; }.pd-analysis-progress small { margin-left: 12px; }
+.pd-analysis-progress li[data-status=running] { border-color: var(--accent); }.pd-analysis-progress li[data-status=running] span { color: var(--accent); font-weight: 600; }
+@media(max-width: 640px) { .pd-analysis-progress { grid-template-columns: 1fr; gap: 6px; }.pd-analysis-progress li { padding: 12px; }.pd-analysis-progress strong { display: inline; margin-right: 12px; } }

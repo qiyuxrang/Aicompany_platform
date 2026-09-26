@@ -8,8 +8,9 @@ from django.utils import timezone
 from . import model_gateway
 from .hr_api import HrError, _is_hr
 from .hr_recruitment_api import _owned
-from .hr_recruitment_models import JDVersion
-from .hr_recruitment_service import missing_items
+from .hr_recruitment_models import JDVersion, RecruitmentRequest
+from .hr_recruitment_service import (missing_items, extract_requirements, grounded_requirements,
+    intake_text, intake_draft, record_message, fact_appendix, RecruitmentValidationError)
 from .security import audit
 from .models import User
 
@@ -34,14 +35,16 @@ def _jd(row, jd_id):
         raise HrError('not_found', '对象不存在。', 404) from None
 
 
-def _append(row, actor, body, *, source='skill', parent=None, channel='general', source_jd=None, custom_label=''):
+def _append(row, actor, body, *, source='skill', parent=None, channel='general', source_jd=None, custom_label='', requirements=None):
     number = (row.jd_versions.aggregate(value=Max('version'))['value'] or 0) + 1
     jd = JDVersion.objects.create(request=row, version=number, input_version=row.input_version,
-        body=_body(body), source=source, parent=parent, created_by=actor,
+        body=_body(body), requirements=requirements if requirements is not None else row.structured_payload(),
+        source=source, parent=parent, created_by=actor,
         channel=channel, source_jd=source_jd, custom_label=custom_label)
     if channel == 'general':
         row.current_jd = jd
         row.save(update_fields=['current_jd', 'updated_at'])
+    record_message(row, 'assistant', jd.body, jd)
     audit(actor, 'hr_jd_create', jd.pk, changes=['body', 'version', 'channel'])
     return jd
 
@@ -54,19 +57,20 @@ def generate(actor, request_id, expected, *, channel='general', source_id=None, 
     row = _owned(actor, request_id)
     _version(row, expected)
     missing = missing_items(row)
-    if missing:
+    if missing and row.intake_source == 'structured':
         raise HrError('missing_items', '请先补齐招聘需求。', 409, missing_items=missing)
     source = _jd(row, source_id) if source_id else None
     if channel != 'general' and (not source or source.channel != 'general' or source.stale
                                  or source.state != 'confirmed' or row.official_jd_id != source.pk):
         raise HrError('stale_revision', '请选择当前有效的正式通用 JD。', 409)
     snapshot = (actor.session_version, actor.grant_version)
-    payload = {'request': row.structured_payload(), 'channel': channel, 'custom_label': custom_label}
+    payload = {'request': row.structured_payload(), 'original_text': row.original_text,
+               'channel': channel, 'custom_label': custom_label}
     if source:
         payload['confirmed_jd'] = source.body
     try:
         result = model_gateway.generate_for_use(actor, 'hr_jd_draft', [
-            {'role': 'system', 'content': '仅根据提供的招聘事实生成中文JD草稿。不得编造薪资、福利或要求。平台类型仅调整排版和文风，不更改事实。输出纯文本正文，不自动发布。'},
+            {'role': 'system', 'content': '仅根据提供的招聘事实生成中文JD草稿。不得编造薪资、福利或要求。保留所有已知薪资、福利、社保事实，未知项标注待补充。年龄仅为备注，不作为筛选要求。平台类型仅调整排版和文风，不更改事实。输出纯文本正文，不自动发布。'},
             {'role': 'user', 'content': json.dumps(payload, ensure_ascii=False)},
         ])
     except model_gateway.GatewayError as error:
@@ -79,18 +83,33 @@ def generate(actor, request_id, expected, *, channel='general', source_id=None, 
         _version(row, expected)
         if source and row.official_jd_id != source.pk:
             raise HrError('stale_revision', '正式 JD 已变化。', 409)
-        return _append(row, fresh, result.get('content'), channel=channel,
-                       source_jd=source, custom_label=custom_label.strip())
+        record_message(row, 'user', '生成 JD 草稿' if channel == 'general' else f'适配 JD：{channel}')
+        content = _body(result.get('content'))
+        # Channel adaptations retain the confirmed facts rather than refreshing
+        # requirements from a mutable request or a model-generated summary.
+        if source:
+            content += '\n\n已人工确认的通用 JD：\n' + source.body
+        else:
+            content += fact_appendix(row)
+        return _append(row, fresh, content, channel=channel,
+                       source_jd=source, custom_label=custom_label.strip(),
+                       requirements=source.requirements if source else row.structured_payload())
 
 
 @transaction.atomic
-def edit(actor, request_id, expected, base_id, body):
+def edit(actor, request_id, expected, base_id, body, requirements=None):
     row = _owned(actor, request_id, lock=True)
     _version(row, expected)
     base = _jd(row, base_id)
     if base.stale or base.state != 'draft' or row.current_jd_id != base.pk or base.channel != 'general':
         raise HrError('stale_revision', '只能修改当前有效的通用草稿。', 409)
-    return _append(row, actor, body, source='hr_edit', parent=base)
+    body = _body(body)
+    try:
+        extracted = grounded_requirements(body, requirements)
+    except RecruitmentValidationError as error:
+        raise HrError('invalid_request', str(error)) from None
+    record_message(row, 'user', body)
+    return _append(row, actor, body, source='hr_edit', parent=base, requirements=extracted)
 
 
 @transaction.atomic
@@ -108,5 +127,21 @@ def confirm(actor, request_id, expected, jd_id):
     jd.save(update_fields=['state', 'confirmed_by', 'confirmed_at'])
     row.official_jd = jd
     row.save(update_fields=['official_jd', 'updated_at'])
+    record_message(row, 'user', f'人工确认 JD 第 {jd.version} 版', jd)
+    record_message(row, 'assistant', '此 JD 已由你人工确认，可用于简历辅助匹配。', jd)
     audit(actor, 'hr_jd_confirm', jd.pk, changes=['state', 'official_jd'])
     return jd
+
+
+@transaction.atomic
+def create_intake(actor, text, *, source='text'):
+    try:
+        text = intake_text(text)
+        requirements = extract_requirements(text)
+    except RecruitmentValidationError as error:
+        raise HrError('invalid_request', str(error)) from None
+    row = RecruitmentRequest.objects.create(created_by=actor, updated_by=actor,
+        original_text=text, intake_source=source, **requirements)
+    record_message(row, 'user', text)
+    jd = _append(row, actor, intake_draft(text, requirements), source=source, requirements=requirements)
+    return row, jd

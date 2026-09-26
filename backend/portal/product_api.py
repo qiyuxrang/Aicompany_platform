@@ -29,6 +29,7 @@ from .product_pair import latest_report_content, output_current, pair_snapshot, 
 from .security import audit
 from .models import User
 from .product_intake import summary as extraction_summary
+from .product_service import require_project_materials
 
 
 def product_endpoint(function):
@@ -266,7 +267,7 @@ def _task_detail(task, user):
             "approved": approved, "draft": not approved, "created_at": artifact.created_at.isoformat(),
         })
     sources = [{
-        "id": str(source.pk), "original_name": source.original_name, "media_type": source.media_type,
+        "id": str(source.pk), "original_name": source.original_name, "media_type": source.media_type, "purpose": source.purpose,
         "sha256": source.sha256, "size": source.size, "parsed": extraction_summary(source.parsed),
         "warnings": source.warnings, "created_at": source.created_at.isoformat(),
     } for source in task.sources.order_by("created_at")]
@@ -309,6 +310,8 @@ def _task_detail(task, user):
         "reviewer_id": task.reviewer_id, "owner_id": task.owner_id,
         "input_issues": [{**issue, "issue_hash": digest(issue)} for issue in (input_revision.payload.get("issues", []) if input_revision else [])],
         "impact": task.checkpoint.get("impact", {}),
+        "intake_mode": task.checkpoint.get("intake_mode", "manual"),
+        "analysis_progress": task.checkpoint.get("analysis_progress", {}),
     }
 
 
@@ -556,7 +559,10 @@ def tasks(request):
         queryset = DocumentTask.objects.filter(scope).order_by("-updated_at")
         audit(request.user, "product_task_list", f"list:r{request.product_request_id}")
         return Response([_task_summary(task) for task in queryset])
-    body = _body(request, {"title", "input"}, {"reviewer_id"})
+    body = _body(request, {"title", "input"}, {"reviewer_id", "intake_mode"})
+    intake_mode = body.get("intake_mode", "manual")
+    if not isinstance(intake_mode, str) or intake_mode not in {"manual", "equipment_background"}:
+        raise ProductError("invalid_intake_mode", "项目资料模式无效。")
     key = request.headers.get("Idempotency-Key", "")
     if not key or len(key) > 128 or any(ord(character) < 33 for character in key):
         raise ProductError("invalid_idempotency_key", "Idempotency-Key 无效。")
@@ -564,6 +570,8 @@ def tasks(request):
     input_payload = validate_input(body["input"])
     reviewer_id = body.get("reviewer_id")
     payload_hash = digest({"title": title, "input": input_payload, "reviewer_id": reviewer_id})
+    if intake_mode != "manual":
+        payload_hash = digest({"base": payload_hash, "intake_mode": intake_mode})
     created = False
     with transaction.atomic():
         owner = User.objects.select_for_update().get(pk=request.user.pk)
@@ -576,7 +584,7 @@ def tasks(request):
             reviewer = eligible_reviewer(reviewer_id, owner)
             task = DocumentTask.objects.create(
                 owner=owner, reviewer=reviewer, title=title,
-                idempotency_key=key, payload_hash=payload_hash,
+                idempotency_key=key, payload_hash=payload_hash, checkpoint={"intake_mode": intake_mode},
             )
             revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=owner,
                                        reason="task_created")
@@ -671,6 +679,9 @@ def _queue(task, action):
         if _input_revision(task) is None:
             raise ProductError("input_required", "请先保存输入。", 409)
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
+        if action == "blueprint":
+            require_project_materials(task)
+            task.checkpoint = {**task.checkpoint, "analysis_progress": {}}
     elif action in {"write", "render", "candidate", "three_drafts", "presentation", "generate_outputs"}:
         blueprint_revision = approved_blueprint(task)
         if blueprint_revision is None:
@@ -786,7 +797,7 @@ def decisions(request, task_id):
                     or any(value != "INPUT_TABLE" for value in scope["tables"])
                     or not (scope["chapters"] or scope["tables"])):
                 raise ProductError("invalid_request", "退回修改范围无效。")
-            task.checkpoint = {**task.checkpoint, "revision_requests": [*task.checkpoint.get("revision_requests", []),
+            task.checkpoint = {**task.checkpoint, "revision_requests": [*task.checkpoint.get("revision_requests", [])[-19:],
                 {"target_id": str(target.pk), "sha256": target.sha256, "actor_id": request.user.pk,
                  "comment": body["comment"], "scope": scope}]}
             task.fence += 1
@@ -794,7 +805,15 @@ def decisions(request, task_id):
             task.state = DocumentTask.State.WAITING_INPUT
             task.pending_action = ""
             task.error_code = "revision_requested"
+            if body["target"] == "blueprint":
+                require_project_materials(task)
+                blocked = not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
+                task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
+                task.pending_action = "blueprint"
+                task.error_code = "model_authorization_required" if blocked else ""
+                task.checkpoint = {**task.checkpoint, "analysis_progress": {}}
         elif body["target"] == "blueprint":
+            require_project_materials(task)
             task.pending_action = "generate_outputs"
             task.stage = DocumentTask.Stage.WRITING
             blocked = not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
@@ -868,11 +887,11 @@ def retry(request, task_id):
 @api_view(["POST"])
 @product_endpoint
 def sources(request, task_id):
-    body = _body(request, {"expected_version", "file"})
+    body = _body(request, {"expected_version", "file"}, {"purpose"})
     upload = body["file"]
     if not hasattr(upload, "read"):
         raise ProductError("invalid_file", "请选择上传文件。")
-    task, source = attach_source(request.user, task_id, _expected(body["expected_version"]), upload)
+    task, source = attach_source(request.user, task_id, _expected(body["expected_version"]), upload, purpose=body.get("purpose"))
     _audit(request, "product_source_create", task, changes=["source", "input"], target=source.pk)
     return Response({"source_id": str(source.pk), "task": _task_detail(task, request.user)}, status=201)
 

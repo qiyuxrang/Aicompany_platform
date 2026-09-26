@@ -183,6 +183,7 @@ describe("portal routing", () => {
       if (path === "/api/modules/hr/") return Promise.resolve(json({ code: "hr", name: "人事", description: "", status: "verified", enabled: true }));
       if (path === "/api/modules/") return Promise.resolve(json([{ code: "hr", name: "人事", description: "", status: "verified", enabled: true }]));
       if (path === "/api/hr/jobs/") return Promise.resolve(json(jobs));
+      if (path === "/api/hr/recruitment/requests/") return Promise.resolve(json([]));
       return Promise.resolve(json({ detail: "未找到" }, 404));
     }));
     render(<App />);

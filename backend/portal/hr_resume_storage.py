@@ -63,9 +63,20 @@ def save_file(name, content):
 
 def remove_file(file_id):
     try:
-        _path(file_id).unlink(missing_ok=True)
+        target = _path(file_id)
+        target.unlink(missing_ok=True)
+        target.with_suffix('.delete').unlink(missing_ok=True)
     except OSError:
         raise StorageError('storage_cleanup_failed', '简历临时文件清理失败，需要运维处理。') from None
+
+
+def defer_file_removal(file_id):
+    """Durable, content-free retry marker for a rolled-back upload only."""
+    try:
+        _path(file_id).with_suffix('.delete').write_text('', encoding='ascii')
+    except OSError as error:
+        # Surface this failure; the age-based orphan sweep remains a second path.
+        raise StorageError('storage_cleanup_failed', '无法记录文件删除重试，请修复存储。') from error
 
 
 def read_file(file_id, expected_hash):
@@ -77,3 +88,52 @@ def read_file(file_id, expected_hash):
     if len(content) > MAX_BYTES or hashlib.sha256(content).hexdigest() != expected_hash:
         raise StorageError('artifact_hash_mismatch', '简历完整性校验失败。')
     return content
+
+
+def cleanup_orphan_files(edge, *, limit=100):
+    """Reap old UUID files left by interrupted uploads/rollbacks, never live refs.
+
+    At most limit unreferenced expired files are attempted; directory enumeration
+    is read-only. Fresh in-flight upload files cannot be mistaken for orphans.
+    """
+    from .hr_screening_models import ResumeArtifact
+    root = _root()
+    result = {'removed': 0, 'failures': []}
+    if not root.exists():
+        return result
+    attempted = 0
+    try:
+        with os.scandir(root) as entries:
+            for entry in entries:
+                if attempted >= limit:
+                    break
+                name = entry.name
+                deferred = name.endswith('.delete')
+                identifier = name[:-7] if deferred else name[:-4] if name.endswith('.tmp') else name
+                try:
+                    if str(uuid.UUID(identifier)) != identifier:
+                        continue
+                except ValueError:
+                    continue
+                if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                    continue
+                try:
+                    if not deferred and entry.stat(follow_symlinks=False).st_mtime > edge.timestamp():
+                        continue
+                    if ResumeArtifact.objects.filter(file_id=identifier).exists():
+                        continue
+                    attempted += 1
+                    # Only canonical root-local UUID and UUID.tmp names; no paths from uploads.
+                    if deferred:
+                        remove_file(identifier)
+                    else:
+                        (root / name).unlink(missing_ok=True)
+                    result['removed'] += 1
+                except FileNotFoundError:
+                    continue
+                except (OSError, StorageError):
+                    result['failures'].append({'kind': 'orphan_file', 'id': identifier,
+                                               'code': 'storage_cleanup_failed'})
+    except OSError as error:
+        raise StorageError('storage_cleanup_failed', '招聘私有文件目录清理失败，需要重试。') from error
+    return result

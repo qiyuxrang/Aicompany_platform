@@ -1,5 +1,6 @@
 import ProbationWorkspace from '../hr/ProbationWorkspace';
 import RecruitmentDashboard from '../hr/RecruitmentDashboard';
+import RecruitmentHistory from '../hr/RecruitmentHistory';
 import RecruitmentJobs from '../hr/RecruitmentJobs';
 import RecruitmentScreening from '../hr/RecruitmentScreening';
 import type { CurrentUser } from '../api';
@@ -16,7 +17,7 @@ export default function HrWorkspace({ section, user }: WorkspaceProps & { user: 
     <p role="alert">当前账号没有 HR 岗位、JD、招聘渠道或简历权限。</p>
   </>;
   if (section === 'probation') return <><p className="hr-warning">360° 问卷及钉钉接入已按要求延后；以下为既有转正流程。</p><ProbationWorkspace canManage={isHr} /></>;
-  if (section === 'history') return <RecruitmentJobs key="history" legacy />;
+  if (section === 'history') return <><RecruitmentHistory key="history" /><details className="hr-card"><summary>旧版岗位记录</summary><RecruitmentJobs key="legacy-history" legacy /></details></>;
   if (['job', 'profile', 'channels'].includes(section)) return <RecruitmentJobs key="jobs" />;
   if (section === 'resumes') return <RecruitmentScreening key="screening" />;
   if (section === 'results') return <RecruitmentScreening key="results" results />;

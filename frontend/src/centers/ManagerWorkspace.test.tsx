@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, PortalModule } from "../api";
 import ManagerWorkspace from "./ManagerWorkspace";
 
+// BI data flow has its own contract tests; these cases isolate legacy navigation.
+vi.mock('./BusinessBoards', () => ({ default: () => <div>企业台账看板</div> }));
+
 const apiMocks = vi.hoisted(() => ({
   launchModule: vi.fn(),
 }));

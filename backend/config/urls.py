@@ -23,6 +23,7 @@ urlpatterns = [
     path("api/ops/issues/<int:issue_id>/", operations.ops_issue_detail),
     path("api/ops/maintenance/", operations.ops_maintenance),
     path("api/business/summary/", integration.summary),
+    path("api/business/", include("portal.business_boards")),
     path("api/work/summary/", work_summary.summary),
     path("api/integration/redeem/", integration.redeem),
     path("api/product/", include("portal.product_source_api")),

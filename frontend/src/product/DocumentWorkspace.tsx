@@ -412,7 +412,7 @@ export function TaskEditor({ id, requestedArtifact, deepLinked, onFatal, busines
   }
   if (business) return <>
     {error && <div className="pd-feedback" role="alert">{error}</div>}{notice && <p className="pd-inline-notice" role="status">{notice}</p>}
-    <ProjectStages task={task} outputs={outputs} history={history} outputsError={outputsError} historyError={historyError} busy={busy} conflict={conflict} disabled={disabled} onAction={send} onReload={() => void perform(async () => {}, true)} onUpload={file => perform(signal => uploadSource(id, file, task.version, signal))} onSourceAction={(sourceId, endpoint, body) => perform(signal => updateSource(sourceId, endpoint, body, signal))}/>
+    <ProjectStages task={task} outputs={outputs} history={history} outputsError={outputsError} historyError={historyError} busy={busy} conflict={conflict} disabled={disabled} onAction={send} onReload={() => void perform(async () => {}, true)} onUpload={(file, purpose) => perform(signal => uploadSource(id, file, task.version, signal, purpose))} onSourceAction={(sourceId, endpoint, body) => perform(signal => updateSource(sourceId, endpoint, body, signal))}/>
   </>;
   const progress = task.artifacts.length ? 4 : task.blueprint ? 3 : task.sources.length ? 2 : 1;
   return <>

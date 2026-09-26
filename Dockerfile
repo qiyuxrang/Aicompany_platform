@@ -40,7 +40,8 @@ RUN groupadd --system portal && useradd --system --gid portal --home-dir /app po
 COPY --chown=portal:portal backend/ ./backend/
 COPY --chown=portal:portal model_gateway/ ./model_gateway/
 COPY --from=frontend-build --chown=portal:portal /build/frontend/dist/ ./frontend/dist/
-RUN mkdir -p /app/staticfiles /app/.runtime/product-private && chown portal:portal /app/staticfiles /app/.runtime /app/.runtime/product-private
+RUN mkdir -p /app/staticfiles /app/.runtime/product-private /app/.runtime/hr-private \
+    && chown portal:portal /app/staticfiles /app/.runtime /app/.runtime/product-private /app/.runtime/hr-private
 
 USER portal
 WORKDIR /app/backend

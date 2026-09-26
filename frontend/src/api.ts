@@ -262,12 +262,12 @@ export async function logout(): Promise<void> {
   await apiRequest<void>("/api/logout/", { method: "POST", body: "{}" });
 }
 
-export async function changePassword(oldPassword: string, newPassword: string): Promise<{ detail: string }> {
+export async function changePassword(oldPassword: string | undefined, newPassword: string, confirmPassword?: string): Promise<{ detail: string }> {
   return apiRequest<{ detail: string }>(
     "/api/password/",
     {
       method: "POST",
-      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword, confirm_password: confirmPassword }),
     },
   );
 }

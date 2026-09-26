@@ -1,9 +1,10 @@
 """Evidence-based HR matching; model verdicts never decide employment."""
 import json
+import re
 
 PROFILE_FIELDS = ('name', 'contact', 'education', 'work_experience', 'projects', 'skills',
                   'certificates', 'industry_experience', 'management_experience', 'languages', 'other_verifiable')
-RULE_VERSION = 'rule-v0-offline-20260924'
+RULE_VERSION = 'rule-v1-no-age-20260926'
 VALUES = {'MATCH': 1, 'PARTIAL': .5, 'NOT_MATCH': 0, 'UNKNOWN': None}
 
 
@@ -17,13 +18,18 @@ def _object(text):
     return value
 
 
+def is_age_requirement(text):
+    # Human age notes are retained in source/JD only, never scored or excluded.
+    return bool(re.search(r'年龄|周岁|[零〇一二三四五六七八九十百\d]+\s*岁|\bage\b|years?\s*old|year[- ]olds?|[0-9]{2}后|出生|birth', text, re.I))
+
+
 def requirements_for(data):
     result = []
     for field in ('education_requirement', 'experience_requirement', 'skill_requirements',
                   'required_requirements', 'work_location', 'preferred_requirements'):
         value = data.get(field, []) if field == 'skill_requirements' else data.get(field, '').splitlines()
         for index, text in enumerate(value):
-            if text.strip():
+            if text.strip() and not is_age_requirement(text):
                 result.append({'id': f'{field}#{index}', 'text': text.strip(),
                                'category': 'bonus' if field == 'preferred_requirements' else 'hard'})
     return result
@@ -74,6 +80,8 @@ def match_matrix(output, required, text):
         by_id[key] = entry
     result = []
     for requirement in required:
+        if is_age_requirement(requirement['text']):
+            continue
         entry = by_id.get(requirement['id'], {})
         evidence = _evidence(entry.get('evidence'), text)
         verdict = entry.get('verdict')
@@ -87,6 +95,8 @@ def score_matrix(matrix):
     total = judged = full = 0
     unknown, gaps = 0, []
     for row in matrix:
+        if is_age_requirement(row.get('text', '')):
+            continue
         weight = .5 if row['category'] == 'bonus' else 1
         full += weight
         value = VALUES[row['verdict']]

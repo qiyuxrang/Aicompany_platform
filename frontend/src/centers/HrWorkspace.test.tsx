@@ -20,7 +20,7 @@ it('岗位页面接入新招聘 API', async () => {
 it('筛选页仅使用有效 JD 创建批次', async () => {
   render(<HrWorkspace section="resumes" user={hrUser} />);
   expect(await screen.findByText('暂无筛选记录，请先创建批次。')).toBeTruthy();
-  expect((screen.getByRole('button', { name: '创建批次' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: '进行筛选' }) as HTMLButtonElement).disabled).toBe(true);
 });
 it.each(['job', 'resumes', 'results', 'probation'])('管理预览 %s 不读取业务', section => {
   window.history.replaceState({}, '', '/preview/hr/' + section);

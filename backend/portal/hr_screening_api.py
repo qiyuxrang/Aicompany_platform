@@ -12,7 +12,8 @@ from rest_framework.response import Response
 
 from .hr_api import HrError, _body, _expected, _require_hr, hr_endpoint
 from .hr_recruitment_models import JDVersion
-from .hr_resume_storage import MAX_BYTES, save_file, read_file, remove_file, validate_file
+from .hr_retention import active_batches, active_artifacts, ensure_request_active, batch_expired, RETENTION
+from .hr_resume_storage import MAX_BYTES, save_file, read_file, remove_file, validate_file, defer_file_removal
 from .hr_screening_models import ResumeArtifact, ResumeScreeningBatch
 from .models import User
 from .product_storage import StorageError
@@ -22,9 +23,9 @@ from .security import audit
 def owned_batch(user, batch_id, lock=False):
     query = ResumeScreeningBatch.objects.select_related('jd_version__request').filter(created_by=user)
     if lock:
-        query = query.select_for_update()
+        query = query.select_for_update(of=('self',))
     try:
-        return query.get(pk=batch_id)
+        return active_batches(query).get(pk=batch_id)
     except ResumeScreeningBatch.DoesNotExist:
         raise HrError('not_found', '对象不存在。', 404) from None
 
@@ -33,11 +34,15 @@ def batch_data(batch):
     counts = dict(batch.artifacts.values('processing_status').annotate(n=Count('id')).values_list('processing_status', 'n'))
     total = sum(counts.values())
     done, failed = counts.get('completed', 0), counts.get('failed', 0)
-    return {'id': str(batch.pk), 'jd_version_id': str(batch.jd_version_id), 'jd_version': batch.jd_version.version,
+    return {'id': str(batch.pk), 'request_id': str(batch.jd_version.request_id), 'jd_version_id': str(batch.jd_version_id), 'jd_version': batch.jd_version.version,
             'position_name': batch.jd_version.request.position_name, 'version': batch.version,
             'status': batch.status, 'stale': batch.stale, 'total': total, 'completed': done, 'failed': failed,
+            'screened': done, 'pending': sum(counts.get(state, 0) for state in ('queued', 'running')),
+            'prescreened': counts.get('pending', 0), 'status_counts': counts,
+            'jd_body': batch.jd_version.body,
             'progress': round((done + failed) * 100 / total, 1) if total else 0,
-            'created_at': batch.created_at.isoformat(), 'updated_at': batch.updated_at.isoformat()}
+            'created_at': batch.created_at.isoformat(), 'updated_at': batch.updated_at.isoformat(),
+            'expires_at': (min(batch.created_at, batch.jd_version.request.created_at) + RETENTION).isoformat()}
 
 
 def artifact_data(item):
@@ -50,7 +55,7 @@ def artifact_data(item):
 def batches(request):
     _require_hr(request)
     if request.method == 'GET':
-        return Response([batch_data(b) for b in ResumeScreeningBatch.objects.filter(created_by=request.user)
+        return Response([batch_data(b) for b in active_batches(ResumeScreeningBatch.objects.filter(created_by=request.user))
                          .select_related('jd_version__request')])
     body = _body(request, {'jd_version_id'})
     key = request.headers.get('Idempotency-Key', '')
@@ -62,15 +67,20 @@ def batches(request):
             jd = JDVersion.objects.select_related('request').get(pk=body['jd_version_id'], request__created_by=request.user)
         except (JDVersion.DoesNotExist, ValueError, TypeError):
             raise HrError('not_found', '对象不存在。', 404) from None
+        from .hr_recruitment_api import _owned
+        jd.request = _owned(request.user, jd.request_id, lock=True)
+        ensure_request_active(jd.request)
         existing = ResumeScreeningBatch.objects.filter(created_by=request.user, idempotency_key=key).first()
         if existing:
+            if batch_expired(existing):
+                raise HrError('not_found', '批次已超过15天保留期。', 404)
             if existing.jd_version_id != jd.pk:
                 raise HrError('idempotency_conflict', '幂等键已用于其他岗位。', 409)
             return Response(batch_data(existing))
         if jd.stale or jd.state != 'confirmed' or jd.channel != 'general' or jd.request.official_jd_id != jd.pk:
             raise HrError('stale_revision', '请选择当前有效的正式通用 JD。', 409)
         batch = ResumeScreeningBatch.objects.create(jd_version=jd, created_by=request.user,
-            idempotency_key=key, input_version=jd.input_version, requirements=jd.request.structured_payload())
+            idempotency_key=key, input_version=jd.input_version, requirements=jd.requirements or jd.request.structured_payload())
         audit(request.user, 'hr_batch_create', batch.pk, changes=['jd_version'])
     return Response(batch_data(batch), status=201)
 
@@ -96,9 +106,21 @@ def _upload_transaction():
     try:
         with transaction.atomic():
             yield created_files
-    except Exception:
+    except Exception as original:
+        failures = []
         for file_id in created_files:
-            remove_file(file_id)
+            try:
+                remove_file(file_id)
+            except StorageError as error:
+                failures.append(error.code)
+                try:
+                    defer_file_removal(file_id)
+                except StorageError as marker_error:
+                    failures.append(marker_error.code)
+        if failures:
+            # Retry markers are durable after rollback; age-based orphan sweeping
+            # also covers process interruption before a marker could be written.
+            raise HrError('storage_cleanup_failed', '上传已回滚，但部分私有文件删除失败；清理任务将重试。', 503) from original
         raise
 
 
@@ -114,6 +136,10 @@ def upload(request, batch_id):
             raise HrError('version_conflict', '批次已变化，请刷新。', 409)
         if batch.status != 'pending' or batch.stale:
             raise HrError('invalid_state', '当前批次不可追加简历。', 409)
+        known = set(batch.artifacts.values_list('sha256', flat=True))
+        added = {checksum for _, _, checksum in files} - known
+        if len(known) + len(added) > 200:
+            raise HrError('batch_limit', '每批最多200份去重简历。')
         items = []
         for name, data, checksum in files:
             item = batch.artifacts.filter(sha256=checksum).first()
@@ -144,7 +170,7 @@ def progress(request, batch_id):
 def download(request, artifact_id):
     _require_hr(request)
     try:
-        item = ResumeArtifact.objects.get(pk=artifact_id, batch__created_by=request.user)
+        item = active_artifacts(ResumeArtifact.objects.all()).get(pk=artifact_id, batch__created_by=request.user)
     except ResumeArtifact.DoesNotExist:
         raise HrError('not_found', '对象不存在。', 404) from None
     try:

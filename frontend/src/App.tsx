@@ -25,6 +25,7 @@ import {
 import OpsWorkspace from "./ops/OpsWorkspace";
 import Icon from "./Icon";
 import ThemeSwitch from "./ThemeSwitch";
+import './password-dialog.css';
 import CenterWorkspace from "./centers/CenterWorkspace";
 import HrHeaderTools from './hr/HrHeaderTools';
 import { centers, isCenterCode } from "./centers/config";
@@ -35,6 +36,13 @@ const statusMeta = {
   verified: { label: "已验证集成", tone: "success", detail: "平台已完成入口验证，目标系统仍按自身认证策略运行。" },
   disabled: { label: "已停用", tone: "muted", detail: "该入口当前不可用，请联系平台管理员。" },
 } as const;
+
+function departmentHome(user: CurrentUser): string {
+  if (user.is_platform_admin) return "/ops";
+  const homes: Record<string, string> = { product: "/centers/product", hr: "/centers/hr", engineering: "/centers/cost", general_manager: "/centers/business" };
+  const destinations = [...new Set(user.roles.map(role => homes[role.code]).filter(Boolean))];
+  return destinations.length === 1 ? destinations[0] : "/";
+}
 
 function navigate(path: string, replace = false): void {
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === path) return;
@@ -211,14 +219,22 @@ function PasswordPage({
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const passwordDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!forced || !passwordDialog.current) return;
+    const dialog = passwordDialog.current;
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    return () => { if (typeof dialog.close === "function") dialog.close(); };
+  }, [forced]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      setError("请完整填写三个密码字段。");
+    if ((!forced && !oldPassword) || !newPassword || !confirmPassword) {
+      setError(forced ? "请输入新密码并再次确认。" : "请完整填写三个密码字段。");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -227,7 +243,7 @@ function PasswordPage({
     }
     setPending(true);
     try {
-      const result = await changePassword(oldPassword, newPassword);
+      const result = await changePassword(forced ? undefined : oldPassword, newPassword, confirmPassword);
       onChanged(result.detail);
     } catch (caught) {
       setError(isApiError(caught) ? caught.message : "密码修改失败，请稍后重试。");
@@ -245,10 +261,7 @@ function PasswordPage({
     }
   };
 
-  return (
-    <main className={`password-layout ${forced ? "" : "within-shell"}`}>
-      {forced && <div className="password-brand"><Brand /><ThemeSwitch /></div>}
-      <section className="form-card password-card" aria-labelledby="password-title">
+  const card = <section className="form-card password-card" aria-labelledby="password-title">
         <div className="form-heading">
           <p className="eyebrow">账号安全</p>
           <h1 id="password-title">{forced ? "首次登录，请先修改密码" : "修改登录密码"}</h1>
@@ -256,7 +269,7 @@ function PasswordPage({
         </div>
         {error && <div className="notice error" role="alert">{error}</div>}
         <form onSubmit={handleSubmit} noValidate>
-          <label htmlFor="old-password">当前密码</label>
+          {!forced && <><label htmlFor="old-password">当前密码</label>
           <input
             id="old-password"
             type="password"
@@ -265,7 +278,7 @@ function PasswordPage({
             onChange={(event) => setOldPassword(event.target.value)}
             required
             autoFocus
-          />
+          /></>}
           <label htmlFor="new-password">新密码</label>
           <input
             id="new-password"
@@ -273,6 +286,8 @@ function PasswordPage({
             autoComplete="new-password"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
+            autoFocus={forced}
+            minLength={12}
             required
           />
           <label htmlFor="confirm-password">确认新密码</label>
@@ -289,9 +304,11 @@ function PasswordPage({
           </button>
         </form>
         {forced && <button className="text-button" type="button" onClick={handleLogout}>退出当前账号</button>}
-      </section>
-    </main>
-  );
+      </section>;
+  return <main className={`password-layout ${forced ? "" : "within-shell"}`}>
+    {forced && <div className="password-brand"><Brand /><ThemeSwitch /></div>}
+    {forced ? <dialog ref={passwordDialog} className="first-password-dialog" aria-labelledby="password-title" onCancel={event => event.preventDefault()}>{card}</dialog> : card}
+  </main>;
 }
 
 function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: () => Promise<void>; children: ReactNode }) {
@@ -835,7 +852,7 @@ export default function App() {
   if (phase === "ready") {
     if (!user && pathname !== "/login") requiredPath = "/login";
     if (user?.must_change_password && pathname !== "/password") requiredPath = "/password";
-    if (user && !user.must_change_password && pathname === "/login") requiredPath = user.is_platform_admin ? "/ops" : "/";
+    if (user && !user.must_change_password && pathname === "/login") requiredPath = departmentHome(user);
     if (user?.is_platform_admin && !user.must_change_password && pathname === "/") requiredPath = "/ops";
     if (user && ["/centers/product/solution", "/centers/product/feasibility", "/centers/product/slides"].includes(pathname)) requiredPath = "/centers/product/documents";
     if (user?.is_platform_admin && ["/preview/product/solution", "/preview/product/feasibility", "/preview/product/slides"].includes(pathname)) requiredPath = "/preview/product/documents";
@@ -851,7 +868,7 @@ export default function App() {
   const handleAuthenticated = (currentUser: CurrentUser) => {
     setUser(currentUser);
     setLoginNotice("");
-    navigate(currentUser.must_change_password ? "/password" : currentUser.is_platform_admin ? "/ops" : "/", true);
+    navigate(currentUser.must_change_password ? "/password" : departmentHome(currentUser), true);
   };
 
   const handleLogout = async () => {

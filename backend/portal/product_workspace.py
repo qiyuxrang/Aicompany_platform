@@ -161,3 +161,7 @@ def source_download(request, source_id):
 
 
 urlpatterns = [path("workspace/", workspace), path("sources/<uuid:source_id>/download/", source_download)]
+
+# Independent RAGFlow knowledge Q&A; does not reuse blueprint retrieval configuration.
+from .product_knowledge_api import urlpatterns as knowledge_urlpatterns
+urlpatterns += knowledge_urlpatterns

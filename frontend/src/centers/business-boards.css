@@ -1,0 +1,23 @@
+.business-bi, .business-records, .business-distribution { min-width: 0; }
+.business-import form > label { min-width: 0; max-width: 100%; }
+.business-bi { padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.business-bi-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+.business-bi-head h2 { font-size: 26px; margin-bottom: 8px; }.business-bi-head p { color: var(--muted); margin-bottom: 0; }
+.business-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+.business-tabs button { border: 0; border-bottom: 3px solid transparent; padding: 14px 18px; color: var(--muted); background: transparent; cursor: pointer; }
+.business-tabs button[aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+.business-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.business-metrics article { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); }
+.business-metrics article > span { color: var(--muted); font-size: 14px; }.business-metrics strong { display: block; font-size: clamp(20px, 2vw, 30px); margin-top: 14px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.business-metrics small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 7px; }
+.business-source, .business-definition, .business-scope { color: var(--muted); font-size: 13px; line-height: 1.8; margin-top: 16px; }
+.business-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 18px 0; }
+.business-filters label, .business-import label { display: grid; gap: 8px; font-size: 14px; }.business-filters input { min-width: 220px; }
+.business-bi input, .business-bi select { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; color: inherit; background: var(--surface); }
+.business-detail-grid { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr); gap: 24px; margin: 20px 0; }
+.business-detail-grid h3 { font-size: 16px; }.business-detail-grid h3 small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.business-bar { margin: 15px 0; }.business-bar > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }.business-bar meter { display: block; width: 100%; height: 12px; margin-top: 6px; }
+.business-table-scroll { overflow: auto; max-height: 460px; }.business-records table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }.business-records th, .business-records td { padding: 12px; text-align: left; border-bottom: 1px solid var(--line); }.business-records th { background: var(--soft); position: sticky; top: 0; }.business-records td:nth-child(2) { white-space: normal; min-width: 160px; max-width: 280px; }
+.business-import { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }.business-import summary { cursor: pointer; font-weight: 600; }.business-import p { margin-top: 14px; color: var(--muted); font-size: 13px; line-height: 1.8; }.business-import a { color: var(--accent); }.business-import form { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; margin-top: 18px; }.business-import input[type=file] { max-width: 300px; }
+@media (max-width: 1000px) { .business-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }.business-detail-grid { grid-template-columns: 1fr; }.business-distribution { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }.business-distribution h3 { grid-column: 1/-1; } }
+@media (max-width: 600px) { .business-bi { padding: 16px; }.business-bi-head { align-items: start; }.business-bi-head h2 { font-size: 21px; }.business-tabs button { padding: 12px 8px; font-size: 13px; }.business-metrics article { padding: 14px; }.business-import input { max-width: 100%; } }
