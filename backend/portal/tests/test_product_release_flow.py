@@ -138,10 +138,17 @@ class ProductReleaseFlowTests(PortalTestCase):
         self.assertEqual(b"".join(response.streaming_content), self.final_content)
         with override_settings(PRODUCT_REVIEWER_IDS=()):
             response = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
-            self.assertEqual(response.status_code, 409)
-            history = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=1")
-            self.assertEqual(history["X-Product-Artifact-Current"], "false")
-            self.assertEqual(b"".join(history.streaming_content), self.draft_content)
+            # Owner-confirmed source content remains current; revoked release
+            # approval must downgrade the download to its explicit draft fallback.
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["X-Product-Artifact-Current"], "true")
+            self.assertEqual(b"".join(response.streaming_content), self.draft_content)
+            self.assertIsNone(effective_artifact_approval(artifact))
+            self.assertEqual(self.reviewer_client.get(f"/api/product/artifacts/{artifact.pk}/preview/?page=1").status_code, 404)
+        # Restoring policy cannot resurrect the old formal-release signature.
+        self.assertIsNone(effective_artifact_approval(artifact))
+        restored = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/")
+        self.assertEqual(b"".join(restored.streaming_content), self.draft_content)
 
     def test_missing_pages_failed_check_or_mutated_evidence_cannot_approve(self):
         task, artifact = self.rendered_task()

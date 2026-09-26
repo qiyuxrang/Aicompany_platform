@@ -1,0 +1,31 @@
+{
+  "environment": "isolated synthetic Django + real Chrome",
+  "checks": [
+    "dashboard-real-authorized-metrics",
+    "create-upload-real-http-csrf-idempotency",
+    "authorized-original-source-download",
+    "business-input-edit-new-version",
+    "manual-blueprint-owner-cannot-approve",
+    "refresh-preserves-project-input-and-blueprint",
+    "exact-blueprint-approval-stops-at-real-model-gate",
+    "unassigned-user-denied-project-and-source",
+    "no-fabricated-generated-results",
+    "server-project-search",
+    "mobile-390-no-page-overflow",
+    "mobile-blueprint-no-page-overflow",
+    "dark-theme-layout",
+    "no-browser-runtime-errors"
+  ],
+  "page_errors": [],
+  "screenshots": [
+    "01-dashboard-desktop.png",
+    "02-new-project-desktop.png",
+    "03-blueprint-owner.png",
+    "04-blueprint-reviewer.png",
+    "05-current-outputs.png",
+    "06-dashboard-mobile.png",
+    "07-blueprint-mobile.png",
+    "08-dashboard-dark.png"
+  ],
+  "task_id": "172ba696-f009-4dd6-b34c-173e257e8a85"
+}

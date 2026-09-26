@@ -86,7 +86,14 @@ class ProductHistoryTests(PortalTestCase):
         )
         self.assertEqual(saved.status_code, 200, saved.content)
         task = saved.json()
-        approved = self.reviewer_client.post(
+        denied = self.reviewer_client.post(
+            f"/api/product/tasks/{task['id']}/decisions/",
+            json_body(expected_version=task["version"], target="blueprint", target_id=task["blueprint"]["id"],
+                      sha256=task["blueprint"]["sha256"], decision="approve", comment="旧审核人不得代替所有者确认"),
+            content_type="application/json",
+        )
+        self.assertEqual(denied.status_code, 404, denied.content)
+        approved = self.owner_client.post(
             f"/api/product/tasks/{task['id']}/decisions/",
             json_body(expected_version=task["version"], target="blueprint", target_id=task["blueprint"]["id"],
                       sha256=task["blueprint"]["sha256"], decision="approve", comment="同意当前精确蓝图"),
@@ -115,6 +122,7 @@ class ProductHistoryTests(PortalTestCase):
         self.assertEqual(upload["content_author"], {"status": "unverified", "id": None, "name": None})
         approval = next(item for item in payload["timeline"] if item["event"] == "approval")
         self.assertEqual(approval["actor"]["type"], "approver")
+        self.assertEqual(approval["actor"]["id"], self.owner.pk)
         self.assertEqual(approval["reason"], "同意当前精确蓝图")
         self.assertTrue(approval["authorization_current"])
 

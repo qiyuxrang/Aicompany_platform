@@ -55,6 +55,7 @@ class DocumentTask(models.Model):
 class DocumentRevision(models.Model):
     class Kind(models.TextChoices):
         INPUT = "input", "输入"
+        EXTRACTION = "extraction", "资料解析快照"
         BLUEPRINT = "blueprint", "蓝图"
         CHAPTER = "chapter", "章节"
         REVIEW = "review", "审查"

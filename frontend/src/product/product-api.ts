@@ -1,9 +1,21 @@
 import { apiRequest } from "../api";
 
+export const SOURCE_ACCEPT = ".csv,.txt,.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff";
+export interface SourceLocation { page?: number; paragraph?: number; table?: number; row?: number; sheet?: string; range?: string; part?: string; image?: number; bbox?: number[][]; image_width?: number; image_height?: number }
+export interface ExtractionSummary { status: "completed" | "needs_review" | "partial" | "failed"; method: "native" | "ocr" | "mixed"; extraction_hash: string; parser_version: string; block_count: number; item_count: number; character_count: number; truncated: boolean; metadata: { pages?: number; sheets?: number; images?: number } }
+export interface ExtractedBlock { id: string; kind: string; text: string; location: SourceLocation; location_label: string; cells?: string[]; confidence?: number; original_text?: string; correction?: { actor_id: number; reason: string } }
+export interface SourceWarning { code: string; detail?: string; row?: number; severity?: string; location?: SourceLocation }
+export interface SourceDetail { id: string; task_id: string; task_version: number; name: string; sha256: string; size: number; media_type: string; summary: ExtractionSummary; blocks: ExtractedBlock[]; warnings: SourceWarning[]; issues: (SourceWarning & { issue_hash: string })[]; revisions: { version: number; sha256: string; created_at: string; reason: string }[]; pagination: { page: number; page_size: number; total: number }; can_reparse: boolean; can_correct: boolean; can_preview: boolean }
+export const getSourceDetail = (id: string, query: string, signal: AbortSignal) => apiRequest<SourceDetail>(`/api/product/sources/${encodeURIComponent(id)}/?${query}`, { signal });
+export const sourcePreview = (id: string, page = 1) => `/api/product/sources/${encodeURIComponent(id)}/preview/?page=${page}`;
+export const updateSource = (id: string, endpoint: "reparse/" | "correction/", body: object, signal: AbortSignal) => apiRequest<unknown>(`/api/product/sources/${encodeURIComponent(id)}/${endpoint}`, { method: endpoint === "correction/" ? "PATCH" : "POST", body: JSON.stringify(body), signal });
+export type SourceAction = (id: string, endpoint: "reparse/" | "correction/", body: object) => Promise<unknown>;
+export const extractionNames = { completed: "解析完成", needs_review: "解析待核对", partial: "部分解析", failed: "未提取到文字" };
+
 export interface TaskInput {
   project: string;
   requirements: string;
-  items: { row_id: string | number; name: string; quantity: string | number; unit: string }[];
+  items: { row_id: string | number; name: string; quantity: string | number; unit: string; source_item_id?: string; source_location?: SourceLocation; source_id?: string }[];
   background: string;
   conditions: string[];
   knowledge_sources?: { id: string; location: string }[];
@@ -47,8 +59,9 @@ export interface ArtifactVerification {
   content_checks: ContentChecks;
   comment: string;
 }
-export interface TaskSummary { id: string; title: string; state: string; stage: string; version: number }
+export interface TaskSummary { id: string; title: string; state: string; stage: string; version: number; created_at?: string; updated_at?: string; owner_name?: string; reviewer_name?: string | null; pending_action?: string; error_code?: string }
 export interface DocumentTask extends TaskSummary {
+  blueprint_approved?: boolean;
   input_version: number;
   blueprint_version: number;
   input: TaskInput | null;
@@ -56,7 +69,7 @@ export interface DocumentTask extends TaskSummary {
   chapters: { id: string; family: Exclude<OutputFamily, "presentation">; version?: number; payload: ChapterPayload }[];
   reports: ReportRevision[];
   artifacts: Artifact[];
-  sources: { id: string; original_name: string }[];
+  sources: { id: string; original_name: string; size?: number; media_type?: string; sha256?: string; created_at?: string; warnings?: SourceWarning[]; parsed?: ExtractionSummary }[];
   approvals: unknown[];
   issues: unknown[];
   error_code: string;
@@ -79,6 +92,21 @@ export interface ConversationTaskResult {
   };
   blockers: Record<string, string>;
 }
+export interface ProductOverview {
+  as_of: string;
+  scope: "authorized_projects";
+  metrics: { active: number; review: number; generation: number; completed_month: number };
+  projects: TaskSummary[];
+  pagination: { page: number; page_size: number; total: number; pages: number };
+  recent_projects: TaskSummary[];
+  todos: TaskSummary[];
+  recent_outputs: { id: string; task_id: string; title: string; family: OutputFamily; version: number; created_at: string; current: boolean; review_status: "stale" | "approved" | "pending_review" }[];
+  reviewers: { id: number; name: string }[];
+  capabilities: { model_generation: boolean; retrieval: boolean; formal_release: boolean; office_preview: boolean; upload_extensions: string[]; upload_max_bytes: number; local_ocr?: boolean; parser_ready?: boolean };
+  templates: { id: string; name: string; version: string; families: OutputFamily[]; approved: boolean; description: string }[];
+}
+export const getProductOverview = (query: string, signal: AbortSignal) => apiRequest<ProductOverview>(`/api/product/workspace/${query ? `?${query}` : ""}`, { signal });
+export const sourceDownload = (id: string) => `/api/product/sources/${encodeURIComponent(id)}/download/`;
 const root = "/api/product/tasks/";
 const pathFor = (id: string) => `${root}${encodeURIComponent(id)}/`;
 

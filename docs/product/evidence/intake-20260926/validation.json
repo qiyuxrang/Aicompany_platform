@@ -1,0 +1,14 @@
+{
+  "date": "2026-09-26",
+  "repository": "qiyuxrang/Aicompany_platform",
+  "development_branch": "feat/product-division-workbench",
+  "workbench_base_commit": "0ef0eca2bada07baab2211203cf72d947b1cf166",
+  "frontend": {"typecheck_and_build": "passed", "test_files": 14, "tests_passed": 161, "new_source_inspector_tests": 10},
+  "backend": {"discovered": 349, "reported_run": 348, "reported_skipped": 3, "result": "OK (skipped=3)", "exit_code": 0, "duration_seconds": 345.946, "database": "isolated SQLite", "new_intake_contract_tests": 17},
+  "parser_boundaries": {"tests_passed": 12, "native_readers_real": true, "ocr_in_boundary_tests": "mocked"},
+  "browser": {"engine": "installed Google Chrome", "checks_passed": 11, "real_http": true, "real_local_ocr": true, "page_errors": 0, "external_requests": 0, "mobile_width": 390, "data": "synthetic"},
+  "additional_checks": ["real legacy XLS cached-value extraction", "parser runtime setup and initialization", "git diff --check"],
+  "not_validated": ["PostgreSQL-specific concurrency", "container build/deployment", "real business data", "real model/knowledge-service generation", "arbitrary handwriting or engineering diagram recognition"],
+  "production_data_modified": false,
+  "temporary_validation_service": "stopped"
+}

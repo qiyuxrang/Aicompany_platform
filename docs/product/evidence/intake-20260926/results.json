@@ -1,0 +1,32 @@
+{
+  "environment": "real Chrome + Django + local native/OCR parsers",
+  "checks": [
+    "five-formats-uploaded-and-parsed-through-real-http",
+    "docx-paragraphs-tables-and-source-locations",
+    "xlsx-formula-not-assumed-and-correction-keeps-original-hash",
+    "historical-extraction-is-original-and-read-only",
+    "chinese-ocr-text-confidence-and-private-raster-preview",
+    "scanned-pdf-fallback-keeps-page-positions",
+    "unauthorized-original-preview-and-history-denied",
+    "malformed-upload-visible-error-and-no-partial-db-write",
+    "designated-reviewer-resolves-ocr-evidence-with-reason",
+    "mobile-source-inspector-no-page-overflow",
+    "no-browser-runtime-errors-or-external-data-requests"
+  ],
+  "errors": [],
+  "external_requests": [],
+  "screenshots": [
+    "01-xlsx-source-correction.png",
+    "02-chinese-ocr-and-original.png",
+    "03-scanned-pdf.png",
+    "04-mobile-source-inspector.png"
+  ],
+  "source_methods": {
+    "项目设计说明.docx": "native",
+    "设备清单.xlsx": "native",
+    "项目背景.pdf": "native",
+    "现场记录.png": "ocr",
+    "扫描记录.pdf": "ocr"
+  },
+  "task_id": "6df459cf-6166-462d-ac1b-f1239c2cfa65"
+}

@@ -77,6 +77,7 @@ function AppLink({ href, className, children }: { href: string; className?: stri
 }
 
 function Brand() {
+  if (/^\/(centers|preview)\/product(?:\/|$)/.test(window.location.pathname)) return <AppLink href="/" className="brand product-company-brand"><svg width="43" height="35" viewBox="0 0 74 52" aria-hidden="true"><path d="M12 40V13c0-10 14-10 18-2s12 8 18 1" stroke="#00a0e9" strokeWidth="13" strokeLinecap="round" fill="none"/><circle cx="12" cy="40" r="9" fill="#00a0e9"/><circle cx="46" cy="10" r="9" fill="#00a0e9"/><path d="M41 42c7-12 14 12 23 0" stroke="#ffbe00" strokeWidth="13" strokeLinecap="round" fill="none"/><circle cx="65" cy="10" r="8" fill="#ee1729"/></svg><span><strong>陕西一二三数字信息技术有限公司</strong><small>SHAANXI 123 DIGITAL INFORMATION TECHNOLOGY</small></span></AppLink>;
   return (
     <AppLink href="/" className="brand" aria-label="企业统一门户首页">
       <span className="brand-mark" aria-hidden="true"><Icon name="portal" /></span>

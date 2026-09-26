@@ -1,0 +1,61 @@
+{
+  "date": "2026-09-26",
+  "environment": "isolated synthetic Django and real Chrome",
+  "flows": {
+    "product_workbench": {
+      "checks_passed": 15,
+      "checks": [
+        "dashboard-real-authorized-metrics",
+        "create-upload-real-http-csrf-idempotency",
+        "authorized-original-source-download",
+        "business-input-edit-new-version",
+        "manual-blueprint-requires-explicit-owner-confirmation",
+        "refresh-preserves-project-input-and-blueprint",
+        "unassigned-reviewer-cannot-access-new-owner-project",
+        "owner-confirmation-queues-three-outputs-but-stops-at-real-model-gate",
+        "unassigned-user-denied-project-and-source",
+        "no-fabricated-generated-results",
+        "server-project-search",
+        "mobile-390-no-page-overflow",
+        "mobile-blueprint-no-page-overflow",
+        "dark-theme-layout",
+        "no-browser-runtime-errors"
+      ],
+      "page_errors": [],
+      "external_requests": []
+    },
+    "multi_format_intake": {
+      "checks_passed": 11,
+      "checks": [
+        "five-formats-uploaded-and-parsed-through-real-http",
+        "docx-paragraphs-tables-and-source-locations",
+        "xlsx-formula-not-assumed-and-correction-keeps-original-hash",
+        "historical-extraction-is-original-and-read-only",
+        "chinese-ocr-text-confidence-and-private-raster-preview",
+        "scanned-pdf-fallback-keeps-page-positions",
+        "unauthorized-original-preview-and-history-denied",
+        "malformed-upload-visible-error-and-no-partial-db-write",
+        "owner-resolves-ocr-evidence-with-reason-without-reviewer-assignment",
+        "mobile-source-inspector-no-page-overflow",
+        "no-browser-runtime-errors-or-external-data-requests"
+      ],
+      "page_errors": [],
+      "external_requests": []
+    },
+    "hr_product_navigation": {
+      "checks_passed": 8,
+      "checks": [
+        "hr-dashboard-and-department-specific-navigation",
+        "hr-request-creation-persisted-through-real-http",
+        "hr-header-search-opens-exact-request-deep-link",
+        "hr-resume-results-and-legacy-jd-routes-load",
+        "switch-to-product-preserves-workbench-without-hr-header-leak",
+        "switch-back-to-hr-restores-recruitment-workspace",
+        "cross-owner-and-cross-department-access-remain-denied",
+        "zero-browser-errors-and-no-external-data-requests"
+      ],
+      "page_errors": [],
+      "external_requests": []
+    }
+  }
+}

@@ -67,6 +67,10 @@ class ThreeDraftFlowTests(PortalTestCase):
         self.assertTrue(run_once())
 
         current = self.owner_client.get(f"/api/product/tasks/{task_id}/").json()
+        self.assertEqual(current["state"], "COMPLETED", current.get("error_code"))
+        self.assertEqual({item["family"] for item in current["reports"]}, {"technical-solution", "feasibility"})
+        self.assertTrue(all(report["current"] for report in current["reports"]))
+        self.assertTrue(all(not report["approved"] for report in current["reports"]))
         result = self.owner_client.get(f"/api/product/tasks/{task_id}/outputs/")
         self.assertEqual(result.status_code, 200)
         outputs = result.json()["outputs"]
