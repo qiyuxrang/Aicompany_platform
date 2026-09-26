@@ -5,15 +5,16 @@
 | 唯一规范权威 | `docs/SPEC.md` |
 | 独立 TASK_SDD | 不存在；按 SPEC 的产品三类成果独立验收原则执行 |
 | 状态 | `NOT_VERIFIED`（自动化质量范围 `CORE_PASS`；正式模板、业务视觉与成果签认 `BLOCKED`） |
-| 技术方案 Word | 代表性草稿 v12，Microsoft Word 实际渲染 9 页，25 页/张总视觉检查中的 9 页通过技术检查 |
-| 可研 Word | 代表性草稿 v12，Microsoft Word 实际渲染 9 页；缺成本/收益依据时未形成经济结论 |
-| PPT | 可编辑代表性草稿 v12，Microsoft PowerPoint 16.0 实际渲染 7 页；仅 Draft Engine V1，不宣称 PPT Master 质量 |
+| 技术方案 Word | 版式固化前最终实测为代表性草稿 v16，Microsoft Word 实际渲染 9 页；目录、编号、页眉分节通过技术检查 |
+| 可研 Word | 版式固化前最终实测为代表性草稿 v16，Microsoft Word 实际渲染 9 页；缺成本/收益依据时未形成经济结论 |
+| PPT | 可编辑代表性草稿 v16，Microsoft PowerPoint 16.0 实际渲染 7 页；仅 Draft Engine V1，不宣称 PPT Master 质量 |
+| 版式基线 v2 | 公司名称/Logo、动态目录层级、Mermaid 临时生成规则已固化；按用户要求本轮未重新测试或重渲染，状态 `NOT_VERIFIED` |
 | 来源/版本/hash/artifact | 独立 evidence 校验 `PASS`；2 个来源、21 个版本记录、3 个批准记录、3 个 artifact 均可核验 |
 | stale / 权限 | 完整产品回归覆盖 current/stale、普通下载 409、显式历史下载、对象权限与撤权边界 |
 | 正式审核 | `BLOCKED`；三类 artifact 的正式批准请求均返回 `formal_release_blocked` |
 | 真实模型 / RAGFlow | `NOT_VERIFIED`；本任务调用次数均为 0 |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
-| Checkpoint | 待本轮本地 checkpoint 后回填 |
+| Checkpoint | `2b98d99`（格式基线、既有 v13-v16 Evidence、公司标识、动态目录与 Mermaid 临时源码规则） |
 
 ## 已完成范围
 
@@ -22,7 +23,10 @@
 3. 发现并修复两份 Word 共用“三件套”总标题的问题；v10、v11 失败迭代保留，v12 分别显示“技术方案”和“可行性研究报告”。
 4. 逐页检查 Microsoft Word 18 页与 Microsoft PowerPoint 7 页；未见裁切、遮挡、乱码或页边界溢出。
 5. 独立校验来源文件 hash、input/blueprint/report 版本、批准绑定、artifact/generation/template hash、PPT source versions 与三类输出 current 状态。
-6. 完整产品回归 111 项：110 PASS / 1 SKIP；skip 为未配置的真实外部依赖，不计真实验证通过。
+6. 版式基线 v1 完成后的完整产品回归 112 项：111 PASS / 1 SKIP；skip 为未配置的真实外部依赖，不计真实验证通过。
+7. v16 将最终 Word 交付切换为 Microsoft Word 刷新后的 DOCX，目录条目与页码实际写入；技术方案、可研各 9 页完成真实渲染。
+8. 固化临时版式基线 v2：公司名称为“陕西省一二三数字信息技术有限公司”，用户 Logo 纳入冻结资产；目录深度按文档实际最高标题层级确定。
+9. 拓扑图、架构图及流程类图统一由 Mermaid 临时生成；Mermaid 源码不保存，只保留渲染 PNG、图号图题、来源引用和图片 hash。本轮按用户要求未重新测试。
 
 ## Evidence
 
@@ -30,6 +34,7 @@
 - `evidence/TEST_RESULTS.md`
 - `evidence/VISUAL_REVIEW.md`
 - `evidence/INITIAL_FAILURES.md`
+- `evidence/FORMAT_BASELINE.md`
 - `evidence/backend-product-regression.txt`
 - `evidence/quality-evidence.txt`
 - `evidence/three-output-run-v12.txt`
@@ -38,11 +43,16 @@
 - `evidence/representative-run-20260924-v12/word-render-technical-solution/`
 - `evidence/representative-run-20260924-v12/word-render-feasibility/`
 - `evidence/representative-run-20260924-v12/ppt-render/`
+- `evidence/representative-run-20260924-v16/version-chain.json`
+- `evidence/representative-run-20260924-v16/artifacts/`
+- `evidence/representative-run-20260924-v16/word-render-technical-solution/`
+- `evidence/representative-run-20260924-v16/word-render-feasibility/`
+- `evidence/representative-run-20260924-v16/ppt-render/`
 
 ## Remaining blockers
 
 - D-01 / D-08：真实模型与真实 RAGFlow 未授权，未调用。
-- D-02：正式模板、正式格式标准与业务质量未签认。
+- D-02：临时版式已固化；正式企业封面母版、精确页边距/装订线、表格与 Mermaid 企业视觉、签章区及业务质量仍未签认。
 - D-03：正式审核人与正式成果批准未签认；代表性 reviewer 仅用于隔离 AT。
 - D-06：正式质量阈值与回归门槛未批准；本任务不以代表性技术检查冒充业务质量 PASS。
 - Browser E2E 尚未执行；T-P08 的自动化质量结论不得外推为 P1 PASS。

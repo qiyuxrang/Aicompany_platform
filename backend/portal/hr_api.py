@@ -117,16 +117,6 @@ def _job_data(task):
     }
 
 
-def _next_revision(task, kind, body, actor, *, parent=None, confirmed=False):
-    revision = HrJobRevision.objects.create(
-        task=task, version=task.revisions.count() + 1, input_version=task.input_version,
-        kind=kind, body=body, parent=parent, created_by=actor,
-        confirmed_by=actor if confirmed else None, confirmed_at=timezone.now() if confirmed else None,
-    )
-    task.current_revision = revision
-    return revision
-
-
 @api_view(["GET", "POST"])
 @hr_endpoint
 def jobs(request):
@@ -134,18 +124,7 @@ def jobs(request):
     _require_hr(request)
     if request.method == "GET":
         return Response([_job_data(task) for task in HrJobTask.objects.filter(owner=request.user).select_related("current_revision", "official_revision")])
-    body = _body(request, {"title", "department", "objective", "responsibilities", "requirements"})
-    with transaction.atomic():
-        task = HrJobTask.objects.create(
-            owner=request.user,
-            title=_text(body["title"], "岗位名称", maximum=200),
-            department=_text(body["department"], "所属部门", maximum=200),
-            objective=_text(body["objective"], "岗位目标"),
-            responsibilities=_text(body["responsibilities"], "岗位职责"),
-            requirements=_text(body["requirements"], "任职要求"),
-        )
-        audit(request.user, request.hr_audit_action, task.pk, changes=["task"])
-    return Response(_job_data(task), status=201)
+    raise HrError("legacy_read_only", "旧版 JD 仅供历史查看，请使用招聘与 JD。", 405)
 
 
 @api_view(["GET", "PATCH"])
@@ -154,88 +133,32 @@ def job_detail(request, task_id):
     request.hr_audit_action = "hr_job_update" if request.method == "PATCH" else "hr_job_read"
     if request.method == "GET":
         return Response(_job_data(_job_for(request, task_id)))
-    body = _body(request, {"expected_version"}, {"title", "department", "objective", "responsibilities", "requirements"})
-    changed = [field for field in ("title", "department", "objective", "responsibilities", "requirements") if field in body]
-    if not changed:
-        raise HrError("invalid_request", "没有可更新字段。")
-    with transaction.atomic():
-        task = _job_for(request, task_id, write=True)
-        _check_version(task, _expected(body["expected_version"]))
-        for field in changed:
-            setattr(task, field, _text(body[field], field, maximum=200 if field in {"title", "department"} else 12000))
-        task.input_version += 1
-        task.version += 1
-        task.state = HrJobTask.State.DRAFT
-        task.save()
-        audit(request.user, request.hr_audit_action, task.pk, changes=changed)
-    return Response(_job_data(task))
-
-
-def _deterministic_jd(task):
-    department = f"\n所属部门\n{task.department}" if task.department else ""
-    return (f"岗位名称\n{task.title}{department}\n\n岗位目标\n{task.objective}"
-            f"\n\n岗位职责\n{task.responsibilities}\n\n任职要求\n{task.requirements}")
+    _job_for(request, task_id)
+    raise HrError("legacy_read_only", "旧版 JD 仅供历史查看，请使用招聘与 JD。", 405)
 
 
 @api_view(["POST"])
 @hr_endpoint
 def generate_job(request, task_id):
     request.hr_audit_action = "hr_job_generate"
-    body = _body(request, {"expected_version"})
-    with transaction.atomic():
-        task = _job_for(request, task_id, write=True)
-        _check_version(task, _expected(body["expected_version"]))
-        missing = _missing(task)
-        if missing:
-            raise HrError("missing_fields", "岗位需求存在缺项，不能生成草稿。", 409, missing_fields=missing)
-        _next_revision(task, HrJobRevision.Kind.GENERATED, _deterministic_jd(task), request.user,
-                       parent=task.current_revision if task.current_revision_id else None)
-        task.state = HrJobTask.State.GENERATED
-        task.version += 1
-        task.save()
-        audit(request.user, request.hr_audit_action, task.pk, changes=["revision", "state"])
-    return Response(_job_data(task), status=201)
+    _job_for(request, task_id)
+    raise HrError("legacy_read_only", "旧版 JD 仅供历史查看，请使用招聘与 JD。", 405)
 
 
 @api_view(["POST"])
 @hr_endpoint
 def create_job_revision(request, task_id):
     request.hr_audit_action = "hr_job_revision"
-    body = _body(request, {"expected_version", "body"})
-    with transaction.atomic():
-        task = _job_for(request, task_id, write=True)
-        _check_version(task, _expected(body["expected_version"]))
-        if not task.current_revision_id or task.current_revision.input_version != task.input_version:
-            raise HrError("generation_required", "请先基于当前岗位需求生成草稿。", 409)
-        _next_revision(task, HrJobRevision.Kind.MANUAL, _text(body["body"], "JD正文", required=True, maximum=50000), request.user, parent=task.current_revision)
-        task.state = HrJobTask.State.GENERATED
-        task.version += 1
-        task.save()
-        audit(request.user, request.hr_audit_action, task.pk, changes=["revision"])
-    return Response(_job_data(task), status=201)
+    _job_for(request, task_id)
+    raise HrError("legacy_read_only", "旧版 JD 仅供历史查看，请使用招聘与 JD。", 405)
 
 
 @api_view(["POST"])
 @hr_endpoint
 def confirm_job(request, task_id):
     request.hr_audit_action = "hr_job_confirm"
-    body = _body(request, {"expected_version", "revision_id"})
-    with transaction.atomic():
-        task = _job_for(request, task_id, write=True)
-        _check_version(task, _expected(body["expected_version"]))
-        try:
-            source = task.revisions.get(pk=body["revision_id"])
-        except (HrJobRevision.DoesNotExist, ValueError, TypeError):
-            raise HrError("not_found", "对象不存在。", 404) from None
-        if source.pk != task.current_revision_id or source.input_version != task.input_version:
-            raise HrError("stale_revision", "只能确认当前岗位需求对应的最新版本。", 409)
-        official = _next_revision(task, HrJobRevision.Kind.CONFIRMED, source.body, request.user, parent=source, confirmed=True)
-        task.official_revision = official
-        task.state = HrJobTask.State.CONFIRMED
-        task.version += 1
-        task.save()
-        audit(request.user, request.hr_audit_action, task.pk, changes=["official_revision", "state"])
-    return Response(_job_data(task), status=201)
+    _job_for(request, task_id)
+    raise HrError("legacy_read_only", "旧版 JD 仅供历史查看，请使用招聘与 JD。", 405)
 
 
 def _materials(value):

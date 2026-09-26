@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-26",
+  "repository": "qiyuxrang/Aicompany_platform",
+  "pr": 1,
+  "original_pr_head": "57a160314b4ec2eab8dad1fa28c89a79334df360",
+  "integrated_main": "1c8c98260eafffd247e8930385c939e9ec145ff8",
+  "frontend": {"build": "passed", "test_files": 17, "tests_passed": 172},
+  "backend": {"discovered": 387, "reported_run": 386, "skipped": 3, "seconds": 262.389, "exit_code": 0, "database": "isolated SQLite"},
+  "gateway": {"tests_passed": 39, "external_model_calls": false},
+  "parser": {"tests_passed": 12},
+  "migration_paths": {"fresh": "passed", "product_first": "passed", "hr_first": "passed", "existing_synthetic_records_preserved": true},
+  "browser": {"product_workbench": 15, "multi_format_intake": 11, "cross_department": 8, "page_errors": 0, "real_local_http": true},
+  "schema_check": "No changes detected",
+  "not_validated": ["PostgreSQL-specific concurrency", "real external model service", "formal Office rendering", "production deployment"],
+  "production_data_or_accounts_modified": false
+}

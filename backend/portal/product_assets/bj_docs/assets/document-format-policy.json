@@ -1,12 +1,20 @@
 {
   "schema": "BJ_PRODUCT_DOCUMENT_FORMAT_POLICY_V1",
-  "status": "approved_interim_baseline",
+  "status": "approved_interim_baseline_v3",
   "applies_to": [
     "technical-solution",
     "feasibility"
   ],
   "approved_source": "user_instruction_2026-09-24",
   "scope_note": "本规则固化已明确的通用版式；不等同于企业正式模板、视觉签认或业务签认。",
+  "company_identity": {
+    "name": "陕西省一二三数字信息技术有限公司",
+    "logo_path": "assets/company/company-logo.png",
+    "logo_sha256": "9211d67a0a52e0445fb85e11c032eeec4ff6f3ad6870b8afac7a9d1a463f8a3e",
+    "cover_logo_width_mm": 50,
+    "placement": "centered_above_title",
+    "placement_status": "interim_until_formal_cover_template"
+  },
   "page": {
     "paper": "A4",
     "width_mm": 210,
@@ -71,10 +79,16 @@
     "figure": "图 {chapter}.{sequence}",
     "table": "表 {chapter}.{sequence}"
   },
+  "table_of_contents": {
+    "depth_strategy": "maximum_heading_level_actually_present",
+    "minimum_level": 1,
+    "maximum_level": 3,
+    "refresh_in_microsoft_word_before_delivery": true
+  },
   "header_footer": {
-    "ordinary_header": "西安工业大学毕业设计（论文）",
+    "ordinary_header": null,
     "ordinary_header_bottom_border": "double",
-    "chapter_opening_header": "current_chapter_title",
+    "chapter_opening_header": null,
     "page_number": {
       "position": "bottom_center"
     }
@@ -86,6 +100,22 @@
     "subfigure_labels": "a,b,c",
     "standards": "applicable_national_standards"
   },
+  "technical_diagrams": {
+    "applies_to": [
+      "network_topology",
+      "system_architecture",
+      "process_flow",
+      "sequence",
+      "state",
+      "data_relationship"
+    ],
+    "generation_engine": "mermaid",
+    "retained_output": "rendered_png",
+    "retain_mermaid_source": false,
+    "retain_output_sha256": true,
+    "caption_and_source_refs_required": true,
+    "fallback_engine": null
+  },
   "tables": {
     "caption_position": "above",
     "common_unit_position": "upper_right_without_unit_label",
@@ -94,14 +124,17 @@
   },
   "pending_formal_template_confirmation": [
     "formal_cover_layout",
-    "company_name_logo_identity_placement_and_size",
     "exact_page_margins_and_gutter",
     "table_theme_colors_header_fill_border_width_and_color",
-    "network_topology_and_architecture_visual_language",
-    "automatic_toc_display_depth",
     "compiler_reviewer_approver_signature_and_stamp_area",
     "complete_enterprise_word_template_and_long_form_sample",
-    "chapter_opening_page_specific_header_section_implementation",
     "lower_than_heading3_content_contract_and_rendering"
-  ]
+  ],
+  "cover": {
+    "fields": [
+      "logo",
+      "document_topic"
+    ],
+    "document_topic": "task_title_with_family_suffix"
+  }
 }

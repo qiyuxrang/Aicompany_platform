@@ -33,7 +33,10 @@ def watch(page):
 
 
 def capture(page, name):
-    page.locator('.pd-source-inspector').screenshot(path=str(EVIDENCE / name))
+    # The review step opens another tab. Bring the original tab back before a
+    # responsive resize screenshot so Chromium paints the active viewport.
+    page.bring_to_front()
+    page.screenshot(path=str(EVIDENCE / name), full_page=True)
     results['screenshots'].append(name)
 
 
@@ -46,7 +49,7 @@ try:
         page.goto(BASE + '/centers/product/new')
         page.get_by_label('项目名称 *').fill('多格式资料解析验收 · ' + config['run_id'][:8])
         page.get_by_label('建设目标 *').fill('合成项目：核验文字、表格、扫描件来源与校正流程。')
-        page.get_by_label('蓝图与成果审核人').select_option('2')
+        expect(page.get_by_label('蓝图与成果审核人')).to_have_count(0)
         filenames = ['项目设计说明.docx', '设备清单.xlsx', '项目背景.pdf', '现场记录.png', '扫描记录.pdf']
         page.get_by_label('选择项目资料文件').set_input_files([str(FIXTURES / name) for name in filenames])
         page.get_by_role('button', name='创建项目', exact=True).click()
@@ -112,8 +115,10 @@ try:
         task = context.request.get(task_url).json()
         assert len(task['sources']) == 5
         mark('malformed-upload-visible-error-and-no-partial-db-write')
-        reviewer = browser.new_context(viewport={'width': 1512, 'height': 1050}, locale='zh-CN', reduced_motion='reduce'); login(reviewer, 2)
-        review_page = reviewer.new_page(); watch(review_page)
+        # The owner resolves evidence explicitly; unrelated reviewers have no access.
+        reviewer = browser.new_context(); login(reviewer, 2)
+        assert reviewer.request.get(task_url).status == 404
+        review_page = context.new_page(); watch(review_page)
         review_page.goto(BASE + f'/centers/product/projects?task={task_id}&tab=sources')
         review_panel = review_page.get_by_role('region', name='资料解析与来源核对')
         review_panel.get_by_role('button', name=re.compile('现场记录.png')).click()
@@ -123,11 +128,12 @@ try:
         review_panel.get_by_label('核对依据 ocr_review_required').fill('已逐字对照合成原图，文字、数量2台与单位一致。')
         review_panel.get_by_role('button', name='保存核对', exact=True).click()
         expect(review_panel.locator('.pd-source-review')).to_have_count(0)
-        mark('designated-reviewer-resolves-ocr-evidence-with-reason')
+        mark('owner-resolves-ocr-evidence-with-reason-without-reviewer-assignment')
         page.goto(BASE + f'/centers/product/projects?task={task_id}&tab=sources')
         inspector = page.get_by_role('region', name='资料解析与来源核对')
         inspector.get_by_role('button', name=re.compile('设备清单.xlsx')).click()
         expect(inspector.get_by_text('配电柜', exact=True)).to_be_visible()
+        page.bring_to_front()
         page.set_viewport_size({'width': 390, 'height': 844})
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
         capture(page, '04-mobile-source-inspector.png')

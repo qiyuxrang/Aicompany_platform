@@ -42,6 +42,7 @@ class GatewayModel(models.Model):
     provider = models.ForeignKey(Provider, verbose_name="模型服务商", on_delete=models.PROTECT)
     model_name = models.CharField("远程模型标识", max_length=200)
     supports_text = models.BooleanField("支持文本", default=True)
+    supports_vision = models.BooleanField("支持图片输入", default=False)
     enabled = models.BooleanField("启用", default=False)
     timeout_seconds = models.PositiveIntegerField("超时秒数", default=20,
         validators=[MinValueValidator(1), MaxValueValidator(60)])

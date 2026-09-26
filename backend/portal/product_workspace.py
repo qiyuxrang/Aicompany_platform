@@ -123,7 +123,7 @@ def workspace(request):
         "recent_projects": [_project(task) for task in tasks[:5]],
         "todos": [_project(task) for task in tasks if task.state in {"WAITING_REVIEW", "WAITING_INPUT", "FAILED"}][:5],
         "recent_outputs": _recent_outputs(tasks), "reviewers": reviewers,
-        "capabilities": {"model_generation": bool(settings.PRODUCT_MODEL_CALLS_ALLOWED and settings.PRODUCT_COST_POLICY),
+        "capabilities": {"model_generation": bool(settings.PRODUCT_MODEL_CALLS_ALLOWED),
                          "retrieval": bool(settings.PRODUCT_RETRIEVAL_ENABLED and settings.PRODUCT_RETRIEVAL_AUTHORIZATIONS),
                          "formal_release": bool(settings.PRODUCT_FORMAL_RELEASE_ENABLED),
                          "office_preview": bool(settings.PRODUCT_OFFICE_RENDER_ENABLED),
@@ -133,7 +133,7 @@ def workspace(request):
         "templates": [{"id": "frozen-original-v1", "name": "产品项目文档母版", "version": "frozen-original-v1",
                        "families": ["technical-solution", "feasibility", "presentation"],
                        "approved": bool(settings.PRODUCT_TEMPLATE_APPROVAL),
-                       "description": "复用现有冻结规则与文档资产；三类成果独立生成、核验与批准。"}],
+                       "description": "确认蓝图后自动生成技术方案、可研报告与汇报 PPT 草稿，保留独立成果版本和来源链。"}],
     })
     response["Cache-Control"] = "private, no-store"
     audit(request.user, "product_workspace_read", f"workspace:r{request.product_request_id}")

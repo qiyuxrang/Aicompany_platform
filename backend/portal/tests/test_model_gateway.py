@@ -20,6 +20,20 @@ class ModelGatewayTests(PortalTestCase):
         self.messages = [{"role": "user", "content": "synthetic-private-input"}]
         self.reply = {"content": "synthetic-private-result", "duration_ms": 1, "prompt_tokens": 3, "completion_tokens": 4}
 
+    @patch('portal.model_gateway._request_gateway')
+    def test_images_require_declared_model_capability(self, request):
+        import base64
+        url = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\nimage').decode()
+        messages = [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': url}}]}]
+        self.assert_error('unsupported_capability', model_gateway.generate_for_use, self.user, 'solution', messages)
+        request.assert_not_called()
+        self.model.supports_vision = True
+        self.model.save()
+        request.return_value = self.reply
+        result = model_gateway.generate_for_use(self.user, 'solution', messages)
+        self.assertEqual(result['content'], self.reply['content'])
+        self.assertEqual(request.call_args.args[0]['messages'], messages)
+
     def assert_error(self, code, function, *args):
         with self.assertRaises(model_gateway.GatewayError) as caught:
             function(*args)

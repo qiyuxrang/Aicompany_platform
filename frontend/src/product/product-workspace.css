@@ -22,6 +22,9 @@
 .product-file-chips { display:flex; flex-wrap:wrap; gap:8px; margin:0; padding:0; list-style:none; }
 .product-file-chips li { border-radius:999px; padding:6px 10px; background:var(--soft); color:#315b91; font-size:12px; }
 .product-empty-note { margin:0; color:var(--muted); font-size:13px; text-align:center; }
+.product-empty-overview { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; max-width:880px; }
+.product-empty-overview>div { border:1px solid var(--line); border-radius:12px; padding:16px; background:#fff; }
+.product-empty-overview h3 { margin:0 0 12px; font-size:15px; }
 .product-task-view { display:grid; grid-template-columns:minmax(0,1fr) 300px; min-height:480px; overflow:hidden; border:1px solid var(--line); border-radius:14px; background:#fff; }
 .product-dialogue { display:flex; flex-direction:column; gap:18px; padding:30px; background:linear-gradient(180deg,#f7faff,#fff 42%); }
 .product-task-aside { display:grid; align-content:start; gap:22px; border-left:1px solid var(--line); padding:22px; background:#fbfcfe; }
@@ -43,4 +46,4 @@
 .product-advanced-head::-webkit-details-marker { display:none; }
 .product-advanced-head>span:first-child { display:grid; gap:3px; }
 .product-advanced-head strong { color:var(--ink); font-size:16px; }
-@media(max-width:900px){.product-task-view{grid-template-columns:1fr}.product-task-aside{border-top:1px solid var(--line);border-left:0}.product-workspace-head{align-items:flex-start;flex-direction:column}.product-task-switcher{align-items:stretch;flex-wrap:wrap}.product-task-switcher select{min-width:0;flex:1}.product-composer-actions{align-items:stretch;flex-direction:column}.product-composer-actions .button{width:100%}}
+@media(max-width:900px){.product-empty-overview,.product-task-view{grid-template-columns:1fr}.product-task-aside{border-top:1px solid var(--line);border-left:0}.product-workspace-head{align-items:flex-start;flex-direction:column}.product-task-switcher{align-items:stretch;flex-wrap:wrap}.product-task-switcher select{min-width:0;flex:1}.product-composer-actions{align-items:stretch;flex-direction:column}.product-composer-actions .button{width:100%}}

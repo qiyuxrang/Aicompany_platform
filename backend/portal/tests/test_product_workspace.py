@@ -49,6 +49,37 @@ class ProductWorkspaceTests(PortalTestCase):
         self.assertIn("no-store", result["Cache-Control"])
         self.assertFalse(data["capabilities"]["model_generation"])
 
+    @override_settings(PRODUCT_MODEL_CALLS_ALLOWED=True)
+    def test_enabled_model_capability_does_not_read_removed_cost_policy(self):
+        response = self.client.get("/api/product/workspace/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()["capabilities"]["model_generation"])
+
+    def test_owner_can_resolve_source_issues_without_assigning_a_reviewer(self):
+        task = self.task()
+        uploaded = self.client.post(f"/api/product/tasks/{task.pk}/sources/", {
+            "expected_version": task.version,
+            "file": SimpleUploadedFile("缺项.csv", "序号,设备名称,数量,单位\n1,配电柜,2,\n".encode()),
+        })
+        self.assertEqual(uploaded.status_code, 201, uploaded.content)
+        current = uploaded.json()["task"]
+        self.assertIsNone(current["reviewer_id"])
+        self.assertIn("review_input", current["actions"])
+        self.assertNotIn("assign_reviewer", current["actions"])
+        issue = current["input_issues"][0]
+        body = json_body(expected_version=current["version"], resolutions=[{
+            "issue_hash": issue["issue_hash"], "category": "missing", "reason": "原始清单未提供单位，保留缺项。",
+            "source_ids": [uploaded.json()["source_id"]],
+        }])
+        self.login(self.client, self.other)
+        denied = self.client.post(f"/api/product/tasks/{task.pk}/input-review/", body, content_type="application/json")
+        self.assertEqual(denied.status_code, 404)
+        self.login(self.client, self.owner)
+        result = self.client.post(f"/api/product/tasks/{task.pk}/input-review/", body, content_type="application/json")
+        self.assertEqual(result.status_code, 200, result.content)
+        self.assertGreater(result.json()["input_version"], current["input_version"])
+        self.assertEqual(result.json()["input"]["issue_resolutions"][0]["actor_id"], self.owner.pk)
+
     def test_filter_pagination_does_not_change_overall_metrics(self):
         for index in range(5):
             self.task(f"配电项目{index}")

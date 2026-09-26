@@ -37,112 +37,41 @@ class HrApiTests(PortalTestCase):
             "requirements": "能够阅读接口文档",
         }
         payload.update(overrides)
-        response = self.hr_client.post("/api/hr/jobs/", json_body(**payload), content_type="application/json")
-        self.assertEqual(response.status_code, 201, response.content)
+        task = HrJobTask.objects.create(owner=self.hr, **payload)
+        response = self.hr_client.get(f"/api/hr/jobs/{task.pk}/")
+        self.assertEqual(response.status_code, 200, response.content)
         return response.json()
 
-    def test_jd_missing_fields_version_chain_and_confirmation(self):
+    def test_legacy_jd_versions_remain_readable_without_mutation(self):
         task = self.create_job(responsibilities="", requirements="")
         self.assertEqual(task["missing_fields"], ["responsibilities", "requirements"])
+        row = HrJobTask.objects.get(pk=task['id'])
+        revision = HrJobRevision.objects.create(task=row, version=1, input_version=1,
+            kind='generated', body='历史正文', created_by=self.hr)
+        row.current_revision = revision
+        row.save(update_fields=['current_revision'])
+        detail = self.hr_client.get(f"/api/hr/jobs/{row.pk}/").json()
+        self.assertEqual(detail['current_revision']['body'], '历史正文')
+        for endpoint in ('generate/', 'revisions/', 'confirm/'):
+            result = self.hr_client.post(f"/api/hr/jobs/{row.pk}/{endpoint}",
+                json_body(expected_version=1), content_type='application/json')
+            self.assertEqual(result.status_code, 405)
+            self.assertEqual(result.json()['code'], 'legacy_read_only')
+        self.assertEqual(row.revisions.count(), 1)
 
-        blocked = self.hr_client.post(
-            f"/api/hr/jobs/{task['id']}/generate/",
-            json_body(expected_version=task["version"]),
-            content_type="application/json",
-        )
-        self.assertEqual(blocked.status_code, 409)
-        self.assertEqual(blocked.json()["code"], "missing_fields")
-        self.assertEqual(blocked.json()["missing_fields"], ["responsibilities", "requirements"])
-        self.assertFalse(HrJobRevision.objects.exists())
-
-        completed = self.hr_client.patch(
-            f"/api/hr/jobs/{task['id']}/",
-            json_body(
-                expected_version=task["version"],
-                responsibilities="部署、培训和验收",
-                requirements="能够阅读接口文档",
-            ),
-            content_type="application/json",
-        ).json()
-        generated = self.hr_client.post(
-            f"/api/hr/jobs/{task['id']}/generate/",
-            json_body(expected_version=completed["version"]),
-            content_type="application/json",
-        )
-        self.assertEqual(generated.status_code, 201, generated.content)
-        generated_task = generated.json()
-        self.assertIn("岗位职责\n部署、培训和验收", generated_task["current_revision"]["body"])
-
-        edited = self.hr_client.post(
-            f"/api/hr/jobs/{task['id']}/revisions/",
-            json_body(
-                expected_version=generated_task["version"],
-                body=generated_task["current_revision"]["body"] + "\n\n补充说明\n由 HR 人工复核。",
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(edited.status_code, 201, edited.content)
-        edited_task = edited.json()
-        confirmed = self.hr_client.post(
-            f"/api/hr/jobs/{task['id']}/confirm/",
-            json_body(
-                expected_version=edited_task["version"],
-                revision_id=edited_task["current_revision"]["id"],
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(confirmed.status_code, 201, confirmed.content)
-        body = confirmed.json()
-        self.assertEqual(body["state"], "confirmed")
-        self.assertEqual(body["official_revision"]["kind"], "confirmed")
-        self.assertEqual(body["official_revision"]["confirmed_by_id"], self.hr.pk)
-        self.assertEqual(
-            list(HrJobRevision.objects.filter(task_id=task["id"]).values_list("kind", flat=True)),
-            ["generated", "manual", "confirmed"],
-        )
-
-    def test_jd_object_permissions_ignore_browser_identity_and_reject_stale_write(self):
+    def test_legacy_jd_ownership_and_revocation_still_apply(self):
         task = self.create_job()
-        generated = self.hr_client.post(
-            f"/api/hr/jobs/{task['id']}/generate/",
-            json_body(expected_version=task["version"]),
-            content_type="application/json",
-        ).json()
-        forged = self.other_hr_client.post(
-            f"/api/hr/jobs/{task['id']}/confirm/",
-            json_body(
-                expected_version=generated["version"],
-                revision_id=generated["current_revision"]["id"],
-                user_id=self.hr.pk,
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(forged.status_code, 400)
-        self.assertFalse(HrJobTask.objects.get(pk=task["id"]).official_revision_id)
-        denied = self.other_hr_client.post(
-            f"/api/hr/jobs/{task['id']}/confirm/",
-            json_body(expected_version=generated["version"], revision_id=generated["current_revision"]["id"]),
-            content_type="application/json",
-        )
-        self.assertEqual(denied.status_code, 404)
-
-        updated = self.hr_client.patch(
-            f"/api/hr/jobs/{task['id']}/",
-            json_body(expected_version=generated["version"], objective="新的岗位目标"),
-            content_type="application/json",
-        )
-        self.assertEqual(updated.status_code, 200, updated.content)
-        stale = self.hr_client.patch(
-            f"/api/hr/jobs/{task['id']}/",
-            json_body(expected_version=generated["version"], objective="陈旧写入"),
-            content_type="application/json",
-        )
-        self.assertEqual(stale.status_code, 409)
-        self.assertEqual(stale.json()["code"], "version_conflict")
-
-        self.hr.roles.remove(Role.objects.get(code="hr"))
-        revoked = self.hr_client.get(f"/api/hr/jobs/{task['id']}/")
-        self.assertEqual(revoked.status_code, 403)
+        url = f"/api/hr/jobs/{task['id']}/"
+        self.assertEqual(self.other_hr_client.get(url).status_code, 404)
+        forged = self.other_hr_client.post(url + 'confirm/',
+            json_body(user_id=self.hr.pk), content_type='application/json')
+        self.assertEqual(forged.status_code, 404)
+        updated = self.hr_client.patch(url, json_body(expected_version=1, objective='新目标'),
+                                       content_type='application/json')
+        self.assertEqual(updated.status_code, 405)
+        self.assertEqual(HrJobTask.objects.get(pk=task['id']).objective, '完成项目交付')
+        self.hr.roles.remove(Role.objects.get(code='hr'))
+        self.assertEqual(self.hr_client.get(url).status_code, 403)
 
     def create_probation(self):
         response = self.hr_client.post(

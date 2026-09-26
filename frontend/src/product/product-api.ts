@@ -73,6 +73,7 @@ export interface DocumentTask extends TaskSummary {
   approvals: unknown[];
   issues: unknown[];
   error_code: string;
+  pending_action?: string;
   actions: string[] | Record<string, boolean>;
   blockers: Record<string, { code: string; detail: string }>;
   reviewer_id: string | number | null;

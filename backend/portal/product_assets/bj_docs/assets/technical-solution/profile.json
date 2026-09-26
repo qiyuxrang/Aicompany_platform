@@ -433,7 +433,7 @@
   "sections": 1,
   "default_section": 0,
   "toc": true,
-  "template_sha256": "d0abeec68f4f9aafd23d32619bfdcb5fc1b8c8b59206b020915a179752041730",
+  "template_sha256": "f41b643b30f416245ce2d5e59ec7cee0ebda98c2f9b75b0f65d63f7d542cd2a8",
   "prototypes_sha256": "7a84052daba89cd4112a65059a4846fd84bd51f94f7d4d47bbd968b4cb5bd5b4",
   "preserved_parts": [
     "word/theme/theme1.xml"

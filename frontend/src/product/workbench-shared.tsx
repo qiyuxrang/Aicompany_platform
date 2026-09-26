@@ -4,8 +4,8 @@ import { CenterLink } from "../centers/shared";
 import { getProductOverview, type OutputFamily, type ProductOverview, type TaskSummary } from "./product-api";
 
 export const outputNames: Record<OutputFamily, string> = { "technical-solution": "技术方案", feasibility: "可研报告", presentation: "汇报 PPT" };
-export const stateNames: Record<string, string> = { DRAFT: "待完善资料", WAITING_INPUT: "待处理", QUEUED: "排队中", RUNNING: "生成中", WAITING_REVIEW: "待审核", FAILED: "处理失败", CANCELLED: "已取消", COMPLETED: "已完成" };
-export const stageNames: Record<string, string> = { INTAKE: "资料整理", BLUEPRINT: "项目蓝图", WRITING: "正文编制", CONTENT_CHECK: "内容检查", RENDER: "文档生成", FINAL_REVIEW: "成果审核" };
+export const stateNames: Record<string, string> = { DRAFT: "待完善资料", WAITING_INPUT: "待处理", QUEUED: "排队中", RUNNING: "生成中", WAITING_REVIEW: "待确认", FAILED: "处理失败", CANCELLED: "已取消", COMPLETED: "已完成" };
+export const stageNames: Record<string, string> = { INTAKE: "资料整理", BLUEPRINT: "项目蓝图", WRITING: "正文编制", CONTENT_CHECK: "内容检查", RENDER: "文档生成", FINAL_REVIEW: "成果汇总" };
 export const projectUrl = (id: string, tab = "overview") => `/centers/product/projects?task=${encodeURIComponent(id)}&tab=${encodeURIComponent(tab)}`;
 export function goProduct(url: string) { window.history.pushState({}, "", url); window.dispatchEvent(new PopStateEvent("popstate")); }
 export const formatDate = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value)) : "时间未提供";

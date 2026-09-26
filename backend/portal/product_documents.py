@@ -20,6 +20,17 @@ class DocumentError(Exception):
         super().__init__(code)
 
 
+def _company_name():
+    try:
+        policy = json.loads((PACK / "assets" / "document-format-policy.json").read_text(encoding="utf-8"))
+        value = policy["company_identity"]["name"].strip()
+        if not value or len(value) > 200:
+            raise ValueError
+        return value
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError):
+        raise DocumentError("template_unavailable") from None
+
+
 def _family_document_title(title, family):
     title = title.strip()
     suffix = "技术方案" if family == "technical-solution" else "可行性研究报告"
@@ -96,7 +107,7 @@ def content_document(task, input_revision, blueprint, chapters, family="technica
             "metadata": {"id": "T" + str(task.pk).replace("-", ""),
                          "title": _family_document_title(task.title, family),
                          "subtitle": "待核草稿 · 未获正式发布批准",
-                         "date": timezone.localdate().isoformat(), "organization": "编制单位待确认", "status": "draft"},
+                         "date": timezone.localdate().isoformat(), "organization": _company_name(), "status": "draft"},
             "sources": sources, "requirements": requirements,
              "pending": [{"id": f"PEND{index}", "text": value} for index, value in enumerate(pending, start=1)], "blocks": blocks}
 

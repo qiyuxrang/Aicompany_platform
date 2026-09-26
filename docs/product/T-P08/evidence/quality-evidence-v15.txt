@@ -1,0 +1,18 @@
+{
+  "result": "PASS",
+  "chain": "docs/product/T-P08/evidence/representative-run-20260924-v15/version-chain.json",
+  "sources": 2,
+  "versions": 21,
+  "approvals": 3,
+  "artifacts": 3,
+  "renders": {
+    "technical_word_pages": 8,
+    "feasibility_word_pages": 9,
+    "ppt_slides": 7
+  },
+  "external_calls": {
+    "model": 0,
+    "ragflow": 0
+  },
+  "formal_approval": "blocked"
+}

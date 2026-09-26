@@ -26,6 +26,7 @@ import OpsWorkspace from "./ops/OpsWorkspace";
 import Icon from "./Icon";
 import ThemeSwitch from "./ThemeSwitch";
 import CenterWorkspace from "./centers/CenterWorkspace";
+import HrHeaderTools from './hr/HrHeaderTools';
 import { centers, isCenterCode } from "./centers/config";
 
 const statusMeta = {
@@ -296,6 +297,7 @@ function PasswordPage({
 function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: () => Promise<void>; children: ReactNode }) {
   const [logoutError, setLogoutError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
+  const hrShell = window.location.pathname.startsWith('/centers/hr');
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -309,9 +311,16 @@ function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: (
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${hrShell ? ' hr-app-shell' : ''}`}>
       <header className="topbar">
         <Brand />
+        {hrShell && <nav className="hr-global-nav" aria-label="业务导航">
+          <AppLink href="/">工作台</AppLink><AppLink href="/centers/product">产品事业部</AppLink>
+          <span aria-disabled="true">招投标商机</span><AppLink href="/centers/hr" className="selected">人事部门</AppLink>
+          <AppLink href="/centers/cost">工程管理</AppLink><AppLink href="/centers/business">经营管理</AppLink>
+          {user.is_platform_admin && <AppLink href="/ops">系统管理</AppLink>}
+        </nav>}
+        {hrShell && user.roles.some(role => role.code === 'hr') && <HrHeaderTools />}
         <nav className="account-nav" aria-label="账户导航">
           <span className="account-name">{user.display_name || user.username}</span>
           {user.is_platform_admin && <AppLink href="/ops">运维工作台</AppLink>}

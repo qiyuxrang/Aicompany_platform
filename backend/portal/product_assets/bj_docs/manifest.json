@@ -33,15 +33,15 @@
     {
       "path": "assets/technical-solution/template.docx",
       "source": "skills/bj-docs/assets/technical-solution/template.docx",
-      "sha256": "d0abeec68f4f9aafd23d32619bfdcb5fc1b8c8b59206b020915a179752041730",
-      "bytes": 25277,
+      "sha256": "f41b643b30f416245ce2d5e59ec7cee0ebda98c2f9b75b0f65d63f7d542cd2a8",
+      "bytes": 25249,
       "source_status": "clean"
     },
     {
       "path": "assets/technical-solution/profile.json",
       "source": "skills/bj-docs/assets/technical-solution/profile.json",
-      "sha256": "b50065ecd48b4ded36a8a30cfe695385f80ef7f82bc4f7fa70e8ae343a3d4d86",
-      "bytes": 10352,
+      "sha256": "446950263eb6be919d7c915e76f82f13b1e3f5341a15bf9716f98d32598166aa",
+      "bytes": 9909,
       "source_status": "clean"
     },
     {
@@ -54,8 +54,8 @@
     {
       "path": "scripts/artifacts.py",
       "source": "skills/bj-docs/scripts/artifacts.py",
-      "sha256": "14038caea835ee25f0cc5ca884b042ae3bdb9d7bd53abf6ce137dfb46bf91613",
-      "bytes": 19793,
+      "sha256": "85c8a7ed861dcac02ba77ff494e9d4b693f1333b9e2a2f640be2e33797474305",
+      "bytes": 22375,
       "source_status": " M skills/bj-docs/scripts/artifacts.py"
     },
     {
@@ -103,15 +103,15 @@
     {
       "path": "assets/feasibility/template.docx",
       "source": "skills/bj-docs/assets/feasibility/template.docx",
-      "sha256": "bd694f7b4feedf75963339034f9b5346b3da7addb5ecf994014444d70a2c550e",
-      "bytes": 26880,
+      "sha256": "b40d80d8e61e71ead6bea1731cd46fda8676398b31a1c782e50ae45dca365073",
+      "bytes": 26689,
       "source_status": "clean"
     },
     {
       "path": "assets/feasibility/profile.json",
       "source": "skills/bj-docs/assets/feasibility/profile.json",
-      "sha256": "a694fe76b1b40f08af782bd6faeb222b33652d85f631759aa187a99e456f9670",
-      "bytes": 44772,
+      "sha256": "88a1d91e57cd74bfcc63cc2845c3cc38ab72249cf807db44736b8a466c18e4c3",
+      "bytes": 42786,
       "source_status": "clean"
     },
     {
@@ -124,9 +124,16 @@
     {
       "path": "assets/document-format-policy.json",
       "source": "user instruction 2026-09-24",
-      "sha256": "0d7d6cce386f1b0dc2c2931142e452bf0675469e559126d7711b334f64b594d3",
-      "bytes": 2818,
+      "sha256": "b6dc76eb6034320b515a9b99059ed766c20e9b6c35ccc8ef8f67d0ab38ef23dd",
+      "bytes": 3657,
       "source_status": "approved interim baseline"
+    },
+    {
+      "path": "assets/company/company-logo.png",
+      "source": "user supplied 2026-09-24",
+      "sha256": "9211d67a0a52e0445fb85e11c032eeec4ff6f3ad6870b8afac7a9d1a463f8a3e",
+      "bytes": 14595,
+      "source_status": "approved company identity asset"
     }
   ]
 }

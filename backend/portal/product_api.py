@@ -25,7 +25,7 @@ from .product_service import (ProductError, append_revision, approved_blueprint,
                               validate_chapter, validate_input)
 from .product_storage import StorageError, remove_relative, verified_artifact
 from .product_release import CONTENT_CHECKS, candidate_current, evidence_file, public_evidence
-from .product_pair import effective_report_approval, latest_report_content, output_current, pair_snapshot, report_current
+from .product_pair import latest_report_content, output_current, pair_snapshot, report_current
 from .security import audit
 from .models import User
 from .product_intake import summary as extraction_summary
@@ -179,36 +179,23 @@ def _task_actions(task, user, input_revision, blueprint):
                 actions.extend(["edit", "save_blueprint", "add_source"])
         if queueable and input_revision is not None:
             actions.extend(["queue_retrieve", "queue_blueprint"])
-        if queueable and approved is not None:
-            actions.append("queue_write")
-            if task.state != DocumentTask.State.QUEUED:
-                actions.append("save_chapter")
-            if _chapters_complete(task, input_revision, approved):
-                actions.extend(["queue_render", "queue_candidate"])
-            actions.append("queue_three_drafts")
-            try:
-                pair_snapshot(task)
-            except ProductError:
-                pass
-            else:
-                actions.append("queue_presentation")
+        if (queueable and task.state == DocumentTask.State.WAITING_REVIEW
+                and task.stage == DocumentTask.Stage.BLUEPRINT and blueprint is not None):
+            actions.append("confirm_blueprint")
         if (task.state in {DocumentTask.State.FAILED, DocumentTask.State.WAITING_INPUT}
                 and task.attempt_count < int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8))
-                and task.pending_action in {"blueprint", "write", "render", "three_drafts", "presentation"}):
+                and task.pending_action in {"blueprint", "generate_outputs"}):
             actions.append("retry")
         if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended):
-            actions.extend(["assign_reviewer", "add_statement"])
+            actions.append("add_statement")
 
-    if task.reviewer_id == user.pk and task.owner_id != user.pk and reviewer_allowed(user):
-        reviewable = task.state == DocumentTask.State.WAITING_REVIEW and task.lease_until is None
-        if reviewable and task.stage == DocumentTask.Stage.BLUEPRINT and blueprint is not None:
-            actions.append("review_blueprint")
-        if reviewable and task.stage == DocumentTask.Stage.FINAL_REVIEW and task.artifacts.exists():
-            actions.extend(["review_artifact", "verify_artifact"])
-        if reviewable and task.stage == DocumentTask.Stage.FINAL_REVIEW and task.revisions.filter(kind=DocumentRevision.Kind.REPORT).exists():
-            actions.append("review_report")
-        if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended) and input_revision is not None and input_revision.payload.get("issues"):
-            actions.append("review_input")
+    # The owner confirms the blueprint in the single-user workflow. Input/source
+    # checks remain explicit; legacy assigned reviewers may still resolve these.
+    input_reviewer = task.owner_id == user.pk or (
+        task.reviewer_id == user.pk and reviewer_allowed(user)
+    )
+    if queueable and input_reviewer and input_revision is not None and input_revision.payload.get("issues"):
+        actions.append("review_input")
     return actions
 
 
@@ -228,11 +215,6 @@ def _task_blockers(actions):
             blockers[action] = {
                 "code": "model_authorization_required",
                 "detail": "D-01 尚未批准真实模型调用与资料外发，当前不能执行模型生成。",
-            }
-        elif not getattr(settings, "PRODUCT_COST_POLICY", {}):
-            blockers[action] = {
-                "code": "budget_authorization_required",
-                "detail": "尚无覆盖当前模型路由的真实预算批准记录，不能发起调用。",
             }
     if "queue_render" in actions and not getattr(settings, "PRODUCT_TEMPLATE_APPROVAL", {}):
         blockers["queue_render"] = {
@@ -268,7 +250,7 @@ def _task_detail(task, user):
         "id": str(record.pk), "family": record.family, "version": record.version, "sha256": record.sha256,
         "input_hash": record.input_hash, "blueprint_hash": record.blueprint_hash,
         "current": report_current(task, record),
-        "approved": effective_report_approval(record) is not None, "created_at": record.created_at.isoformat(),
+        "approved": False, "created_at": record.created_at.isoformat(),
     } for record in task.revisions.filter(kind=DocumentRevision.Kind.REPORT).order_by("family", "version")
         if input_access.get(record.input_hash, False)]
     artifacts = []
@@ -322,7 +304,8 @@ def _task_detail(task, user):
         "input": input_revision.payload if input_revision else None,
         "blueprint": _revision_data(blueprint), "chapters": chapters, "reports": reports, "artifacts": artifacts,
         "sources": sources, "approvals": approvals, "issues": issues,
-        "error_code": task.error_code, "actions": actions, "blockers": _task_blockers(actions),
+        "error_code": task.error_code,
+        "actions": actions, "blockers": _task_blockers(actions),
         "reviewer_id": task.reviewer_id, "owner_id": task.owner_id,
         "input_issues": [{**issue, "issue_hash": digest(issue)} for issue in (input_revision.payload.get("issues", []) if input_revision else [])],
         "impact": task.checkpoint.get("impact", {}),
@@ -379,7 +362,8 @@ def assign_reviewer(request, task_id):
 def input_review(request, task_id):
     body = _body(request, {"expected_version", "resolutions"})
     with transaction.atomic():
-        task = task_for(request.user, task_id, write=True, review=True)
+        task = task_for(request.user, task_id, write=True)
+        # task_for permits only the owner or the task's still-authorized legacy reviewer.
         require_version(task, _expected(body["expected_version"]))
         if task.state in {"QUEUED", "RUNNING", "CANCELLED", "COMPLETED"}:
             raise ProductError("invalid_state", "当前状态不能核对输入。", 409)
@@ -687,7 +671,7 @@ def _queue(task, action):
         if _input_revision(task) is None:
             raise ProductError("input_required", "请先保存输入。", 409)
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
-    elif action in {"write", "render", "candidate", "three_drafts", "presentation"}:
+    elif action in {"write", "render", "candidate", "three_drafts", "presentation", "generate_outputs"}:
         blueprint_revision = approved_blueprint(task)
         if blueprint_revision is None:
             raise ProductError("blueprint_approval_required", "当前蓝图尚未获有效批准。", 409)
@@ -710,7 +694,7 @@ def _queue(task, action):
     else:
         raise ProductError("invalid_action", "任务动作无效。")
     task.pending_action = action
-    blocked = action in {"blueprint", "write"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
+    blocked = action in {"blueprint", "write", "generate_outputs"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
     task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
     task.error_code = "model_authorization_required" if blocked else ""
     task.version += 1
@@ -762,7 +746,11 @@ def decisions(request, task_id):
     if body["decision"] not in DocumentApproval.Decision.values or not isinstance(body["comment"], str) or len(body["comment"]) > 10000:
         raise ProductError("invalid_request", "审核决定格式无效。")
     with transaction.atomic():
-        task = task_for(request.user, task_id, write=True, review=True)
+        if body["target"] == "blueprint":
+            task = task_for(request.user, task_id, write=True)
+            require_owner(task, request.user)
+        else:
+            task = task_for(request.user, task_id, write=True, review=True)
         target = _decision_target(task, body["target"], body["target_id"])
         if not isinstance(body["sha256"], str) or target.sha256 != body["sha256"]:
             raise ProductError("stale_target", "审核目标版本或哈希已变化。", 409)
@@ -807,11 +795,12 @@ def decisions(request, task_id):
             task.pending_action = ""
             task.error_code = "revision_requested"
         elif body["target"] == "blueprint":
-            task.pending_action = "write"
+            task.pending_action = "generate_outputs"
             task.stage = DocumentTask.Stage.WRITING
             blocked = not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
             task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
             task.error_code = "model_authorization_required" if blocked else ""
+            task.fence += 1
         elif body["target"] == "report":
             task.state = DocumentTask.State.WAITING_REVIEW
             task.stage = DocumentTask.Stage.FINAL_REVIEW
@@ -863,9 +852,9 @@ def retry(request, task_id):
             raise ProductError("invalid_state", "当前状态不能重试。", 409)
         if task.attempt_count >= int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8)):
             raise ProductError("attempt_limit", "已达到隔离环境安全重试上限。", 409)
-        if task.pending_action not in {"blueprint", "write", "render", "three_drafts", "presentation"}:
+        if task.pending_action not in {"blueprint", "write", "render", "three_drafts", "presentation", "generate_outputs"}:
             raise ProductError("invalid_action", "没有可重试的持久动作。", 409)
-        blocked = task.pending_action in {"blueprint", "write"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
+        blocked = task.pending_action in {"blueprint", "write", "generate_outputs"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
         task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
         task.error_code = "model_authorization_required" if blocked else ""
         task.version += 1
@@ -1065,7 +1054,6 @@ urlpatterns = [
     path("tasks/<uuid:task_id>/retry/", retry),
     path("tasks/<uuid:task_id>/sources/", sources),
     path("tasks/<uuid:task_id>/chapters/", chapters),
-    path("tasks/<uuid:task_id>/reviewer/", assign_reviewer),
     path("tasks/<uuid:task_id>/input-review/", input_review),
     path("tasks/<uuid:task_id>/statements/", input_statement),
     path("artifacts/<uuid:artifact_id>/download/", download),

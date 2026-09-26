@@ -1976,7 +1976,7 @@
   "sections": 17,
   "default_section": 4,
   "toc": true,
-  "template_sha256": "bd694f7b4feedf75963339034f9b5346b3da7addb5ecf994014444d70a2c550e",
+  "template_sha256": "b40d80d8e61e71ead6bea1731cd46fda8676398b31a1c782e50ae45dca365073",
   "prototypes_sha256": "254ccfbdf5ea4be9ca42eb73f6a41d0ab4c18e2dcac205918209d931c1179933",
   "preserved_parts": [
     "word/theme/theme1.xml"

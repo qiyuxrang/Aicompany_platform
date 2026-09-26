@@ -1,8 +1,8 @@
 """Persisted report content and its exact two-family provenance."""
 
-from .product_models import DocumentApproval, DocumentRevision
-from .product_service import (ProductError, append_revision, approval_current, approved_blueprint,
-                              current_revision, digest, input_authorized, reviewer_allowed)
+from .product_models import DocumentRevision
+from .product_service import (ProductError, append_revision, approved_blueprint,
+                              current_revision, digest, input_authorized)
 
 FAMILIES = ("technical-solution", "feasibility")
 
@@ -92,18 +92,6 @@ def output_current(task, artifact):
                 and artifact.render_evidence.get("document_title", task.title) == task.title)
 
 
-def effective_report_approval(report):
-    task = report.task
-    if not task.reviewer_id or task.owner_id == task.reviewer_id:
-        return None
-    latest = report.approvals.filter(actor_id=task.reviewer_id).select_related("actor").order_by("-created_at").first()
-    if (latest and latest.decision == DocumentApproval.Decision.APPROVE
-            and latest.sha256 == report.sha256 and reviewer_allowed(latest.actor)
-            and approval_current(task, latest)):
-        return latest
-    return None
-
-
 def pair_snapshot(task):
     current_input = current_revision(task, DocumentRevision.Kind.INPUT)
     blueprint = current_revision(task, DocumentRevision.Kind.BLUEPRINT)
@@ -113,15 +101,12 @@ def pair_snapshot(task):
     if any(report is None or report.input_hash != current_input.sha256 or report.blueprint_hash != blueprint.sha256
            or not report_current(task, report) for report in reports):
         raise ProductError("stale_pair", "两份报告尚未生成或来源已变化。", 409)
-    approvals = [effective_report_approval(report) for report in reports]
-    if any(record is None for record in approvals):
-        raise ProductError("report_approval_required", "两份结构化报告内容须分别人工批准后才能生成 PPT。", 409)
     blocks = [{"ref": f"{report.family}:{block['id']}", "text": block.get("text", ""),
                "type": block.get("type", "paragraph"), "source_ids": block.get("source_ids", [])}
               for report in reports for block in report.payload["blocks"]]
-    sources = [{"family": report.family, "id": str(report.pk), "version": report.version, "sha256": report.sha256,
-                "approval_id": str(approval.pk), "approval_sha256": approval.sha256, "approved_by": approval.actor_id}
-               for report, approval in zip(reports, approvals)]
+    sources = [{"family": report.family, "id": str(report.pk), "version": report.version,
+                "sha256": report.sha256, "created_by": report.created_by_id,
+                "created_at": report.created_at.isoformat()} for report in reports]
     return {"input_hash": current_input.sha256, "blueprint_hash": blueprint.sha256,
             "sources": sources, "blocks": blocks, "pending": _pending_items(reports),
             "approval_inherited": False, "sha256": digest({"sources": sources, "input_hash": current_input.sha256, "blueprint_hash": blueprint.sha256})}

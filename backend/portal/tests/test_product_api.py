@@ -253,7 +253,7 @@ class ProductApiTests(PortalTestCase):
         return response.json()
 
     def approve_blueprint(self, task):
-        response = self.reviewer_client.post(
+        response = self.owner_client.post(
             f"/api/product/tasks/{task['id']}/decisions/",
             json_body(
                 expected_version=task["version"], target="blueprint",
@@ -264,6 +264,57 @@ class ProductApiTests(PortalTestCase):
         )
         self.assertEqual(response.status_code, 201, response.content)
         return response.json()
+
+    @override_settings(PRODUCT_MODEL_CALLS_ALLOWED=True)
+    def test_owner_confirms_current_blueprint_and_queues_all_outputs(self):
+        task = self.create_task(reviewer=False)
+        current = self.save_blueprint(task)
+
+        response = self.owner_client.post(
+            f"/api/product/tasks/{task['id']}/decisions/",
+            json_body(
+                expected_version=current["version"], target="blueprint",
+                target_id=current["blueprint"]["id"], sha256=current["blueprint"]["sha256"],
+                decision="approve", comment="确认当前蓝图并生成三件套",
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        result = response.json()["task"]
+        self.assertEqual(result["owner_id"], self.owner.pk)
+        self.assertIsNone(result["reviewer_id"])
+        self.assertEqual(result["state"], "QUEUED")
+        self.assertEqual(result["pending_action"], "generate_outputs")
+
+    def test_other_user_cannot_confirm_blueprint_and_owner_replay_is_idempotent(self):
+        task = self.create_task(reviewer=False)
+        current = self.save_blueprint(task)
+        payload = {
+            "expected_version": current["version"], "target": "blueprint",
+            "target_id": current["blueprint"]["id"], "sha256": current["blueprint"]["sha256"],
+            "decision": "approve", "comment": "确认",
+        }
+
+        denied = self.other_client.post(
+            f"/api/product/tasks/{task['id']}/decisions/", json_body(**payload),
+            content_type="application/json",
+        )
+        first = self.owner_client.post(
+            f"/api/product/tasks/{task['id']}/decisions/", json_body(**payload),
+            content_type="application/json",
+        )
+        self.assertEqual(denied.status_code, 404)
+        self.assertEqual(first.status_code, 201, first.content)
+        payload["expected_version"] = first.json()["task"]["version"]
+        replay = self.owner_client.post(
+            f"/api/product/tasks/{task['id']}/decisions/", json_body(**payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(replay.status_code, 200, replay.content)
+        self.assertEqual(replay.json()["approval_id"], first.json()["approval_id"])
+        self.assertEqual(DocumentApproval.objects.filter(task_id=task["id"], revision__kind="blueprint").count(), 1)
 
     def test_feature_flag_defaults_to_service_unavailable(self):
         with override_settings(PRODUCT_P1_ENABLED=False):
@@ -389,42 +440,26 @@ class ProductApiTests(PortalTestCase):
         self.assertEqual(detail["state"], "WAITING_INPUT")
         self.assertEqual(detail["error_code"], "model_authorization_required")
 
-    def test_actions_follow_current_role_state_and_prerequisites(self):
-        task = self.create_task()
-        self.assertIn("queue_retrieve", task["actions"])
-        self.assertIn("queue_blueprint", task["actions"])
-        self.assertNotIn("queue_write", task["actions"])
-        self.assertNotIn("queue_render", task["actions"])
-        self.assertNotIn("queue_candidate", task["actions"])
-
-        saved = self.save_blueprint(task)
-        owner_detail = self.owner_client.get(f"/api/product/tasks/{task['id']}/").json()
-        reviewer_detail = self.reviewer_client.get(f"/api/product/tasks/{task['id']}/").json()
-        self.assertNotIn("review_blueprint", owner_detail["actions"])
-        self.assertIn("review_blueprint", reviewer_detail["actions"])
-        self.assertNotIn("review_artifact", reviewer_detail["actions"])
-        self.assertNotIn("queue_write", owner_detail["actions"])
-
-        self.approve_blueprint(saved)
-        approved = self.owner_client.get(f"/api/product/tasks/{task['id']}/").json()
-        self.assertIn("queue_write", approved["actions"])
-        self.assertIn("save_chapter", approved["actions"])
-        self.assertIn("retry", approved["actions"])
-        self.assertNotIn("queue_render", approved["actions"])
-        self.assertNotIn("queue_candidate", approved["actions"])
-
-        chapter = self.owner_client.post(
-            f"/api/product/tasks/{task['id']}/chapters/",
-            json_body(
-                expected_version=approved["version"], chapter_id="overview", title="项目概述",
-                paragraphs=["基于已确认输入。"], source_ids=["1"],
-            ),
+    def test_legacy_reviewer_assignment_endpoint_is_not_exposed(self):
+        task = self.create_task(reviewer=False)
+        response = self.owner_client.post(
+            f"/api/product/tasks/{task['id']}/reviewer/",
+            json_body(expected_version=task["version"], reviewer_id=self.reviewer.pk, reason="旧流程调用"),
             content_type="application/json",
         )
-        self.assertEqual(chapter.status_code, 201, chapter.content)
-        chapter_task = chapter.json()["task"]
-        self.assertIn("queue_render", chapter_task["actions"])
-        self.assertIn("queue_candidate", chapter_task["actions"])
+        self.assertEqual(response.status_code, 404)
+
+    def test_actions_follow_single_owner_blueprint_flow(self):
+        task = self.create_task(reviewer=False)
+        self.assertIn("queue_retrieve", task["actions"])
+        self.assertIn("queue_blueprint", task["actions"])
+        self.assertNotIn("confirm_blueprint", task["actions"])
+        self.assertNotIn("assign_reviewer", task["actions"])
+
+        self.save_blueprint(task)
+        owner_detail = self.owner_client.get(f"/api/product/tasks/{task['id']}/").json()
+        self.assertIn("confirm_blueprint", owner_detail["actions"])
+        self.assertEqual(self.other_client.get(f"/api/product/tasks/{task['id']}/").status_code, 404)
 
     def test_blueprint_approval_records_approval_but_does_not_start_worker_when_model_blocked(self):
         task = self.save_blueprint(self.create_task())
@@ -435,48 +470,29 @@ class ProductApiTests(PortalTestCase):
         self.assertEqual(DocumentAttempt.objects.filter(task_id=task["id"]).count(), 0)
         self.assertEqual(DocumentApproval.objects.filter(task_id=task["id"], decision="approve").count(), 1)
 
-    def test_approval_rejects_self_review_is_idempotent_and_revokes_live(self):
-        task = self.save_blueprint(self.create_task())
-        self_review = self.owner_client.post(
-            f"/api/product/tasks/{task['id']}/decisions/",
-            json_body(
-                expected_version=task["version"], target="blueprint", target_id=task["blueprint"]["id"],
-                sha256=task["blueprint"]["sha256"], decision="approve", comment="伪造自审",
-            ),
-            content_type="application/json",
-        )
+    def test_owner_confirmation_is_idempotent_and_revocation_invalidates_it(self):
+        task = self.save_blueprint(self.create_task(reviewer=False))
         approved = self.approve_blueprint(task)
-        replay = self.reviewer_client.post(
+        replay = self.owner_client.post(
             f"/api/product/tasks/{task['id']}/decisions/",
-            json_body(
-                expected_version=task["version"], target="blueprint", target_id=task["blueprint"]["id"],
-                sha256=task["blueprint"]["sha256"], decision="approve", comment="重复批准",
-            ),
-            content_type="application/json",
-        )
-
-        self.assertEqual(self_review.status_code, 404)
-        self.assertEqual(approved["task"]["state"], "WAITING_INPUT")
+            json_body(expected_version=approved["task"]["version"], target="blueprint",
+                      target_id=task["blueprint"]["id"], sha256=task["blueprint"]["sha256"],
+                      decision="approve", comment="重复确认"), content_type="application/json")
         self.assertEqual(replay.status_code, 200)
-        self.assertEqual(replay.json()["task"]["version"], approved["task"]["version"])
-        self.assertEqual(replay.json()["task"]["state"], approved["task"]["state"])
         self.assertEqual(DocumentApproval.objects.filter(task_id=task["id"]).count(), 1)
-        with override_settings(PRODUCT_REVIEWER_IDS=()):
-            revoked_read = self.reviewer_client.get(f"/api/product/tasks/{task['id']}/")
-            model_task = DocumentArtifact._meta.apps.get_model("portal", "DocumentTask").objects.get(pk=task["id"])
-            self.assertIsNone(approved_blueprint(model_task))
-        self.assertEqual(revoked_read.status_code, 404)
+        self.owner.roles.clear()
+        self.assertIsNone(approved_blueprint(DocumentTask.objects.get(pk=task["id"])))
 
     def test_revise_supersedes_blueprint_approval_and_old_approve_cannot_replay(self):
         task = self.save_blueprint(self.create_task())
         model_task = DocumentArtifact._meta.apps.get_model("portal", "DocumentTask").objects.get(pk=task["id"])
         blueprint = model_task.revisions.get(kind="blueprint", version=model_task.blueprint_version)
         DocumentApproval.objects.create(
-            task=model_task, revision=blueprint, actor=self.reviewer,
-            decision="approve", sha256=blueprint.sha256, authorization=approval_authorization(model_task, self.reviewer),
+            task=model_task, revision=blueprint, actor=self.owner,
+            decision="approve", sha256=blueprint.sha256, authorization=approval_authorization(model_task, self.owner),
         )
         original_fence = model_task.fence
-        revised = self.reviewer_client.post(
+        revised = self.owner_client.post(
             f"/api/product/tasks/{task['id']}/decisions/",
             json_body(
                 expected_version=task["version"], target="blueprint", target_id=task["blueprint"]["id"],
@@ -490,7 +506,7 @@ class ProductApiTests(PortalTestCase):
         self.assertIsNone(model_task.lease_until)
         self.assertIsNone(approved_blueprint(model_task))
 
-        replay = self.reviewer_client.post(
+        replay = self.owner_client.post(
             f"/api/product/tasks/{task['id']}/decisions/",
             json_body(
                 expected_version=task["version"], target="blueprint", target_id=task["blueprint"]["id"],
@@ -531,7 +547,7 @@ class ProductApiTests(PortalTestCase):
         model_task.lease_until = timezone.now() + timedelta(minutes=1)
         model_task.save(update_fields=["lease_until", "updated_at"])
 
-        leased = self.reviewer_client.post(
+        leased = self.owner_client.post(
             f"/api/product/tasks/{task['id']}/decisions/",
             json_body(
                 expected_version=task["version"], target="blueprint", target_id=task["blueprint"]["id"],

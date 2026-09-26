@@ -26,7 +26,7 @@ function stages(task = sampleTask(), overrides: Partial<React.ComponentProps<typ
   return { task, outputs: [], history: null, outputsError: "", historyError: "", busy: false, conflict: false, disabled: (action: string) => !(task.actions as string[]).includes(action) || !!task.blockers[action], onAction: vi.fn().mockResolvedValue(true), onReload: vi.fn(), onUpload: vi.fn(), ...overrides };
 }
 function blueprintTask() {
-  return sampleTask({ state: "WAITING_REVIEW", stage: "BLUEPRINT", blueprint_version: 1, actions: ["review_blueprint"], blueprint: { id: "blueprint-id", version: 1, sha256: "a".repeat(64), payload: { purpose: "提升供电可靠性", audience: "项目评审人员", chapters: [{ id: "c1", title: "建设范围", scope: "合成系统边界", source_ids: [] }], conditions: [{ text: "保留原设备数量", type: "human" }], missing: ["投资估算依据"], conflicts: [], template_version: "frozen-original-v1" } } });
+  return sampleTask({ state: "WAITING_REVIEW", stage: "BLUEPRINT", blueprint_version: 1, actions: ["confirm_blueprint"], blueprint: { id: "blueprint-id", version: 1, sha256: "a".repeat(64), payload: { purpose: "提升供电可靠性", audience: "项目评审人员", chapters: [{ id: "c1", title: "建设范围", scope: "合成系统边界", source_ids: [] }], conditions: [{ text: "保留原设备数量", type: "human" }], missing: ["投资估算依据"], conflicts: [], template_version: "frozen-original-v1" } } });
 }
 
 describe("product business workbench", () => {
@@ -58,11 +58,12 @@ describe("product business workbench", () => {
     await screen.findByLabelText("项目名称 *");
     await user.type(screen.getByLabelText("项目名称 *"), "合成新项目");
     await user.type(screen.getByLabelText("建设目标 *"), "可靠供电");
-    await user.selectOptions(screen.getByLabelText("蓝图与成果审核人"), "2");
+    expect(screen.queryByLabelText("蓝图与成果审核人")).toBeNull();
     await user.click(screen.getByRole("button", { name: "创建项目" }));
     await waitFor(() => expect(window.location.search).toContain(sampleTask().id));
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create.mock.calls[0][0]).toMatchObject({ title: "合成新项目", input: { requirements: "可靠供电" }, reviewer_id: 2 });
+    expect(create.mock.calls[0][0]).toMatchObject({ title: "合成新项目", input: { requirements: "可靠供电" } });
+    expect(create.mock.calls[0][0]).not.toHaveProperty("reviewer_id");
     expect(update).not.toHaveBeenCalled();
   });
   it("freezes and reuses the idempotency key after an uncertain create response", async () => {
@@ -94,12 +95,22 @@ describe("product business workbench", () => {
   it("binds approval to the viewed blueprint hash and requires explicit confirmation", async () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");
     const props = stages(blueprintTask()); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
-    const approve = screen.getByRole("button", { name: "确认本版蓝图并继续" }) as HTMLButtonElement;
+    const approve = screen.getByRole("button", { name: "确认蓝图并生成三件套" }) as HTMLButtonElement;
     expect(approve.disabled).toBe(true);
-    await user.type(screen.getByLabelText("蓝图审核意见"), "已根据项目资料逐项核对");
+    await user.type(screen.getByLabelText("蓝图确认依据"), "已根据项目资料逐项核对");
     expect(approve.disabled).toBe(true);
     await user.click(screen.getByRole("checkbox")); await user.click(approve);
     expect(props.onAction).toHaveBeenCalledWith("decisions/", expect.objectContaining({ target: "blueprint", target_id: "blueprint-id", sha256: "a".repeat(64), decision: "approve" }));
+  });
+  it("does not expose legacy report approval steps or let legacy reviewers confirm a blueprint", () => {
+    window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");
+    const view = render(<ProjectStages {...stages({ ...blueprintTask(), actions: ["review_input"] })}/>);
+    expect((screen.getByRole("button", { name: "确认蓝图并生成三件套" }) as HTMLButtonElement).disabled).toBe(true);
+    view.unmount();
+    window.history.replaceState({}, "", "/centers/product/projects?tab=outputs");
+    render(<ProjectStages {...stages(sampleTask({ state: "COMPLETED", stage: "FINAL_REVIEW", actions: [] }))}/>);
+    expect(screen.queryByRole("button", { name: "从已审内容生成 PPT" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "生成技术方案与可研 Word" })).toBeNull();
   });
   it("preserves local blueprint edits when the server version changes", async () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");

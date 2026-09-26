@@ -24,6 +24,8 @@ os.environ.update({
     "PORTAL_PRODUCT_OFFICE_RENDER_ENABLED": "0", "PORTAL_PRODUCT_REVIEWER_IDS": "2",
     "PORTAL_PRODUCT_COST_POLICY": "{}", "PORTAL_PRODUCT_TEMPLATE_APPROVAL": "{}",
     "PORTAL_MODEL_GATEWAY_URL": "", "PORTAL_PRODUCT_RETRIEVAL_AUTHORIZATIONS": "{}",
+    "PORTAL_HR_STORAGE_ROOT": str(RUNTIME / f"{RUN_ID}-hr-files"),
+    "PORTAL_BUSINESS_SUMMARY_URL": "",
 })
 sys.path.insert(0, str(ROOT / "backend"))
 import django
@@ -42,6 +44,11 @@ for identifier, name in ((1, "项目负责人"), (2, "蓝图审核人"), (3, "�
                                     display_name=name, must_change_password=False)
     user.roles.set(Role.objects.filter(code="product"))
 owner, reviewer = User.objects.get(pk=1), User.objects.get(pk=2)
+# Separate synthetic HR identities exercise merged department routing and ownership.
+for identifier, codes in ((4, ("product", "hr")), (5, ("hr",))):
+    user = User.objects.create_user(pk=identifier, username=f"workbench-{identifier}", password=password,
+                                   display_name=f"合并验收人员{identifier}", must_change_password=False)
+    user.roles.set(Role.objects.filter(code__in=codes))
 project_ids = []
 for index, (title, state, stage) in enumerate([
     ("榆林高新区污水处理厂建设项目", "WAITING_REVIEW", "BLUEPRINT"),

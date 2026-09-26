@@ -13,6 +13,7 @@ import time
 from urllib.parse import urlsplit
 
 from model_gateway.errors import GatewayError
+from backend.portal.model_messages import VISION_REQUEST_LIMIT, validate_messages
 
 
 REQUEST_LIMIT = 64 * 1024
@@ -186,18 +187,18 @@ def _request(provider, model, messages, max_output_tokens):
         raise _error("invalid_request")
     if not isinstance(messages, list) or not messages:
         raise _error("invalid_request")
-    for message in messages:
-        if (not isinstance(message, dict) or set(message) != {"role", "content"}
-                or message["role"] not in ("system", "user", "assistant")
-                or not isinstance(message["content"], str) or not message["content"].strip()):
-            raise _error("invalid_request")
+    vision = any(isinstance(message, dict) and isinstance(message.get('content'), list) for message in messages)
+    try:
+        validate_messages(messages, vision=vision)
+    except ValueError:
+        raise _error('invalid_request') from None
     try:
         payload = json.dumps({"model": model["model_name"], "messages": messages,
                               token_parameter: requested, "stream": False},
                              ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
     except (ValueError, UnicodeError):
         raise _error("invalid_request") from None
-    if len(payload) > REQUEST_LIMIT:
+    if len(payload) > (VISION_REQUEST_LIMIT if vision else REQUEST_LIMIT):
         raise _error("invalid_request")
     return payload, timeout
 

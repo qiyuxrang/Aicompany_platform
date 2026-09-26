@@ -13,6 +13,7 @@
 | 外部依赖 | RAGFlow=`BLOCKED_NOT_CONFIGURED`；模型=`NOT_VERIFIED_NOT_CONFIGURED`，调用数 0 |
 | Frontend | `FRONTEND_CORE_IMPLEMENTED`；技术方案生成、审核、版本、stale、历史与下载操作已接入 |
 | Browser E2E | `NOT_RUN`；留待 T-R01 |
+| 版式基线 | 共用 `document-format-policy.json` v2；公司名称/Logo、实际标题层级目录和 Mermaid 临时生成规则已固化，本轮未重测 |
 | Checkpoint | `4daa940` (`docs: checkpoint T-P05 technical solution draft`) |
 | Frontend closure checkpoint | `9621f56` (`feat: complete P1 frontend business chain core`) |
 | Next Action | 停止；不得自动进入 T-P06 |

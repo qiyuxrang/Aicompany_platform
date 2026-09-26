@@ -204,3 +204,5 @@ from .model_config import GatewayModel, ModelCallLog, ModelRoute, Provider
 from .product_models import (DocumentApproval, DocumentArtifact, DocumentAttempt,
                              DocumentRevision, DocumentSource, DocumentTask, DocumentReviewPolicy)
 from .hr_models import HrJobRevision, HrJobTask, ProbationCase, ProbationTransition
+from .hr_recruitment_models import JDVersion, RecruitmentRequest
+from .hr_screening_models import ResumeArtifact, ResumeScreeningBatch
