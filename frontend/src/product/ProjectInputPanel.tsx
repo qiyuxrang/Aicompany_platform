@@ -15,7 +15,7 @@ export default function ProjectInputPanel({ task, disabled, onAction }: { task: 
   const stale = !!draft && task.version !== baseVersion;
   function edit() {
     const input = task.input;
-    setDraft(input ? { project: input.project, requirements: input.requirements, background: input.background, conditions: [...input.conditions], items: input.items.map(({ row_id, name, quantity, unit }) => ({ row_id, name, quantity, unit })) } : { project: task.title, requirements: "", background: "", conditions: [], items: [] });
+    setDraft(input ? { project: input.project, requirements: input.requirements, background: input.background, conditions: [...input.conditions], items: input.items.map(({ row_id, name, quantity, unit, source_item_id }) => ({ row_id, name, quantity, unit, ...(source_item_id ? { source_item_id } : {}) })) } : { project: task.title, requirements: "", background: "", conditions: [], items: [] });
     setTitle(task.title); setBaseVersion(task.version);
   }
   return <section className="pd-panel"><div className="pd-panel-heading"><h3>项目底稿与审核人</h3><span className="pd-muted">输入版本 v{task.input_version}</span></div>

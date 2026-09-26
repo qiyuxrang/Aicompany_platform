@@ -72,6 +72,9 @@ try {
     } finally {
         Pop-Location
     }
+    if ($values.PORTAL_PRODUCT_P1_ENABLED -eq "1") {
+        & (Join-Path $PSScriptRoot 'setup-product-intake.ps1')
+    }
     & uv run --frozen --env-file .runtime/local.env python backend/manage.py migrate --noinput
     if ($LASTEXITCODE -ne 0) { throw "本地数据库迁移失败。" }
     & uv run --frozen --env-file .runtime/local.env python backend/manage.py seed_portal

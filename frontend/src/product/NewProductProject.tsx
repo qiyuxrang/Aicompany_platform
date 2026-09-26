@@ -54,7 +54,7 @@ export default function NewProductProject() {
       while (record.remaining.length) {
         const file = record.remaining[0];
         const previousSourceIds = new Set(currentTask.sources.map(source => source.id));
-        setProgress(`正在上传 ${file.name}…`);
+        setProgress(`正在上传并解析 ${file.name}…`);
         try {
           currentTask = await uploadSource(currentTask.id, file, currentTask.version, controller.signal);
         } catch (reason) {

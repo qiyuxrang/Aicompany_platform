@@ -83,9 +83,9 @@ def _revision_record(task, revision, previous, access):
         "created_at": revision.created_at.isoformat(),
         "input_hash": revision.input_hash,
         "blueprint_hash": revision.blueprint_hash,
-        "source_refs": _source_refs(revision),
+        "source_refs": _source_refs(revision) if access else [],
         "source_authorized_current": access,
-        "diff": _payload_diff(previous.payload, revision.payload) if previous else [],
+        "diff": _payload_diff(previous.payload, revision.payload) if previous and access else [],
     }
 
 
@@ -104,7 +104,7 @@ def task_history(request, task_id):
         stream = (revision.kind, revision.family)
         access = input_access.get(revision.input_hash, True) if revision.input_hash else input_access.get(revision.sha256, True)
         timeline.append(_revision_record(task, revision, previous_by_stream.get(stream), access))
-        previous_by_stream[stream] = revision
+        previous_by_stream[stream] = revision if access else None
     for source in task.sources.select_related("uploaded_by").order_by("created_at", "pk"):
         timeline.append({
             "event": "external_upload",

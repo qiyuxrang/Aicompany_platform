@@ -25,11 +25,22 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project && rm -rf /root/.cache/uv
 
+# Rich uploads/OCR run in a separate Python 3.12 interpreter without portal secrets.
+COPY backend/portal/source_parsers/requirements.txt /tmp/intake-requirements.txt
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    PORTAL_PRODUCT_PARSER_PYTHON=/opt/product-parser/bin/python
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && uv python install 3.12 \
+    && uv venv --python 3.12 /opt/product-parser \
+    && uv pip sync --python /opt/product-parser/bin/python /tmp/intake-requirements.txt \
+    && rm -rf /root/.cache/uv
+
 RUN groupadd --system portal && useradd --system --gid portal --home-dir /app portal
 COPY --chown=portal:portal backend/ ./backend/
 COPY --chown=portal:portal model_gateway/ ./model_gateway/
 COPY --from=frontend-build --chown=portal:portal /build/frontend/dist/ ./frontend/dist/
-RUN mkdir /app/staticfiles && chown portal:portal /app/staticfiles
+RUN mkdir -p /app/staticfiles /app/.runtime/product-private && chown portal:portal /app/staticfiles /app/.runtime /app/.runtime/product-private
 
 USER portal
 WORKDIR /app/backend

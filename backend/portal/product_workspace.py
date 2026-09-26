@@ -17,6 +17,7 @@ from .product_service import (ProductError, effective_artifact_approval, input_a
                               product_user_allowed, reviewer_allowed, task_for)
 from .product_storage import StorageError, verified_artifact
 from .security import audit
+from .source_parsers.core import EXTENSIONS
 
 
 FILTERS = {"all", "active", "review", "generation", "completed", "completed_month", "attention"}
@@ -126,7 +127,9 @@ def workspace(request):
                          "retrieval": bool(settings.PRODUCT_RETRIEVAL_ENABLED and settings.PRODUCT_RETRIEVAL_AUTHORIZATIONS),
                          "formal_release": bool(settings.PRODUCT_FORMAL_RELEASE_ENABLED),
                          "office_preview": bool(settings.PRODUCT_OFFICE_RENDER_ENABLED),
-                         "upload_extensions": [".csv", ".txt"], "upload_max_bytes": settings.PRODUCT_UPLOAD_MAX_BYTES},
+                         "upload_extensions": list(EXTENSIONS), "upload_max_bytes": settings.PRODUCT_UPLOAD_MAX_BYTES,
+                         "local_ocr": settings.PRODUCT_OCR_ENABLED,
+                         "parser_ready": settings.PRODUCT_PARSER_PYTHON.is_file()},
         "templates": [{"id": "frozen-original-v1", "name": "产品项目文档母版", "version": "frozen-original-v1",
                        "families": ["technical-solution", "feasibility", "presentation"],
                        "approved": bool(settings.PRODUCT_TEMPLATE_APPROVAL),

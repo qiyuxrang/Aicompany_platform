@@ -28,6 +28,7 @@ from .product_release import CONTENT_CHECKS, candidate_current, evidence_file, p
 from .product_pair import effective_report_approval, latest_report_content, output_current, pair_snapshot, report_current
 from .security import audit
 from .models import User
+from .product_intake import summary as extraction_summary
 
 
 def product_endpoint(function):
@@ -100,7 +101,7 @@ def _conversation_intent(message, requested_outputs, paths_supplied, paths):
 def _paths_from_message(message):
     quoted = re.findall(r'["“]((?:[A-Za-z]:\\|\\\\)[^"”\r\n]+)["”]', message)
     inline = re.findall(
-        r'((?:[A-Za-z]:\\|\\\\)[^\r\n"“”]*?\.(?:csv|txt))(?=$|[\s，。；;、）)])',
+        r'((?:[A-Za-z]:\\|\\\\)[^\r\n"“”]*?\.(?:csv|txt|pdf|docx|xlsx|xls|png|jpe?g|webp|bmp|tiff?))(?=$|[\s，。；;、）)])',
         message,
         flags=re.IGNORECASE,
     )
@@ -284,7 +285,7 @@ def _task_detail(task, user):
         })
     sources = [{
         "id": str(source.pk), "original_name": source.original_name, "media_type": source.media_type,
-        "sha256": source.sha256, "size": source.size, "parsed": source.parsed,
+        "sha256": source.sha256, "size": source.size, "parsed": extraction_summary(source.parsed),
         "warnings": source.warnings, "created_at": source.created_at.isoformat(),
     } for source in task.sources.order_by("created_at")]
     approvals = [{

@@ -5,12 +5,13 @@ import { artifactDownload, artifactHistoryDownload, artifactPreview, continueCon
 import type { BlueprintPayload, ChapterPayload, ContentChecks, DocumentTask, DraftOutput, OutputFamily, ReportRevision, ReviewCategory, TaskHistory, TaskInput, TaskSummary } from "./product-api";
 import "./product-workspace.css";
 import ProjectStages from "./ProjectStages";
+import { SOURCE_ACCEPT, updateSource } from "./product-api";
 
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 const emptyInput = (): TaskInput => ({ project: "", requirements: "", items: [], background: "", conditions: [] });
 function editableInput(value: TaskInput): TaskInput {
   return { project: value.project, requirements: value.requirements, background: value.background, conditions: value.conditions,
-    items: value.items.map(({ row_id, name, quantity, unit }) => ({ row_id, name, quantity, unit })) };
+    items: value.items.map(({ row_id, name, quantity, unit, source_item_id }) => ({ row_id, name, quantity, unit, ...(source_item_id ? { source_item_id } : {}) })) };
 }
 const emptyBlueprint: BlueprintPayload = { purpose: "", audience: "", chapters: [], conditions: [], missing: [], conflicts: [], template_version: "" };
 const emptyChapter: ChapterPayload = { chapter_id: "", title: "", paragraphs: [], source_ids: [] };
@@ -174,11 +175,11 @@ function TaskWorkspace() {
         {files.length > 0 && <ul className="product-file-chips" aria-label="待上传附件">{files.map(file => <li key={`${file.name}-${file.size}`}>{file.name}</li>)}</ul>}
         <div className="product-composer-actions">
           <label className="button secondary" htmlFor="conversation-files">＋ 添加文件</label>
-          <input className="sr-only" id="conversation-files" type="file" multiple accept=".csv,.txt" onChange={event => setFiles(Array.from(event.target.files || []))} />
+          <input className="sr-only" id="conversation-files" type="file" multiple accept={SOURCE_ACCEPT} onChange={event => setFiles(Array.from(event.target.files || []))} />
           <button className="button primary" disabled={busy || (!pendingTask && !message.trim() && files.length === 0)}>{busy ? (pendingTask ? "正在上传…" : "正在创建…") : pendingTask ? "继续上传剩余资料" : "发送并创建任务"}</button>
         </div>
       </form>
-      <p className="product-empty-note">当前附件解析支持 UTF-8 CSV/TXT；路径必须在服务器已授权目录。对话中的“同意”不会替代正式审批。</p>
+      <p className="product-empty-note">支持 PDF、DOCX、XLSX/XLS、CSV/TXT 与常见图片；扫描文字使用本地 OCR 并保留核对提示。路径必须在服务器已授权目录，对话不替代正式审批。</p>
     </section> : <TaskEditor key={`${selected}-${requestedArtifact}`} id={selected} requestedArtifact={requestedArtifact} deepLinked={!!requestedTask} onFatal={setFatal} />}
   </section>;
 }
@@ -408,7 +409,7 @@ export function TaskEditor({ id, requestedArtifact, deepLinked, onFatal, busines
   }
   if (business) return <>
     {error && <div className="pd-feedback" role="alert">{error}</div>}{notice && <p className="pd-inline-notice" role="status">{notice}</p>}
-    <ProjectStages task={task} outputs={outputs} history={history} outputsError={outputsError} historyError={historyError} busy={busy} conflict={conflict} disabled={disabled} onAction={send} onReload={() => void perform(async () => {}, true)} onUpload={file => perform(signal => uploadSource(id, file, task.version, signal))}/>
+    <ProjectStages task={task} outputs={outputs} history={history} outputsError={outputsError} historyError={historyError} busy={busy} conflict={conflict} disabled={disabled} onAction={send} onReload={() => void perform(async () => {}, true)} onUpload={file => perform(signal => uploadSource(id, file, task.version, signal))} onSourceAction={(sourceId, endpoint, body) => perform(signal => updateSource(sourceId, endpoint, body, signal))}/>
   </>;
   const progress = task.artifacts.length ? 4 : task.blueprint ? 3 : task.sources.length ? 2 : 1;
   return <>
@@ -424,7 +425,7 @@ export function TaskEditor({ id, requestedArtifact, deepLinked, onFatal, busines
         <label className="sr-only" htmlFor={`task-message-${id}`}>继续补充要求或资料路径</label>
         <textarea id={`task-message-${id}`} rows={3} placeholder="继续补充要求、资料路径，或只添加附件……" value={conversationMessage} disabled={busy || conversationAccepted} onChange={event => setConversationMessage(event.target.value)} />
         {conversationFiles.length > 0 && <ul className="product-file-chips" aria-label="待补充附件">{conversationFiles.map(file => <li key={`${file.name}-${file.size}`}>{file.name}</li>)}</ul>}
-        <div className="product-composer-actions"><label className="button secondary" htmlFor={`task-files-${id}`}>＋ 添加资料</label><input className="sr-only" id={`task-files-${id}`} type="file" multiple accept=".csv,.txt" onChange={event => setConversationFiles(Array.from(event.target.files || []))} /><button className="button primary" disabled={busy || (!conversationMessage.trim() && conversationFiles.length === 0)}>{busy ? "正在保存…" : conversationAccepted ? "继续上传剩余资料" : "发送"}</button></div>
+        <div className="product-composer-actions"><label className="button secondary" htmlFor={`task-files-${id}`}>＋ 添加资料</label><input className="sr-only" id={`task-files-${id}`} type="file" multiple accept={SOURCE_ACCEPT} onChange={event => setConversationFiles(Array.from(event.target.files || []))} /><button className="button primary" disabled={busy || (!conversationMessage.trim() && conversationFiles.length === 0)}>{busy ? "正在保存…" : conversationAccepted ? "继续上传剩余资料" : "发送"}</button></div>
       </form>
     </main>
     <aside className="product-task-aside" aria-label="任务概览">
@@ -485,8 +486,8 @@ export function TaskEditor({ id, requestedArtifact, deepLinked, onFatal, busines
     <fieldset disabled={disabled("add_statement")}><legend>补充判断来源</legend>{reviewSources.map(source => <label key={source.id}><input type="checkbox" checked={statementSources.includes(source.id)} onChange={event => setStatementSources(current => toggleValue(current, source.id, event.target.checked))} />{source.original_name}（{source.id}）</label>)}</fieldset>
     <button disabled={disabled("add_statement") || !statementReady} onClick={() => void send("statements/", { category: statementCategory, text: statementText.trim(), source_ids: statementSources })}>提交补充判断</button>
     <h3>试用资料上传</h3>
-    <p>仅隔离试用 UTF-8 CSV 设备清单与 TXT 背景，不代表全部资料类型解析已获批准；上传不会自动覆盖正在编辑的输入。</p>
-    <label htmlFor="source-file">选择试用资料</label><input id="source-file" type="file" accept=".csv,.txt" onChange={event => setFile(event.target.files?.[0] || null)} />
+    <p>资料在本地解析并保留来源位置；OCR 文字和公式需核对。每份文件最多 20 MB，上传不会覆盖正在编辑的输入。</p>
+    <label htmlFor="source-file">选择试用资料</label><input id="source-file" type="file" accept={SOURCE_ACCEPT} onChange={event => setFile(event.target.files?.[0] || null)} />
     <button disabled={disabled("add_source") || !file} onClick={() => { if (file) void perform(signal => uploadSource(id, file, task.version, signal)); }}>上传资料</button>
     <ul aria-label="已上传资料">{task.sources.map(source => <li key={source.id}>{source.original_name}（引用 ID：{source.id}）</li>)}</ul>
     <button disabled={disabled("queue_retrieve")} onClick={() => void send("queue/", { action: "retrieve" })}>发起授权检索（默认未授权，可能被拒）</button>

@@ -115,7 +115,7 @@ class ProductApiTests(PortalTestCase):
     def test_conversation_path_import_rejects_unsafe_and_unsupported_targets(self):
         import_root = Path(self.storage.name) / "approved-imports"
         import_root.mkdir()
-        unsupported = import_root / "payload.pdf"
+        unsupported = import_root / "payload.exe"
         unsupported.write_bytes(b"not-a-pdf")
         outside = Path(self.storage.name) / "outside.txt"
         outside.write_text("outside", encoding="utf-8")
