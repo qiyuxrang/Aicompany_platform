@@ -12,7 +12,7 @@ from zipfile import ZipFile
 from django.conf import settings
 from django.test import SimpleTestCase, override_settings
 
-from portal.hr_resume_extract import extract_text
+from portal.hr_resume_extract import extract_text, inspect_pdf
 from portal.hr_resume_storage import save_file, read_file
 from portal.product_storage import StorageError
 
@@ -61,6 +61,27 @@ class ResumeFileTests(SimpleTestCase):
                 'p.insert_text((72,72),"Synthetic resume: SQL Python"); d.save(sys.argv[1])',
                 str(target)], check=True, timeout=20)
             self.assertIn('SQL Python', extract_text('resume.pdf', target.read_bytes()))
+
+    def test_scanned_pdf_is_flagged_and_rendered_with_page_identity(self):
+        runtime = Path(settings.PRODUCT_DOCUMENT_PYTHON)
+        if not runtime.is_file():
+            self.skipTest('isolated document runtime unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'scan.pdf'
+            subprocess.run([str(runtime), '-c',
+                'import fitz,sys; original=fitz.open(); page=original.new_page(); '
+                'page.insert_text((72,72),"Synthetic scanned resume SQL"); '
+                'image=page.get_pixmap().tobytes("png"); scan=fitz.open(); '
+                'dest=scan.new_page(); dest.insert_image(dest.rect,stream=image); scan.save(sys.argv[1])',
+                str(target)], check=True, timeout=20)
+            pages = inspect_pdf('scan.pdf', target.read_bytes())
+            self.assertEqual(len(pages), 1)
+            self.assertEqual(pages[0]['page'], 1)
+            self.assertTrue(pages[0]['needs_vision'])
+            import base64
+            image = base64.b64decode(pages[0]['image'], validate=True)
+            self.assertLessEqual(len(image), 1024 * 1024)
+            self.assertEqual(hashlib.sha256(image).hexdigest(), pages[0]['image_sha256'])
 
     def test_pdf_process_does_not_inherit_secrets(self):
         with tempfile.TemporaryDirectory() as directory:

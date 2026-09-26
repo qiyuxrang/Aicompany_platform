@@ -52,7 +52,7 @@ def _docx(content):
         raise StorageError('invalid_file', 'DOCX 文件损坏或格式无效。') from None
 
 
-def _pdf(content):
+def _pdf(content, *, pages=False):
     if not content.startswith(b'%PDF-'):
         raise StorageError('invalid_file', 'PDF 文件签名无效。')
     runtime = Path(settings.PRODUCT_DOCUMENT_PYTHON)
@@ -68,14 +68,24 @@ def _pdf(content):
         source, output = Path(directory) / 'input.pdf', Path(directory) / 'text.json'
         source.write_bytes(content)
         try:
-            result = subprocess.run([str(runtime), '-B', str(script), str(source), str(output)],
+            command = [str(runtime), '-B', str(script), str(source), str(output)]
+            if pages:
+                command.append('--pages')
+            result = subprocess.run(command,
                 env=environment, timeout=30, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-            if result.returncode or not output.is_file() or output.stat().st_size > 1024 * 1024:
+            limit = 16 * 1024 * 1024 if pages else 1024 * 1024
+            if result.returncode or not output.is_file() or output.stat().st_size > limit:
                 raise StorageError('invalid_file', 'PDF 无法解析、加密或超出限制。')
-            return json.loads(output.read_text(encoding='utf-8'))['text']
+            return json.loads(output.read_text(encoding='utf-8'))['pages' if pages else 'text']
         except (OSError, subprocess.TimeoutExpired, ValueError, KeyError):
             raise StorageError('extractor_unavailable', 'PDF 提取失败或超时。') from None
+
+
+def inspect_pdf(name, content):
+    if validate_file(name, content) != '.pdf':
+        raise StorageError('unsupported_file', '分页识别只接受 PDF。')
+    return _pdf(content, pages=True)
 
 
 def extract_text(name, content):
