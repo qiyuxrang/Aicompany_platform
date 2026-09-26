@@ -9,6 +9,9 @@ export default function RecruitmentScreening({ results = false }: { results?: bo
   const [sort, setSort] = useState('score'), [verdict, setVerdict] = useState('');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const lock = useRef(false), createKey = useRef(crypto.randomUUID());
+  const selectedRef = useRef(selected); selectedRef.current = selected;
+  const requestedBatch = new URLSearchParams(window.location.search).get('batch') || '';
+  useEffect(() => { setSelected(requestedBatch); }, [requestedBatch]);
   async function reload() { setBatches(await get<Batch[]>('batches/')); }
   async function work(action: () => Promise<void>) {
     if (lock.current) return; lock.current = true; setBusy(true); setError('');
@@ -39,7 +42,7 @@ export default function RecruitmentScreening({ results = false }: { results?: bo
     {!results && <section className="hr-card"><h2>创建筛选批次</h2><div className="hr-actions"><label>正式 JD<select value={jd} onChange={e => { setJd(e.target.value); createKey.current = crypto.randomUUID(); }}><option value="">请选择当前有效 JD</option>{jds.map(item => <option key={item.id} value={item.id}>JD v{item.version} · {item.body.slice(0, 50)}</option>)}</select></label>
       <button className="hr-primary" disabled={busy || !jd} onClick={() => void work(async () => {
         const next = await mutate<Batch>('batches/', { jd_version_id: jd }, 'POST', { 'Idempotency-Key': createKey.current });
-        await reload(); setSelected(next.id);
+        await reload(); setSelected(next.id); createKey.current = crypto.randomUUID();
       })}>创建批次</button></div></section>}
     <section className="hr-card"><div className="hr-card-head"><h2>{results ? '历史筛选记录' : '筛选批次'}</h2><button disabled={busy} onClick={() => void work(reload)}>刷新</button></div>
       <label>选择批次<select value={selected} onChange={e => { setSelected(e.target.value); setError(''); }}><option value="">请选择</option>{batches.map(item => <option key={item.id} value={item.id}>{item.position_name} · JD v{item.jd_version} · {new Date(item.updated_at).toLocaleString()} · {statusText(item.status)}</option>)}</select></label>
@@ -56,7 +59,7 @@ export default function RecruitmentScreening({ results = false }: { results?: bo
         {results && <><div className="hr-actions"><label>排序<select value={sort} onChange={e => setSort(e.target.value)}><option value="score">辅助分</option><option value="hard_gap_count">硬条件缺口</option><option value="unknown_count">UNKNOWN 数量</option></select></label>
         <label>匹配状态<select value={verdict} onChange={e => setVerdict(e.target.value)}><option value="">全部</option>{['MATCH', 'PARTIAL', 'UNKNOWN', 'NOT_MATCH'].map(v => <option key={v}>{v}</option>)}</select></label>
         <a className="hr-outline" href={root + `batches/${batch.id}/export/?${params}`}>导出 CSV</a></div>
-        <div className="hr-table-wrap"><table><thead><tr><th>简历</th><th>处理状态</th><th>辅助分</th><th>硬缺口</th><th>UNKNOWN</th><th>操作</th></tr></thead><tbody>{rows.map(item => <tr key={item.id}><td>{item.filename}</td><td>{statusText(item.processing_status)}</td><td>{item.score ?? '—'}</td><td>{item.hard_gap_count}</td><td>{item.unknown_count ?? '—'}</td><td><button onClick={() => void work(async () => { setDetail(null); setDetail(await get(`resumes/${item.id}/`)); })}>查看证据</button> <a href={root + `resumes/${item.id}/download/`}>下载原件</a></td></tr>)}</tbody></table></div>
+        <div className="hr-table-wrap"><table><thead><tr><th>简历</th><th>处理状态</th><th>辅助分</th><th>硬缺口</th><th>UNKNOWN</th><th>操作</th></tr></thead><tbody>{rows.map(item => <tr key={item.id}><td>{item.filename}</td><td>{statusText(item.processing_status)}</td><td>{item.score ?? '—'}</td><td>{item.hard_gap_count}</td><td>{item.unknown_count ?? '—'}</td><td><button onClick={() => void work(async () => { setDetail(null); const result = await get<Record<string, unknown>>(`resumes/${item.id}/`); if (selectedRef.current === selected) setDetail(result); })}>查看证据</button> <a href={root + `resumes/${item.id}/download/`}>下载原件</a></td></tr>)}</tbody></table></div>
         <p className="hr-muted">辅助匹配不是录用或淘汰决定；缺少证据显示 UNKNOWN。</p></>}
       </>}
     </section>

@@ -14,6 +14,7 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
   const initialForm = useRef(JSON.stringify(empty));
   const selectionVersion = useRef(0);
   const mounted = useRef(true);
+  const allowNavigation = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; selectionVersion.current += 1; }; }, []);
   const [rows, setRows] = useState<Requirement[]>([]), [selected, setSelected] = useState<Requirement | null>(null);
   const [form, setForm] = useState(empty), [versions, setVersions] = useState<Jd[]>([]);
@@ -54,10 +55,15 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
   useEffect(() => {
     if (!dirty || legacy) return;
     const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const guard = (event: Event) => { event.preventDefault(); setError('存在未保存修改，请先保存或切换岗位时明确放弃。'); };
+    const guard = (event: Event) => {
+      if (allowNavigation.current) { allowNavigation.current = false; return; }
+      event.preventDefault(); setError('存在未保存修改，请先保存或切换岗位时明确放弃。');
+    };
     const navigate = (event: MouseEvent) => {
       const link = (event.target as Element).closest?.('a');
-      if (link && !window.confirm('有未保存修改，确定离开吗？')) { event.preventDefault(); event.stopPropagation(); }
+      if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      if (!window.confirm('有未保存修改，确定离开吗？')) { event.preventDefault(); event.stopPropagation(); }
+      else { allowNavigation.current = true; window.setTimeout(() => { allowNavigation.current = false; }, 0); }
     };
     window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
     window.addEventListener('portal:navigation-guard', guard);
@@ -91,15 +97,15 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
       {selected?.missing_items.length ? <p className="hr-warning">待补齐：{selected.missing_items.map(x => x.reason).join('；')}</p> : null}
     </section>
     {selected && <section className="hr-card"><div className="hr-card-head"><h2>JD 版本</h2>
-      <button className="hr-primary" disabled={busy || !!selected.missing_items.length} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + 'generate-jd/', { expected_version: selected.input_version })))}>生成 JD 草稿</button></div>
-      <label>版本<select value={jd?.id || ''} disabled={busy} onChange={e => { const item = versions.find(x => x.id === e.target.value); if (item) { setJd(item); setBody(item.body); } }}><option value="">请选择</option>{versions.map(x => <option key={x.id} value={x.id}>v{x.version} · {channels.find(c => c[0] === x.channel)?.[1]} · {x.stale ? '已过期' : x.state === 'confirmed' ? '已确认' : '草稿'}</option>)}</select></label>
+      <button className="hr-primary" disabled={busy || dirty || !!selected.missing_items.length} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + 'generate-jd/', { expected_version: selected.input_version })))}>生成 JD 草稿</button></div>
+      <label>版本<select value={jd?.id || ''} disabled={busy} onChange={e => { const item = versions.find(x => x.id === e.target.value); if (item && (!dirty || window.confirm('放弃未保存修改并切换版本？'))) { setJd(item); setBody(item.body); } }}><option value="">请选择</option>{versions.map(x => <option key={x.id} value={x.id}>v{x.version} · {channels.find(c => c[0] === x.channel)?.[1]} · {x.stale ? '已过期' : x.state === 'confirmed' ? '已确认' : '草稿'}</option>)}</select></label>
       {jd && <><label>JD 正文<textarea rows={15} value={body} disabled={busy || jd.state !== 'draft' || jd.stale || jd.channel !== 'general'} onChange={e => setBody(e.target.value)} /></label>
         <div className="hr-actions"><button disabled={busy || jd.state !== 'draft' || jd.stale || jd.channel !== 'general'} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + 'jd-versions/', { expected_version: selected.input_version, base_jd_id: jd.id, body })))}>保存修改版本</button>
         <button disabled={busy || jd.state !== 'draft' || jd.stale || jd.channel !== 'general' || body !== jd.body} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + `jd-versions/${jd.id}/confirm/`, { expected_version: selected.input_version })))}>确认 JD</button>
         <button onClick={() => void work(async () => { await navigator.clipboard.writeText(body); })}>复制正文</button></div></>}
       <div className="hr-actions"><label>招聘平台<select value={channel} onChange={e => setChannel(e.target.value)}>{channels.slice(1).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
         {channel === 'custom' && <label>自定义平台<input value={custom} onChange={e => setCustom(e.target.value)} /></label>}
-        <button disabled={busy || !selected.official_jd_id} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + `jd-versions/${selected.official_jd_id}/adapt/`, { expected_version: selected.input_version, channel, custom_label: custom })))}>生成平台版本</button></div>
+        <button disabled={busy || dirty || !selected.official_jd_id} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + `jd-versions/${selected.official_jd_id}/adapt/`, { expected_version: selected.input_version, channel, custom_label: custom })))}>生成平台版本</button></div>
       <p className="hr-muted">平台版仅适配文案，不会自动发布到招聘网站。匹配使用已确认通用 JD。</p>
     </section>}</>;
 }
