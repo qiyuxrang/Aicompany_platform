@@ -39,6 +39,8 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
   }
   useEffect(() => {
     const controller = new AbortController();
+    selectionVersion.current += 1; setSelected(null); setJd(null); setVersions([]); setBody(''); setError('');
+    initialForm.current = JSON.stringify(empty); setForm(empty);
     if (legacy) apiRequest<typeof history>('/api/hr/jobs/', { signal: controller.signal }).then(setHistory).catch(e => { if (!controller.signal.aborted) setError(message(e)); });
     else get<Requirement[]>('requests/', controller.signal).then(async data => {
       if (controller.signal.aborted) return;

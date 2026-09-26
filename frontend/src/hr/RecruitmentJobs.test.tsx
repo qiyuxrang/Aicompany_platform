@@ -25,6 +25,15 @@ it('岗位深链加载正确正文，未保存文本不能确认', async () => {
   fireEvent(window, navigation);
   expect(navigation.defaultPrevented).toBe(true);
 });
+it('从有效岗位切换无权深链后清除旧正文', async () => {
+  const view = render(<RecruitmentJobs />);
+  await screen.findByDisplayValue('岗位正文');
+  window.history.replaceState({}, '', '/centers/hr/job?task=foreign');
+  view.rerender(<RecruitmentJobs />);
+  await screen.findByRole('alert');
+  expect(screen.queryByLabelText('JD 正文')).toBeNull();
+});
+
 it('无权深链不显示其他岗位正文', async () => {
   window.history.replaceState({}, '', '/centers/hr/job?task=foreign');
   render(<RecruitmentJobs />);
