@@ -44,6 +44,15 @@
 - 批次/文件/视觉合同/JD/需求联合测试 28 项通过，迁移无漂移；尚未实现并行 Worker 和结果页面，不能标记 H4/H5 完成。
 - 用户已明确本轮只完成 H1—H5；H6—H8 转正问卷与钉钉延后，不动旧转正数据。
 
+## H4 解析匹配执行增量
+
+- 实现 hr_resume_parse/hr_match_summary 平台路由调用、逐字证据校验、UNKNOWN 保守降级、确定性辅助评分；规则仍为离线基线，不宣称招聘决策正确性。
+- 单份 lease/fence 领取、阶段间租约/权限/JD复验、终态写入及批次汇总已实现。
+- 新增 run/retry、summary/detail/export 接口；run 只排队，retry 只选 failed；CSV 默认导出文件标识及辅助统计并防公式注入。
+- 新增 run_hr_worker：SQLite 单并发，PostgreSQL 可选 2 并发；尚未实测 PostgreSQL 并发或吞吐。
+- 联合招聘后端 48 项通过；补阶段间撤权测试 RED→GREEN 后执行/规则/API 13 项通过。
+- 尚缺解析/匹配缓存、限流退避、真实样例筛选、前端及最终独立审查。当前 profile/match 保存于 artifact，历史重试结果的版本化还需完善；不能宣称 H4 完成。
+
 ## 尚未完成
 
 - H2 前端及真实平台模型联调。

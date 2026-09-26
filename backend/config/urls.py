@@ -31,6 +31,7 @@ urlpatterns = [
     path("api/hr/recruitment/", include("portal.hr_recruitment_api")),
     path("api/hr/recruitment/", include("portal.hr_jd_api")),
     path("api/hr/recruitment/", include("portal.hr_screening_api")),
+    path("api/hr/recruitment/", include("portal.hr_screening_results")),
     path("api/hr/", include("portal.hr_api")),
     path("health/", views.health),
     re_path(r"^(?P<path>(?!api(?:/|$)|admin(?:/|$)|static(?:/|$)).*)$", views.frontend),

@@ -56,6 +56,20 @@ class ScreeningApiTests(PortalTestCase):
         self.assertEqual(list(Path(self.temp.name).iterdir()), [])
         self.assertEqual(self.client.get(self.root + f"batches/{batch['id']}/progress/").json()['total'], 0)
 
+    def test_run_queues_and_results_remain_owner_scoped(self):
+        batch = self.create()
+        base = self.root + f"batches/{batch['id']}/"
+        uploaded = self.client.post(base + 'resumes/', {'expected_version': 1,
+            'files': [SimpleUploadedFile('resume.txt', b'SQL')]})
+        version = uploaded.json()['batch']['version']
+        response = self.client.post(base + 'run/', json_body(expected_version=version), content_type='application/json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['status'], 'queued')
+        self.assertEqual(self.client.get(base + 'summary/').status_code, 200)
+        self.assertEqual(self.client.get(base + 'export/').status_code, 200)
+        self.login(self.client, self.other)
+        self.assertEqual(self.client.get(base + 'export/').status_code, 404)
+
     def test_stale_jd_and_duplicate_create(self):
         batch = self.create()
         replay = self.client.post(self.root + 'batches/', json_body(jd_version_id=str(self.jd.pk)),
