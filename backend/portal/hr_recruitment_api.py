@@ -19,6 +19,8 @@ def _clean(data):
 
 def _data(row):
     return {'id': str(row.pk), **row.structured_payload(), 'input_version': row.input_version,
+            'current_jd_id': str(row.current_jd_id) if row.current_jd_id else None,
+            'official_jd_id': str(row.official_jd_id) if row.official_jd_id else None,
             'missing_items': missing_items(row), 'updated_at': row.updated_at.isoformat()}
 
 

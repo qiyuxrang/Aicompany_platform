@@ -19,6 +19,10 @@ class RecruitmentRequest(models.Model):
     work_location = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
     input_version = models.PositiveIntegerField(default=1)
+    current_jd = models.ForeignKey('JDVersion', null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name='current_for_requests')
+    official_jd = models.ForeignKey('JDVersion', null=True, blank=True, on_delete=models.PROTECT,
+                                   related_name='official_for_requests')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
                                    related_name='recruitment_requests_created')
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
@@ -37,3 +41,35 @@ class RecruitmentRequest(models.Model):
     def structured_payload(self):
         from .hr_recruitment_service import REQUEST_FIELDS
         return {field: getattr(self, field) for field in sorted(REQUEST_FIELDS)}
+
+
+class JDVersion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    request = models.ForeignKey(RecruitmentRequest, on_delete=models.CASCADE, related_name='jd_versions')
+    version = models.PositiveIntegerField()
+    input_version = models.PositiveIntegerField()
+    state = models.CharField(max_length=16, default='draft', choices=[('draft', '草稿'), ('confirmed', '已确认')])
+    source = models.CharField(max_length=16, default='skill')
+    body = models.TextField()
+    channel = models.CharField(max_length=20, default='general')
+    custom_label = models.CharField(max_length=100, blank=True)
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='children')
+    source_jd = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='channel_versions')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='jd_versions_created')
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
+                                    related_name='jd_versions_confirmed')
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['version']
+        constraints = [
+            models.UniqueConstraint(fields=['request', 'version'], name='hr_jd_version_uq'),
+            models.CheckConstraint(condition=Q(version__gt=0), name='hr_jd_version_gt0_ck'),
+            models.CheckConstraint(condition=Q(input_version__gt=0), name='hr_jd_input_version_gt0_ck'),
+        ]
+
+    @property
+    def stale(self):
+        return (self.input_version != self.request.input_version
+                or bool(self.source_jd_id and self.source_jd_id != self.request.official_jd_id))
