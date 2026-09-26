@@ -1,0 +1,7 @@
+# Dedicated Python 3.12 runtime; OCR models ship in the wheel, no request-time downloads.
+rapidocr-onnxruntime==1.4.4
+pypdfium2==5.13.0
+openpyxl==3.1.5
+xlrd==2.0.2
+defusedxml==0.7.1
+Pillow==12.3.0

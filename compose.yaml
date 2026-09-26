@@ -43,6 +43,8 @@ services:
           --trusted-proxy-headers="x-forwarded-proto x-forwarded-for" \
           --clear-untrusted-proxy-headers \
           config.wsgi:application
+    volumes:
+      - product_private_data:/app/.runtime/product-private
     ports:
       - "127.0.0.1:${PORTAL_HTTP_PORT:-8100}:8100"
     depends_on:
@@ -89,3 +91,4 @@ services:
 
 volumes:
   phase1_pg_data:
+  product_private_data:

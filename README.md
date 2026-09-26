@@ -4,6 +4,16 @@
 
 项目采用 React + TypeScript 构建前端，Django/DRF 提供门户、权限和业务服务，FastAPI 承载独立模型网关，并支持 PostgreSQL 与 Docker Compose 部署。当前处于 Phase 1，已完成平台底座和产品文档链路的阶段性实现；真实模型、外部知识库与生产系统接入仍以授权和验收结果为准。
 
+## 产品事业部工作台（2026-09-26）
+
+产品部门入口 `/centers/product` 已整理为按项目持续推进的业务工作台：新建项目与附件上传、项目搜索、资料与底稿编辑、审核人指定、可视化蓝图确认、当前成果及历史版本。沿用原有持久任务、模型网关、Worker、权限和批准链；原专业工作台 `/centers/product/documents` 保留。
+
+首页指标按当前账号授权范围统计，生成状态来自服务端。上传支持 PDF、DOCX、XLSX/XLS、CSV/TXT 与常见图片；原生提取与本地中文 OCR 保留来源定位、核对提示和解析历史。真实模型、外部知识库、Office 渲染与正式发布仍遵守既有授权条件。此分支未修改日常服务、真实账号或生产数据。
+
+当前结构、brainstorm 与路由见 [产品事业部开发导览](docs/product/WORKBENCH_DEVELOPMENT_MAP.md)，本轮逐项验证、可复现步骤与尚未验证部分见 [工作台验证记录](docs/product/WORKBENCH_VALIDATION.md)。以下章节保留历史阶段记录，不能代替最新验收结论。
+
+多格式解析的能力边界、版本模型、隔离运行环境、安装与容器资料迁移注意事项见 [多格式资料解析](docs/product/MULTIFORMAT_INTAKE.md)，截图和本轮验证见 [资料解析验收](docs/product/evidence/intake-20260926/README.md)。原工作台验证记录属于首轮历史基线；最新解析范围以此处为准。
+
 ## 当前进展
 
 新增独立 FastAPI 模型网关及 Django Admin 配置入口：模型服务商、网关模型、业务用途绑定、只读调用日志。日常18210保留，网关18410仅监听本机；未配置真实厂商密钥，尚未验证真实推理，不代表部门AI业务已接入。配置、验证边界与回退见 [MODEL_GATEWAY](docs/MODEL_GATEWAY.md)。

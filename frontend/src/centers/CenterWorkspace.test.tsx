@@ -40,10 +40,10 @@ beforeEach(() => {
 describe("CenterWorkspace", () => {
   it("产品导航不再包含需求准备稿", async () => {
     render(<CenterWorkspace code="product" section="overview" user={staff} businessPanel={null} />);
-    await screen.findByRole("heading", { name: "产品工作台" });
+    await screen.findByRole("heading", { name: "产品事业部工作台" });
     const navigation = screen.getByRole("navigation", { name: "产品事业部菜单" });
     expect(navigation.textContent).not.toContain("需求准备稿");
-    expect(screen.getByRole("link", { name: "项目成果流水线" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "专业工作台" })).toBeTruthy();
   });
 
   it("模块授权失败时不挂载产品内容", async () => {

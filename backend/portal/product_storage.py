@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 
 from django.conf import settings
+from .source_parsers.core import EXTENSIONS
 
 
 class StorageError(Exception):
@@ -25,8 +26,8 @@ def parse_upload(upload):
     if not name or "\x00" in name or Path(name).name != name or "/" in name or "\\" in name:
         raise StorageError("invalid_filename", "文件名无效。")
     suffix = Path(name).suffix.lower()
-    if suffix not in {".csv", ".txt"}:
-        raise StorageError("unsupported_file", "仅支持 UTF-8 CSV 设备清单或 TXT 项目背景。")
+    if suffix not in EXTENSIONS:
+        raise StorageError("unsupported_file", "支持 PDF、DOCX、XLSX/XLS、CSV/TXT 和常见图片；旧 DOC 或含宏文件请另存为 DOCX/XLSX。")
     limit = int(getattr(settings, "PRODUCT_UPLOAD_MAX_BYTES", 1024 * 1024))
     content = upload.read(limit + 1)
     if len(content) > limit:
@@ -36,8 +37,14 @@ def parse_upload(upload):
 
 def parse_source_content(name, content):
     suffix = Path(name).suffix.lower()
+    if suffix not in EXTENSIONS:
+        raise StorageError("unsupported_file", "该文件格式不受支持，请使用 PDF、DOCX、XLSX/XLS 或常见图片。")
+    if len(content) > int(getattr(settings, "PRODUCT_UPLOAD_MAX_BYTES", 20 * 1024 * 1024)):
+        raise StorageError("upload_too_large", "文件超过允许大小。")
     if suffix not in {".csv", ".txt"}:
-        raise StorageError("unsupported_file", "仅支持 UTF-8 CSV 设备清单或 TXT 项目背景。")
+        from .product_intake import parse_rich
+        if not content: raise StorageError("invalid_file", "文件内容为空。")
+        return parse_rich(name, content)
     if not content or b"\x00" in content:
         raise StorageError("invalid_file", "文件为空或不是文本文件。")
     try:

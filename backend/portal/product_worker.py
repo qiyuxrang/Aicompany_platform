@@ -189,10 +189,16 @@ def model_input(task, payload, source_ids=None):
     for key in ("sources", "knowledge_sources"):
         context[key] = [source for source in payload.get(key, []) if allowed is None or str(source.get("id")) in allowed]
     context["statements"] = [item for item in payload.get("statements", []) if allowed is None or set(item.get("source_ids", [])) <= allowed]
-    if allowed is None or not task.sources.filter(media_type="text/plain").exists():
+    materials = payload.get("source_materials", [])
+    if allowed is None:
         context["background"] = payload.get("background", "")
-    else:
+    elif task.sources.exists():
         context["background"] = "\n".join(source.parsed.get("background", "") for source in task.sources.filter(media_type="text/plain") if str(source.pk) in allowed)
+    else:
+        context["background"] = payload.get("background", "")
+    selected_materials = [item for item in materials if allowed is None or item["source_id"] in allowed]
+    if selected_materials:
+        context["background"] += "\n\n" + "\n\n".join(f"[资料 {item['source_id']} · {item['status']} · {item['extraction_hash']}]\n{item['text']}" for item in selected_materials)
     context["issues"] = payload.get("issues", []) if allowed is None else []
     return context
 

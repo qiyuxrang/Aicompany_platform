@@ -1,0 +1,119 @@
+"""Product workspace contracts. Synthetic data; no external/model calls."""
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, override_settings
+
+from portal.product_models import DocumentTask, DocumentSource
+from portal.product_service import append_revision
+from .base import PortalTestCase, json_body
+
+
+class ProductWorkspaceTests(PortalTestCase):
+    def setUp(self):
+        self.storage = TemporaryDirectory()
+        self.addCleanup(self.storage.cleanup)
+        self.owner = self.create_user("workspace-owner", "product")
+        self.reviewer = self.create_user("workspace-reviewer", "product")
+        self.other = self.create_user("workspace-other", "product")
+        self.config = override_settings(PRODUCT_P1_ENABLED=True, PRODUCT_MODEL_CALLS_ALLOWED=False,
+            PRODUCT_FORMAL_RELEASE_ENABLED=False, PRODUCT_REVIEWER_IDS=(self.reviewer.pk,),
+            PRODUCT_STORAGE_ROOT=Path(self.storage.name))
+        self.config.enable()
+        self.addCleanup(self.config.disable)
+        self.client = Client()
+        self.login(self.client, self.owner)
+
+    def task(self, title="合成供电项目", owner=None, state="DRAFT", stage="INTAKE", reviewer=None):
+        task = DocumentTask.objects.create(owner=owner or self.owner, reviewer=reviewer,
+            title=title, state=state, stage=stage, idempotency_key=title, payload_hash="a" * 64)
+        revision = append_revision(task, "input", {"project": title, "requirements": "可靠供电",
+            "items": [], "background": "合成验收资料", "conditions": [], "sources": [], "issues": []}, actor=task.owner)
+        task.input_version = revision.version
+        task.save()
+        return task
+
+    def test_dashboard_scopes_counts_and_results_to_authorized_tasks(self):
+        self.task()
+        self.task("审核项目", state="WAITING_REVIEW", stage="BLUEPRINT", reviewer=self.reviewer)
+        self.task("已完成", state="COMPLETED", stage="FINAL_REVIEW")
+        self.task("其他人的秘密项目", owner=self.other)
+        result = self.client.get("/api/product/workspace/")
+        self.assertEqual(result.status_code, 200, result.content)
+        data = result.json()
+        self.assertEqual(data["metrics"], {"active": 2, "review": 1, "generation": 0, "completed_month": 1})
+        self.assertEqual(data["pagination"]["total"], 3)
+        self.assertNotIn("其他人的秘密项目", result.content.decode())
+        self.assertIn("no-store", result["Cache-Control"])
+        self.assertFalse(data["capabilities"]["model_generation"])
+
+    def test_filter_pagination_does_not_change_overall_metrics(self):
+        for index in range(5):
+            self.task(f"配电项目{index}")
+        self.task("待审", state="WAITING_REVIEW", stage="BLUEPRINT")
+        result = self.client.get("/api/product/workspace/?q=配电&page=2&page_size=2").json()
+        self.assertEqual(result["pagination"], {"page": 2, "page_size": 2, "total": 5, "pages": 3})
+        self.assertEqual(len(result["projects"]), 2)
+        self.assertEqual(result["metrics"]["active"], 6)
+        self.assertEqual(result["metrics"]["review"], 1)
+        self.assertEqual(self.client.get("/api/product/workspace/?filter=review").json()["pagination"]["total"], 1)
+        for query in ("page=0", "page_size=1000", "filter=unknown", "page=abc"):
+            self.assertEqual(self.client.get(f"/api/product/workspace/?{query}").status_code, 400)
+
+    def test_revoked_source_authorization_is_not_counted_or_exposed(self):
+        self.task("已撤销资料")
+        with patch("portal.product_workspace.input_authorized", return_value=False):
+            result = self.client.get("/api/product/workspace/")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["pagination"]["total"], 0)
+        self.assertNotIn("已撤销资料", result.content.decode())
+
+    def test_reviewer_only_sees_assigned_tasks_and_no_implicit_admin_access(self):
+        self.task("分配给审核人", reviewer=self.reviewer)
+        self.task("未分配")
+        self.login(self.client, self.reviewer)
+        self.assertEqual(self.client.get("/api/product/workspace/").json()["pagination"]["total"], 1)
+        self.login(self.client, self.create_admin(), password="Admin!Pass9274-Qx")
+        self.assertEqual(self.client.get("/api/product/workspace/").status_code, 404)
+
+    def test_source_download_authorization_hash_and_no_path_disclosure(self):
+        task = self.task()
+        uploaded = self.client.post(f"/api/product/tasks/{task.pk}/sources/", {
+            "expected_version": task.version, "file": SimpleUploadedFile("项目背景.txt", "合成资料".encode())})
+        self.assertEqual(uploaded.status_code, 201, uploaded.content)
+        source = DocumentSource.objects.get(task=task)
+        url = f"/api/product/sources/{source.pk}/download/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), "合成资料".encode())
+        self.assertIn("no-store", response["Cache-Control"])
+        response.close()
+        (Path(self.storage.name) / source.path).write_text("tampered", encoding="utf-8")
+        self.assertEqual(self.client.get(url).status_code, 409)
+        self.login(self.client, self.other)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_queued_and_running_tasks_cannot_be_edited_or_requeued(self):
+        for state in ("QUEUED", "RUNNING"):
+            task = self.task(state, state=state, stage="BLUEPRINT")
+            url = f"/api/product/tasks/{task.pk}/"
+            before = self.client.get(url).json()
+            for action in ("edit", "save_blueprint", "add_source", "queue_blueprint"):
+                self.assertNotIn(action, before["actions"])
+            changed = self.client.patch(url, json_body(expected_version=task.version, title="覆盖"), content_type="application/json")
+            self.assertEqual(changed.status_code, 409)
+            queued = self.client.post(url + "queue/", json_body(expected_version=task.version, action="blueprint"), content_type="application/json")
+            self.assertEqual(queued.status_code, 409)
+            task.refresh_from_db()
+            self.assertEqual(task.title, state)
+            self.assertEqual(task.state, state)
+
+    def test_missing_input_revision_does_not_crash_reviewer_actions(self):
+        task = DocumentTask.objects.create(owner=self.owner, reviewer=self.reviewer, title="空输入迁移任务",
+            idempotency_key="empty", payload_hash="a" * 64)
+        self.login(self.client, self.reviewer)
+        response = self.client.get(f"/api/product/tasks/{task.pk}/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertNotIn("review_input", response.json()["actions"])

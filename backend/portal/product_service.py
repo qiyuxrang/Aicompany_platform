@@ -70,7 +70,8 @@ def validate_input(payload):
         raise ProductError("invalid_input", "设备清单格式无效。")
     seen_row_ids = set()
     for item_index, item in enumerate(payload["items"], start=1):
-        _object(item, {"row_id", "name", "quantity", "unit"})
+        if not isinstance(item, Mapping) or not {"row_id", "name", "quantity", "unit"} <= set(item) or set(item) - {"row_id", "name", "quantity", "unit", "source_item_id"}:
+            raise ProductError("invalid_input", "设备行字段无效。")
         row_id = item["row_id"]
         quantity = item["quantity"]
         if isinstance(row_id, bool) or not isinstance(row_id, (str, int)):
@@ -85,6 +86,8 @@ def validate_input(payload):
             "quantity": quantity,
             "unit": _text(item["unit"], "unit", 100),
         })
+        if item.get("source_item_id"):
+            result["items"][-1]["source_item_id"] = _text(item["source_item_id"], "source_item_id", 100, required=True)
         if normalized_row_id and normalized_row_id in seen_row_ids:
             result["issues"].append({"code": "duplicate_row_id", "item_index": item_index})
         if normalized_row_id:
@@ -104,6 +107,7 @@ def validate_input(payload):
 
 def preserve_input_provenance(previous, updated):
     updated["sources"] = json.loads(json.dumps(previous.get("sources", []), ensure_ascii=False))
+    updated["source_materials"] = json.loads(json.dumps(previous.get("source_materials", []), ensure_ascii=False))
     issues = json.loads(json.dumps(previous.get("issues", []), ensure_ascii=False)) + updated.get("issues", [])
     fields = ("row_id", "name", "quantity", "unit")
     def facts(payload):
@@ -130,15 +134,28 @@ def preserve_input_provenance(previous, updated):
             if key in previous:
                 updated[key] = previous[key]
     old_items = previous.get("items", [])
+    by_source_item = {item["source_item_id"]: item for item in old_items if item.get("source_item_id")}
+    used_ids = set()
+    keyed_client = any(item.get("source_item_id") for item in updated["items"])
     for index, item in enumerate(updated["items"]):
-        if index >= len(old_items):
+        source_item_id = item.get("source_item_id")
+        if source_item_id:
+            if source_item_id not in by_source_item or source_item_id in used_ids:
+                raise ProductError("invalid_source", "设备行来源标识无效或重复。")
+            used_ids.add(source_item_id)
+            old = by_source_item[source_item_id]
+        elif index < len(old_items) and not keyed_client:
+            old = old_items[index]
+        else:
             continue
-        old = old_items[index]
         if "source_id" not in old:
             continue
         item["source_id"] = old["source_id"]
         item["source_row"] = old.get("source_row")
+        for key in ("source_item_id", "source_location", "source_edited"):
+            if key in old: item[key] = old[key]
         if any(item[field] != old.get(field) for field in fields):
+            item["source_edited"] = True
             issues.append({
                 "code": "manual_source_row_revision",
                 "item_index": index + 1,
@@ -390,14 +407,20 @@ def input_authorized(task, revision):
     return all(authorization_current(task, snapshot)["current"] for snapshot in snapshots)
 
 
-@transaction.atomic
 def attach_source(user, task_id, expected_version, upload):
-    task = task_for(user, task_id, write=True)
+    # Authorize before expensive parsing, then recheck under lock before committing.
+    # OCR must not hold a database row lock for the lifetime of a subprocess.
+    task = task_for(user, task_id)
     require_owner(task, user)
     require_version(task, expected_version)
     require_editable(task)
     original_name, media_type, content, parsed, warnings = parse_upload(upload)
-    return _attach_parsed_source(task, user, original_name, media_type, content, parsed, warnings)
+    with transaction.atomic():
+        task = task_for(user, task_id, write=True)
+        require_owner(task, user)
+        require_version(task, expected_version)
+        require_editable(task)
+        return _attach_parsed_source(task, user, original_name, media_type, content, parsed, warnings)
 
 
 @transaction.atomic
@@ -411,6 +434,8 @@ def attach_import_path(user, task_id, expected_version, path):
 
 
 def _attach_parsed_source(task, user, original_name, media_type, content, parsed, warnings):
+    if task.sources.count() >= 50:
+        raise ProductError("source_count_limit", "每个项目最多保留 50 份原始资料，请拆分项目。")
     source_id = relative = None
     try:
         source_id, relative, checksum = write_source(task.id, original_name, content)
@@ -419,30 +444,8 @@ def _attach_parsed_source(task, user, original_name, media_type, content, parsed
             path=relative, sha256=checksum, size=len(content), parsed=parsed, warnings=warnings,
             uploaded_by=user, author_verification="unverified",
         )
-        previous = task.revisions.get(kind=DocumentRevision.Kind.INPUT, version=task.input_version)
-        input_payload = json.loads(json.dumps(previous.payload, ensure_ascii=False))
-        input_payload.setdefault("sources", []).append({
-            "id": str(source.pk),
-            "original_name": source.original_name,
-            "media_type": source.media_type,
-            "sha256": source.sha256,
-        })
-        input_payload.setdefault("issues", []).extend({**warning, "source_id": str(source.pk)} for warning in warnings)
-        if "items" in parsed:
-            input_payload["items"].extend({
-                **{key: item[key] for key in ("row_id", "name", "quantity", "unit")},
-                "source_id": str(source.pk),
-                "source_row": item["source_row"],
-            } for item in parsed["items"])
-        else:
-            separator = "\n\n" if input_payload["background"] else ""
-            input_payload["background"] += separator + parsed["background"]
-        revision = append_revision(task, DocumentRevision.Kind.INPUT, input_payload, actor=user,
-                                   reason="external_source_upload")
-        invalidate_generation(task)
-        task.input_version = revision.version
-        task.version += 1
-        task.save()
+        from .product_source_service import save_extraction
+        save_extraction(task, source, parsed, user, "external_source_upload", initial=True)
         return task, source
     except Exception:
         if relative:
@@ -473,6 +476,8 @@ def require_version(task, expected_version):
 
 
 def require_editable(task):
+    if task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING}:
+        raise ProductError("invalid_state", "任务正在排队或执行，请等待完成或先取消任务。", 409)
     if task.state in {DocumentTask.State.CANCELLED, DocumentTask.State.COMPLETED}:
         raise ProductError("invalid_state", "已结束任务不能修改。", 409)
 

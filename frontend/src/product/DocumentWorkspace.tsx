@@ -4,12 +4,14 @@ import { Field } from "../centers/shared";
 import { artifactDownload, artifactHistoryDownload, artifactPreview, continueConversation, createConversationTask, draftDownload, draftHistoryDownload, getDraftOutputs, getTask, getTaskHistory, listTasks, updateTask, uploadSource, verifyArtifact } from "./product-api";
 import type { BlueprintPayload, ChapterPayload, ContentChecks, DocumentTask, DraftOutput, OutputFamily, ReportRevision, ReviewCategory, TaskHistory, TaskInput, TaskSummary } from "./product-api";
 import "./product-workspace.css";
+import ProjectStages from "./ProjectStages";
+import { SOURCE_ACCEPT, updateSource } from "./product-api";
 
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 const emptyInput = (): TaskInput => ({ project: "", requirements: "", items: [], background: "", conditions: [] });
 function editableInput(value: TaskInput): TaskInput {
   return { project: value.project, requirements: value.requirements, background: value.background, conditions: value.conditions,
-    items: value.items.map(({ row_id, name, quantity, unit }) => ({ row_id, name, quantity, unit })) };
+    items: value.items.map(({ row_id, name, quantity, unit, source_item_id }) => ({ row_id, name, quantity, unit, ...(source_item_id ? { source_item_id } : {}) })) };
 }
 const emptyBlueprint: BlueprintPayload = { purpose: "", audience: "", chapters: [], conditions: [], missing: [], conflicts: [], template_version: "" };
 const emptyChapter: ChapterPayload = { chapter_id: "", title: "", paragraphs: [], source_ids: [] };
@@ -173,16 +175,16 @@ function TaskWorkspace() {
         {files.length > 0 && <ul className="product-file-chips" aria-label="待上传附件">{files.map(file => <li key={`${file.name}-${file.size}`}>{file.name}</li>)}</ul>}
         <div className="product-composer-actions">
           <label className="button secondary" htmlFor="conversation-files">＋ 添加文件</label>
-          <input className="sr-only" id="conversation-files" type="file" multiple accept=".csv,.txt" onChange={event => setFiles(Array.from(event.target.files || []))} />
+          <input className="sr-only" id="conversation-files" type="file" multiple accept={SOURCE_ACCEPT} onChange={event => setFiles(Array.from(event.target.files || []))} />
           <button className="button primary" disabled={busy || (!pendingTask && !message.trim() && files.length === 0)}>{busy ? (pendingTask ? "正在上传…" : "正在创建…") : pendingTask ? "继续上传剩余资料" : "发送并创建任务"}</button>
         </div>
       </form>
-      <p className="product-empty-note">当前附件解析支持 UTF-8 CSV/TXT；路径必须在服务器已授权目录。对话中的“同意”不会替代正式审批。</p>
+      <p className="product-empty-note">支持 PDF、DOCX、XLSX/XLS、CSV/TXT 与常见图片；扫描文字使用本地 OCR 并保留核对提示。路径必须在服务器已授权目录，对话不替代正式审批。</p>
     </section> : <TaskEditor key={`${selected}-${requestedArtifact}`} id={selected} requestedArtifact={requestedArtifact} deepLinked={!!requestedTask} onFatal={setFatal} />}
   </section>;
 }
 
-function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string; requestedArtifact: string; deepLinked: boolean; onFatal: (message: string) => void }) {
+export function TaskEditor({ id, requestedArtifact, deepLinked, onFatal, business = false }: { id: string; requestedArtifact: string; deepLinked: boolean; onFatal: (message: string) => void; business?: boolean }) {
   const [task, setTask] = useState<DocumentTask | null>(null);
   const [outputs, setOutputs] = useState<DraftOutput[]>([]);
   const [outputsError, setOutputsError] = useState("");
@@ -229,10 +231,16 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     const controller = new AbortController();
     related.current = controller;
     void getDraftOutputs(id, controller.signal).then(data => {
-      if (!controller.signal.aborted && data.task_version === result.version) setOutputs(Array.isArray(data.outputs) ? data.outputs : []);
+      if (!controller.signal.aborted) {
+        if (data.task_version === result.version) setOutputs(Array.isArray(data.outputs) ? data.outputs : []);
+        else setOutputsError("成果版本已变化，请刷新项目状态后重新读取。");
+      }
     }).catch(reason => { if (!controller.signal.aborted) { setOutputs([]); setOutputsError(errorMessage(reason)); } });
     void getTaskHistory(id, controller.signal).then(data => {
-      if (!controller.signal.aborted && data.task_version === result.version) setHistory(data);
+      if (!controller.signal.aborted) {
+        if (data.task_version === result.version) setHistory(data);
+        else setHistoryError("版本链已变化，请刷新项目状态后重新读取。");
+      }
     }).catch(reason => { if (!controller.signal.aborted) { setHistory(null); setHistoryError(errorMessage(reason)); } });
     if (!initial.current) {
       initial.current = true;
@@ -265,7 +273,10 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     reading.current = controller;
     const timer = window.setTimeout(() => {
       void getTask(id, controller.signal).then(result => { if (!controller.signal.aborted) receive(result); })
-        .catch(reason => { if (!controller.signal.aborted) setError(errorMessage(reason)); })
+        .catch(reason => { if (!controller.signal.aborted) {
+          setError(errorMessage(reason));
+          if (business && reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setTask(null); onFatal("项目访问权限已变化，当前资料已隐藏。"); }
+        } })
         .finally(() => { if (!controller.signal.aborted) setPollRound(value => value + 1); });
     }, 3000);
     return () => { clearTimeout(timer); controller.abort(); };
@@ -281,14 +292,38 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
       if (controller.signal.aborted || !mounted.current) return;
       receive(result);
       if (reloading) setConflict(false);
-      setNotice("服务端状态已更新；编辑区保留原内容。蓝图生成后请点击“载入服务端蓝图”。");
+      setNotice(business ? "项目状态已更新。" : "服务端状态已更新；编辑区保留原内容。蓝图生成后请点击“载入服务端蓝图”。");
+      return true;
     } catch (reason) {
       if (!controller.signal.aborted && mounted.current) {
         setError(errorMessage(reason));
         if (reason instanceof ApiError && reason.status === 409) setConflict(true);
+        if (business && reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setTask(null); onFatal("项目访问权限已变化，当前资料已隐藏。"); }
       }
+      return false;
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
   }
+  // Idle project pages still revalidate object-level grants and reviewer changes.
+  // Versioned child editors keep their own draft and refuse to overwrite newer data.
+  useEffect(() => {
+    if (!business || !task || busy || active(task)) return;
+    let controller: AbortController | null = null;
+    const refreshAccess = () => {
+      if (document.hidden || locked.current) return;
+      controller?.abort();
+      const request = new AbortController(); controller = request; reading.current = request;
+      void getTask(id, request.signal).then(next => { if (!request.signal.aborted) receive(next); }).catch(reason => {
+        if (request.signal.aborted) return;
+        setError(errorMessage(reason));
+        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setTask(null); onFatal("项目访问权限已变化，当前资料已隐藏。"); }
+      });
+    };
+    const timer = window.setInterval(refreshAccess, 20000);
+    window.addEventListener("focus", refreshAccess);
+    document.addEventListener("visibilitychange", refreshAccess);
+    return () => { controller?.abort(); window.clearInterval(timer); window.removeEventListener("focus", refreshAccess); document.removeEventListener("visibilitychange", refreshAccess); };
+  }, [business, id, busy, task?.state, task?.version]);
+
   if (!task) return <section className="center-panel">{error ? <><p role="alert">{error}</p><button disabled={busy} onClick={() => void perform(async () => {}, true)}>重新加载服务端状态</button></> : <p role="status">正在加载任务…</p>}</section>;
   const allows = (action: string) => Array.isArray(task.actions) ? task.actions.includes(action) : task.actions?.[action] === true;
   const disabled = (action: string) => busy || conflict || !allows(action) || Boolean(task.blockers?.[action]);
@@ -361,6 +396,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
         nextTask = await uploadSource(id, remaining[0], nextTask.version, controller.signal);
         remaining = remaining.slice(1); setConversationFiles(remaining); setTask(nextTask);
       }
+      receive(nextTask);
       setConversationMessage(""); setConversationAccepted(false);
       setNotice("补充要求和资料已保存；正式审批仍需在专业工作台完成。");
     } catch (reason) {
@@ -371,6 +407,10 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     const revision = target === "blueprint" ? task?.blueprint : target === "report" ? record : artifact;
     if (revision) void send("decisions/", { target, target_id: revision.id, sha256: revision.sha256, decision: choice, comment });
   }
+  if (business) return <>
+    {error && <div className="pd-feedback" role="alert">{error}</div>}{notice && <p className="pd-inline-notice" role="status">{notice}</p>}
+    <ProjectStages task={task} outputs={outputs} history={history} outputsError={outputsError} historyError={historyError} busy={busy} conflict={conflict} disabled={disabled} onAction={send} onReload={() => void perform(async () => {}, true)} onUpload={file => perform(signal => uploadSource(id, file, task.version, signal))} onSourceAction={(sourceId, endpoint, body) => perform(signal => updateSource(sourceId, endpoint, body, signal))}/>
+  </>;
   const progress = task.artifacts.length ? 4 : task.blueprint ? 3 : task.sources.length ? 2 : 1;
   return <>
   <section className="product-task-view" aria-label="对话任务工作区">
@@ -385,7 +425,7 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
         <label className="sr-only" htmlFor={`task-message-${id}`}>继续补充要求或资料路径</label>
         <textarea id={`task-message-${id}`} rows={3} placeholder="继续补充要求、资料路径，或只添加附件……" value={conversationMessage} disabled={busy || conversationAccepted} onChange={event => setConversationMessage(event.target.value)} />
         {conversationFiles.length > 0 && <ul className="product-file-chips" aria-label="待补充附件">{conversationFiles.map(file => <li key={`${file.name}-${file.size}`}>{file.name}</li>)}</ul>}
-        <div className="product-composer-actions"><label className="button secondary" htmlFor={`task-files-${id}`}>＋ 添加资料</label><input className="sr-only" id={`task-files-${id}`} type="file" multiple accept=".csv,.txt" onChange={event => setConversationFiles(Array.from(event.target.files || []))} /><button className="button primary" disabled={busy || (!conversationMessage.trim() && conversationFiles.length === 0)}>{busy ? "正在保存…" : conversationAccepted ? "继续上传剩余资料" : "发送"}</button></div>
+        <div className="product-composer-actions"><label className="button secondary" htmlFor={`task-files-${id}`}>＋ 添加资料</label><input className="sr-only" id={`task-files-${id}`} type="file" multiple accept={SOURCE_ACCEPT} onChange={event => setConversationFiles(Array.from(event.target.files || []))} /><button className="button primary" disabled={busy || (!conversationMessage.trim() && conversationFiles.length === 0)}>{busy ? "正在保存…" : conversationAccepted ? "继续上传剩余资料" : "发送"}</button></div>
       </form>
     </main>
     <aside className="product-task-aside" aria-label="任务概览">
@@ -446,8 +486,8 @@ function TaskEditor({ id, requestedArtifact, deepLinked, onFatal }: { id: string
     <fieldset disabled={disabled("add_statement")}><legend>补充判断来源</legend>{reviewSources.map(source => <label key={source.id}><input type="checkbox" checked={statementSources.includes(source.id)} onChange={event => setStatementSources(current => toggleValue(current, source.id, event.target.checked))} />{source.original_name}（{source.id}）</label>)}</fieldset>
     <button disabled={disabled("add_statement") || !statementReady} onClick={() => void send("statements/", { category: statementCategory, text: statementText.trim(), source_ids: statementSources })}>提交补充判断</button>
     <h3>试用资料上传</h3>
-    <p>仅隔离试用 UTF-8 CSV 设备清单与 TXT 背景，不代表全部资料类型解析已获批准；上传不会自动覆盖正在编辑的输入。</p>
-    <label htmlFor="source-file">选择试用资料</label><input id="source-file" type="file" accept=".csv,.txt" onChange={event => setFile(event.target.files?.[0] || null)} />
+    <p>资料在本地解析并保留来源位置；OCR 文字和公式需核对。每份文件最多 20 MB，上传不会覆盖正在编辑的输入。</p>
+    <label htmlFor="source-file">选择试用资料</label><input id="source-file" type="file" accept={SOURCE_ACCEPT} onChange={event => setFile(event.target.files?.[0] || null)} />
     <button disabled={disabled("add_source") || !file} onClick={() => { if (file) void perform(signal => uploadSource(id, file, task.version, signal)); }}>上传资料</button>
     <ul aria-label="已上传资料">{task.sources.map(source => <li key={source.id}>{source.original_name}（引用 ID：{source.id}）</li>)}</ul>
     <button disabled={disabled("queue_retrieve")} onClick={() => void send("queue/", { action: "retrieve" })}>发起授权检索（默认未授权，可能被拒）</button>
