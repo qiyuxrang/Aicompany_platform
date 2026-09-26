@@ -168,7 +168,7 @@ describe("portal routing", () => {
     await waitFor(() => expect((screen.getByLabelText("草稿标题") as HTMLInputElement).value).toBe("第一任务"));
   });
 
-  it("同一 App 实例响应 JD query 变化，并在未保存正文时阻止前后退", async () => {
+  it("历史 JD 入口只读，保留原版本正文", async () => {
     const hrUser = { ...baseUser, roles: [{ code: "hr", name: "人事" }] };
     const job = (id: string, title: string, body: string) => ({
       id, owner_id: 1, title, department: "人事部", objective: "目标", responsibilities: "职责", requirements: "要求",
@@ -176,7 +176,7 @@ describe("portal routing", () => {
       official_revision: null, current_revision_stale: false, revisions: [], updated_at: "2026-09-23T00:00:00Z",
     });
     const jobs = [job("job-1", "第一岗位", "第一正文"), job("job-2", "第二岗位", "第二正文")];
-    window.history.replaceState({}, "", "/centers/hr/job?task=job-1");
+    window.history.replaceState({}, "", "/centers/hr/history");
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
       const path = String(input);
       if (path === "/api/me/") return Promise.resolve(json(hrUser));
@@ -186,20 +186,10 @@ describe("portal routing", () => {
       return Promise.resolve(json({ detail: "未找到" }, 404));
     }));
     render(<App />);
-    expect((await screen.findByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("第一正文");
-    window.history.pushState({}, "", "/centers/hr/job?task=job-2");
-    window.dispatchEvent(new PopStateEvent("popstate"));
-    await waitFor(() => expect((screen.getByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("第二正文"));
-    fireEvent.change(screen.getByLabelText("JD正文"), { target: { value: "未保存第二正文" } });
-    await userEvent.click(screen.getByRole("link", { name: "转正工作流" }));
-    expect(window.location.pathname).toBe("/centers/hr/job");
-    expect(window.location.search).toBe("?task=job-2");
-    expect((screen.getByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("未保存第二正文");
-    window.history.pushState({}, "", "/centers/hr/job?task=job-1");
-    window.dispatchEvent(new PopStateEvent("popstate"));
-    expect(window.location.search).toBe("?task=job-2");
-    expect((screen.getByLabelText("JD正文") as HTMLTextAreaElement).value).toBe("未保存第二正文");
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("未保存修改"));
+    expect(await screen.findByText('第一岗位')).toBeTruthy();
+    expect(screen.getByText('第二岗位')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '生成确定性 JD 草稿' })).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
   });
 
   it("同一 App 实例响应转正 case query 变化，普通经理仅获得本人审批链", async () => {

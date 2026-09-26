@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { CurrentUser, getMe, getModule, getModules, isApiError, opsPermissionRevokedEvent, PortalModule } from "../api";
 import Icon from "../Icon";
 import { centers, CenterCode, isCenterCode } from "./config";
-import { CenterLink, DraftNotice } from "./shared";
+import { CenterLink } from "./shared";
 import ProductWorkspace from "./ProductWorkspace";
 import EngineeringPendingPage from "./EngineeringPendingPage";
 import HrWorkspace from "./HrWorkspace";
@@ -134,7 +134,7 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
     <a className="skip-link" href="#center-main">跳到主要内容</a>
     <aside className="center-sidebar">
       <div className="center-brand"><span><Icon name={config.icon} /></span><div><strong>{config.name}</strong><small>{preview ? "管理预览 · 不授予业务权限" : "专属工作区 · 按角色授权"}</small></div></div>
-      <nav className="center-navigation" aria-label={`${config.name}菜单`}>{config.sections.filter(item => code !== "hr" || user.roles.some(role => role.code === "hr") || item.code === "overview" || item.code === "probation").map((item) => <CenterLink key={item.code} href={`${base}/${code}${item.code === "overview" ? "" : `/${item.code}`}`} current={section === item.code} className={section === item.code ? "active" : ""}><span className="center-nav-dot" aria-hidden="true" />{item.title}</CenterLink>)}</nav>
+      <nav className="center-navigation" aria-label={`${config.name}菜单`}>{config.sections.filter(item => code !== "hr" || (!['history', 'profile', 'channels'].includes(item.code) && (user.roles.some(role => role.code === "hr") || item.code === "overview" || item.code === "probation"))).map((item) => <CenterLink key={item.code} href={`${base}/${code}${item.code === "overview" ? "" : `/${item.code}`}`} current={section === item.code} className={section === item.code ? "active" : ""}><span className="center-nav-dot" aria-hidden="true" />{item.title}</CenterLink>)}</nav>
       <div className="center-switcher"><p>{preview ? "切换预览" : "已授权工作台"}</p>{options.map((item) => <CenterLink key={item} href={`${base}/${item}`} className={item === code ? "selected" : ""}>{centers[item].name}<span aria-hidden="true">↗</span></CenterLink>)}</div>
       <div className="center-sidebar-foot"><span>原系统保持独立</span><small>业务权限与平台管理权限分离</small></div>
     </aside>
@@ -142,7 +142,6 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
       <nav className="center-breadcrumb" aria-label="当前位置"><CenterLink href={back}>我的工作台</CenterLink><span aria-hidden="true">/</span><span>{config.name}</span><span className="center-mode">{preview ? "前端设计预览" : code === "business" ? "经营导航与只读" : "业务能力待接入"}</span></nav>
       <header className="center-page-head"><div><p className="eyebrow">{config.name}</p><h1 ref={heading} tabIndex={-1}>{selected?.title || "未找到页面"}</h1><p>{config.description}</p></div><CenterLink href={back} className="button secondary">← 返回工作台</CenterLink></header>
       {preview && <div className="center-preview-banner" role="note"><strong>仅预览前端页面</strong><span>不读取部门业务数据，不启动旧系统，不代表已获业务授权。生成、发布和审批仍未接入。</span></div>}
-      {code === "hr" && <DraftNotice />}
       <div className="center-body">{content}</div>
       <footer className="center-footer"><span>统一入口 · 独立业务 · 明确授权</span>{!preview && <CenterLink href={`/modules/${code}`}>查看模块接入说明</CenterLink>}</footer>
     </main>
