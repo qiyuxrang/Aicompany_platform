@@ -21,6 +21,7 @@ def _data(row):
     return {'id': str(row.pk), **row.structured_payload(), 'input_version': row.input_version,
             'current_jd_id': str(row.current_jd_id) if row.current_jd_id else None,
             'official_jd_id': str(row.official_jd_id) if row.official_jd_id else None,
+            'official_jd_stale': bool(row.official_jd_id and row.official_jd.input_version != row.input_version),
             'missing_items': missing_items(row), 'updated_at': row.updated_at.isoformat()}
 
 
@@ -40,7 +41,7 @@ def requests(request):
     _require_hr(request)
     request.hr_audit_action = 'hr_recruitment_list' if request.method == 'GET' else 'hr_recruitment_create'
     if request.method == 'GET':
-        return Response([_data(row) for row in RecruitmentRequest.objects.filter(created_by=request.user)])
+        return Response([_data(row) for row in RecruitmentRequest.objects.filter(created_by=request.user).select_related('official_jd')])
     cleaned = _clean(_body(request, optional=REQUEST_FIELDS))
     with transaction.atomic():
         row = RecruitmentRequest.objects.create(created_by=request.user, updated_by=request.user, **cleaned)

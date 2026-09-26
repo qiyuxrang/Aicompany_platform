@@ -107,7 +107,7 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
         <button onClick={() => void work(async () => { await navigator.clipboard.writeText(body); })}>复制正文</button></div></>}
       <div className="hr-actions"><label>招聘平台<select value={channel} onChange={e => setChannel(e.target.value)}>{channels.slice(1).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
         {channel === 'custom' && <label>自定义平台<input value={custom} onChange={e => setCustom(e.target.value)} /></label>}
-        <button disabled={busy || dirty || !selected.official_jd_id} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + `jd-versions/${selected.official_jd_id}/adapt/`, { expected_version: selected.input_version, channel, custom_label: custom })))}>生成平台版本</button></div>
+        <button disabled={busy || dirty || !selected.official_jd_id || selected.official_jd_stale} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + `jd-versions/${selected.official_jd_id}/adapt/`, { expected_version: selected.input_version, channel, custom_label: custom })))}>生成平台版本</button></div>
       <p className="hr-muted">平台版仅适配文案，不会自动发布到招聘网站。匹配使用已确认通用 JD。</p>
     </section>}</>;
 }

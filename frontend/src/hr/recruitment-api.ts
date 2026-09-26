@@ -4,7 +4,7 @@ export interface Requirement {
   id: string; position_name: string; headcount: number | null; responsibilities: string;
   required_requirements: string; preferred_requirements: string; education_requirement: string;
   experience_requirement: string; skill_requirements: string[]; work_location: string; notes: string;
-  input_version: number; current_jd_id: string | null; official_jd_id: string | null;
+  input_version: number; current_jd_id: string | null; official_jd_id: string | null; official_jd_stale?: boolean;
   missing_items: { field: string; reason: string }[]; updated_at: string;
 }
 export interface Jd { id: string; request_id: string; version: number; input_version: number; body: string;
