@@ -26,6 +26,7 @@ import OpsWorkspace from "./ops/OpsWorkspace";
 import Icon from "./Icon";
 import ThemeSwitch from "./ThemeSwitch";
 import CenterWorkspace from "./centers/CenterWorkspace";
+import HrHeaderTools from './hr/HrHeaderTools';
 import { centers, isCenterCode } from "./centers/config";
 
 const statusMeta = {
@@ -318,6 +319,7 @@ function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: (
           <AppLink href="/centers/cost">工程管理</AppLink><AppLink href="/centers/business">经营管理</AppLink>
           {user.is_platform_admin && <AppLink href="/ops">系统管理</AppLink>}
         </nav>}
+        {hrShell && user.roles.some(role => role.code === 'hr') && <HrHeaderTools />}
         <nav className="account-nav" aria-label="账户导航">
           <span className="account-name">{user.display_name || user.username}</span>
           {user.is_platform_admin && <AppLink href="/ops">运维工作台</AppLink>}

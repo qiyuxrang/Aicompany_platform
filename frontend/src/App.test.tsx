@@ -189,7 +189,7 @@ describe("portal routing", () => {
     expect(await screen.findByText('第一岗位')).toBeTruthy();
     expect(screen.getByText('第二岗位')).toBeTruthy();
     expect(screen.queryByRole('button', { name: '生成确定性 JD 草稿' })).toBeNull();
-    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'JD 正文' })).toBeNull();
   });
 
   it("同一 App 实例响应转正 case query 变化，普通经理仅获得本人审批链", async () => {
