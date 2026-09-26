@@ -38,8 +38,8 @@ class ProviderAdmin(ManagedAdmin):
 class GatewayModelAdmin(ManagedAdmin):
     admin_label = admin_label_plural = "网关模型"
     change_form_template = "admin/portal/gatewaymodel/change_form.html"
-    fields = ("name", "provider", "model_name", "supports_text", "enabled", "timeout_seconds", "max_output_tokens", "token_parameter")
-    list_display = ("id", "name", "provider", "supports_text", "enabled")
+    fields = ("name", "provider", "model_name", "supports_text", "supports_vision", "enabled", "timeout_seconds", "max_output_tokens", "token_parameter")
+    list_display = ("id", "name", "provider", "supports_text", "supports_vision", "enabled")
     list_filter = ("enabled", "supports_text")
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):

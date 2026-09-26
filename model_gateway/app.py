@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import GatewayError
 from .transport import chat_completion
+from backend.portal.model_messages import VISION_REQUEST_LIMIT, validate_messages
 
 
 class ServiceBoundary:
@@ -38,7 +39,8 @@ class ServiceBoundary:
                     if message["type"] == "http.disconnect":
                         return
                     body.extend(message.get("body", b""))
-                    if len(body) > 65536:
+                    limit = VISION_REQUEST_LIMIT if scope['path'] == '/v1/generate-vision' else 65536
+                    if len(body) > limit:
                         return await JSONResponse({"code": "request_too_large", "detail": "请求内容过大。"}, 413)(scope, receive, send)
                     if not message.get("more_body", False):
                         break
@@ -85,6 +87,15 @@ class GenerateRequest(StrictModel):
     purpose: Literal["test", "business"]
 
 
+class VisionMessage(StrictModel):
+    role: Literal['system', 'user', 'assistant']
+    content: str | list[dict]
+
+
+class VisionRequest(GenerateRequest):
+    messages: list[VisionMessage] = Field(min_length=1, max_length=32)
+
+
 class GenerateResponse(StrictModel):
     content: str | None
     duration_ms: int
@@ -110,6 +121,15 @@ async def gateway_failure(request: Request, exception: GatewayError):
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "model-gateway"}
+
+
+@app.post('/v1/generate-vision', response_model=GenerateResponse)
+def generate_vision(payload: VisionRequest):
+    try:
+        validate_messages([message.model_dump() for message in payload.messages], vision=True)
+    except ValueError:
+        raise GatewayError('invalid_request', '图片请求格式无效。', 400) from None
+    return generate(payload)
 
 
 @app.post("/v1/generate", response_model=GenerateResponse)

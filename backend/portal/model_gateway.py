@@ -35,7 +35,7 @@ ERROR_MESSAGES = {
     "gateway_unavailable": "无法连接模型网关。",
     "forbidden": "当前账号无权执行此模型调用。",
     "disabled": "模型或业务用途未启用。",
-    "unsupported_capability": "当前模型未声明支持文本调用。",
+    "unsupported_capability": "当前模型未声明支持所需的文本或图片能力。",
 }
 
 
@@ -60,7 +60,16 @@ def validate_provider_url(value):
         raise ValidationError("请填写不含凭据、查询参数或片段的标准 HTTPS 服务根地址，仅支持443端口。") from None
 
 
-def _messages(messages):
+def _messages(messages, supports_vision=False):
+    if isinstance(messages, list) and any(isinstance(item, dict) and isinstance(item.get('content'), list) for item in messages):
+        if not supports_vision:
+            raise GatewayError('unsupported_capability', status=400)
+        from .model_messages import validate_messages
+        try:
+            validate_messages(messages, vision=True)
+        except ValueError:
+            raise GatewayError('invalid_request', status=400) from None
+        return messages
     if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
         raise GatewayError("invalid_request", status=400)
     for message in messages:
@@ -101,7 +110,9 @@ def _request_gateway(payload):
             raise ValueError
     except (TypeError, ValueError):
         raise GatewayError("unconfigured", status=503) from None
-    request = Request(url.rstrip("/") + "/v1/generate", data=json.dumps(payload, ensure_ascii=False).encode(),
+    vision = any(isinstance(item['content'], list) for item in payload['messages'])
+    endpoint = '/v1/generate-vision' if vision else '/v1/generate'
+    request = Request(url.rstrip("/") + endpoint, data=json.dumps(payload, ensure_ascii=False).encode(),
                       headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"}, method="POST")
     try:
         with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=payload["model"]["timeout_seconds"] + 5) as response:
@@ -172,7 +183,7 @@ def _invoke(user, model, messages, purpose, route=None):
     from .models import GatewayModel
     config = _model_config(model)
     revisions = (model.provider.updated_at, model.updated_at, route.updated_at if route else None)
-    payload = {**config, "messages": _messages(messages), "purpose": purpose}
+    payload = {**config, "messages": _messages(messages, model.supports_vision), "purpose": purpose}
     record = _reserve(user, model, purpose, route)
     started = monotonic()
     try:
