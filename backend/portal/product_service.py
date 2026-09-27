@@ -402,7 +402,17 @@ def input_authorized(task, revision):
     if revision.payload.get("retrieval"):
         snapshots.append(revision.payload["retrieval"])
     from .product_retrieval import authorization_current
-    return all(authorization_current(task, snapshot)["current"] for snapshot in snapshots)
+    if not all(authorization_current(task, snapshot)["current"] for snapshot in snapshots):
+        return False
+    knowledge = revision.payload.get("blueprint_knowledge")
+    if (getattr(settings, "PRODUCT_BLUEPRINT_KNOWLEDGE_MODE", "source_only_preview") == "ragflow_required"
+            and isinstance(knowledge, Mapping) and knowledge.get("provider") == "ragflow"):
+        try:
+            from .product_knowledge_service import recheck
+            recheck(task.owner, knowledge.get("authorization"))
+        except ProductError:
+            return False
+    return True
 
 
 def source_purpose(task, purpose):

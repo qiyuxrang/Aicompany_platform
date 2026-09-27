@@ -1,7 +1,29 @@
 """Isolated Office automation. Never attach to or terminate a user's Office instance."""
 import argparse,json,sys,shutil
 from pathlib import Path
-from ooxml import load_package,audit_package,sha,jwrite,xml,field_instructions
+from lxml import etree
+from ooxml import load_package,audit_package,sha,jwrite,xml,field_instructions,dump,save_package,q,NS
+
+def force_black_ooxml(path):
+    parts=load_package(path); theme_attributes=(q('w:themeColor'),q('w:themeTint'),q('w:themeShade'))
+    following_color={q('w:spacing'),q('w:w'),q('w:kern'),q('w:position'),q('w:sz'),q('w:szCs'),q('w:highlight'),q('w:u'),q('w:effect'),q('w:bdr'),q('w:shd'),q('w:fitText'),q('w:vertAlign'),q('w:rtl'),q('w:cs'),q('w:em'),q('w:lang'),q('w:eastAsianLayout'),q('w:specVanish'),q('w:oMath'),q('w:rPrChange')}
+    for name,payload in list(parts.items()):
+        if not name.startswith('word/') or not name.endswith('.xml'): continue
+        root=xml(payload); changed=False
+        for run in root.findall('.//w:r',NS):
+            rp=run.find('w:rPr',NS)
+            if rp is None:
+                rp=etree.Element(q('w:rPr')); run.insert(0,rp)
+            color=rp.find('w:color',NS)
+            if color is None:
+                color=etree.Element(q('w:color'))
+                position=next((index for index,child in enumerate(rp) if child.tag in following_color),len(rp))
+                rp.insert(position,color)
+            color.set(q('w:val'),'000000')
+            for attribute in theme_attributes: color.attrib.pop(attribute,None)
+            changed=True
+        if changed: parts[name]=dump(root)
+    audit_package(parts); save_package(path,parts)
 
 def new_render_directory(out):
     out=Path(out)
@@ -53,9 +75,17 @@ def word_render(source,out,legacy=False):
         for i in range(1,actual_toc+1):
             toc=doc.TablesOfContents(i); toc.UpdatePageNumbers()
             if any(s in toc.Range.Text for s in ('未找到目录项','未找到目录','No table of contents entries found','Error!','错误！')): raise ValueError('Word TOC contains an unresolved field result')
+        # Make the delivered typography deterministic: all visible text,
+        # including TOC hyperlinks, headers, footers and table text, is black.
+        for story in doc.StoryRanges:
+            current=story
+            while current is not None:
+                current.Font.Color=0
+                current=current.NextStoryRange
+        for i in range(1,actual_toc+1): doc.TablesOfContents(i).Range.Font.Color=0
         report.update(toc_count=actual_toc,field_update_error_index=field_error)
         doc.Save(); pdf=out/'document.pdf'; doc.ExportAsFixedFormat(str(pdf),17)
-        report.update(rendered=True,renderer='Microsoft Word '+app.Version,page_count=doc.ComputeStatistics(2),pdf=str(pdf),rendered_docx=str(copy))
+        report.update(rendered=True,renderer='Microsoft Word '+app.Version,page_count=doc.ComputeStatistics(2),pdf=str(pdf),rendered_docx=str(copy),text_color='#000000')
     finally:
         try:
             if doc is not None: doc.Close(False)
@@ -65,6 +95,7 @@ def word_render(source,out,legacy=False):
                     for name,value in options.items(): setattr(app.Options,name,value)
                 finally: app.Quit()
             if sha(source)!=before: raise RuntimeError('source mutated')
+    force_black_ooxml(report['rendered_docx'])
     import fitz
     with fitz.open(report['pdf']) as pdf:
         images=[]

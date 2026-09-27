@@ -1,7 +1,5 @@
-from datetime import timedelta
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, SimpleTestCase
-from django.utils import timezone
 from portal.business_boards import BoardError, calculate, parse_csv
 from portal.business_models import BusinessLedgerSnapshot
 from .base import PortalTestCase
@@ -67,21 +65,13 @@ class BusinessBoardApiTests(PortalTestCase):
             self.assertIsNone(data['source'])
             self.assertTrue(all(x['value'] is None for x in data['metrics']))
 
-    def test_import_persists_and_filter_uses_same_scope(self):
+    def test_manager_cannot_import_or_create_fallback_snapshot(self):
         response = self.upload()
-        self.assertEqual(response.status_code, 201, response.content)
-        data = response.json()
-        self.assertEqual(data['source']['kind'], 'csv_snapshot')
-        self.assertEqual(data['source']['as_of'], '2026-02-01')
-        self.assertEqual(data['total'], 2)
-        self.assertEqual(BusinessLedgerSnapshot.objects.filter(owner=self.manager).count(), 1)
-        filtered = self.client.get('/api/business/boards/engineering/', {'q': '一期', 'status': '实施中'}).json()
-        self.assertEqual(filtered['filtered_count'], 1)
-        self.assertEqual(filtered['total'], 2)
-        self.assertEqual(filtered['metrics'][0]['value'], 1)
+        self.assertEqual(response.status_code, 405, response.content)
+        self.assertEqual(BusinessLedgerSnapshot.objects.count(), 0)
+        self.assertFalse(self.client.get('/api/business/boards/engineering/').json()['available'])
 
-    def test_owner_isolation_and_permission_revocation(self):
-        self.assertEqual(self.upload().status_code, 201)
+    def test_permission_revocation(self):
         other = self.create_user('other-manager', 'general_manager')
         client = Client()
         self.login(client, other)
@@ -95,27 +85,13 @@ class BusinessBoardApiTests(PortalTestCase):
             client = Client()
             self.login(client, user)
             self.assertEqual(client.get('/api/business/boards/finance/').status_code, 403)
-            self.assertEqual(self.upload(client=client).status_code, 403)
+            self.assertIn(self.upload(client=client).status_code, (403, 405))
         self.assertEqual(Client().get('/api/business/boards/finance/').status_code, 401)
 
-    def test_snapshot_version_and_duplicate_import(self):
-        first = self.upload().json()
-        self.assertEqual(self.upload().status_code, 409)
-        same = self.upload(expected=first['snapshot_id'])
-        self.assertEqual(same.status_code, 200)
-        self.assertEqual(same.json()['snapshot_id'], first['snapshot_id'])
-        second = self.upload(expected=first['snapshot_id'], text=ENGINEERING.replace('62.5', '70'))
-        self.assertEqual(second.status_code, 201)
-        self.assertNotEqual(second.json()['snapshot_id'], first['snapshot_id'])
-        self.assertEqual(BusinessLedgerSnapshot.objects.count(), 2)
-
-    def test_invalid_import_does_not_replace_current_data(self):
-        first = self.upload().json()
-        bad = self.upload(text='bad', expected=first['snapshot_id'])
-        self.assertEqual(bad.status_code, 400)
-        future = self.upload(expected=first['snapshot_id'], as_of=(timezone.localdate() + timedelta(days=1)).isoformat())
-        self.assertEqual(future.status_code, 400)
-        self.assertEqual(BusinessLedgerSnapshot.objects.count(), 1)
+    def test_all_manager_import_variants_are_method_not_allowed(self):
+        self.assertEqual(self.upload().status_code, 405)
+        self.assertEqual(self.upload(text='bad').status_code, 405)
+        self.assertEqual(BusinessLedgerSnapshot.objects.count(), 0)
 
     def test_templates_and_unknown_board(self):
         response = self.client.get('/api/business/boards/finance/template/')

@@ -6,6 +6,7 @@ import ManagerWorkspace from "./ManagerWorkspace";
 
 // BI data flow has its own contract tests; these cases isolate legacy navigation.
 vi.mock('./BusinessBoards', () => ({ default: () => <div>企业台账看板</div> }));
+vi.mock('./BusinessLedgerWorkspace', () => ({ default: () => <div>部门台账录入</div> }));
 
 const apiMocks = vi.hoisted(() => ({
   launchModule: vi.fn(),

@@ -163,3 +163,42 @@ class ProductPrdLoopTests(PortalTestCase):
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.json()['task']['state'], 'WAITING_INPUT')
         self.assertEqual(response.json()['task']['error_code'], 'model_authorization_required')
+
+    @patch('portal.product_worker._model')
+    def test_blueprint_revision_is_limited_to_three_rounds_and_approval_remains_available(self, model):
+        model.side_effect = lambda *args: copy.deepcopy(self.blueprint)
+        task = self.prepared()
+        self.assertEqual(self.action(task, 'queue', action='blueprint').status_code, 200)
+        self.assertTrue(run_once())
+        task = self.detail(task)
+        for expected_count in range(1, 4):
+            current = task['blueprint']
+            response = self.action(task, 'decisions', target='blueprint', target_id=current['id'],
+                sha256=current['sha256'], decision='revise', comment=f'第{expected_count}次修改意见')
+            self.assertEqual(response.status_code, 201, response.content)
+            self.assertTrue(run_once())
+            task = self.detail(task)
+            self.assertEqual(task['blueprint_review'], {
+                'revision_count': expected_count,
+                'revision_limit': 3,
+                'revisions_remaining': 3 - expected_count,
+            })
+        current = task['blueprint']
+        denied = self.action(task, 'decisions', target='blueprint', target_id=current['id'],
+            sha256=current['sha256'], decision='revise', comment='第四次修改意见')
+        self.assertEqual(denied.status_code, 409, denied.content)
+        self.assertEqual(denied.json()['code'], 'blueprint_revision_limit_reached')
+        approved = self.action(task, 'decisions', target='blueprint', target_id=current['id'],
+            sha256=current['sha256'], decision='approve', comment='达到修改上限后批准当前版本')
+        self.assertEqual(approved.status_code, 201, approved.content)
+        self.assertEqual(approved.json()['task']['pending_action'], 'generate_outputs')
+
+    @override_settings(PRODUCT_BLUEPRINT_KNOWLEDGE_MODE='ragflow_required')
+    def test_formal_mode_fails_closed_until_ragflow_snapshot_exists(self):
+        task = self.prepared()
+        detail = self.detail(task)
+        self.assertEqual(detail['blueprint_knowledge']['status'], 'waiting_for_ragflow')
+        denied = self.action(task, 'queue', action='blueprint')
+        self.assertEqual(denied.status_code, 409, denied.content)
+        self.assertEqual(denied.json()['code'], 'ragflow_required')
+        self.assertEqual(DocumentTask.objects.get(pk=task['id']).state, 'DRAFT')

@@ -1,5 +1,8 @@
 import json
+import tempfile
+import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import unquote
 from zipfile import ZipFile
@@ -7,7 +10,8 @@ from zipfile import ZipFile
 from django.test import override_settings
 
 from portal.product_models import DocumentApproval, DocumentArtifact, DocumentTask
-from portal.product_worker import run_once
+from portal.product_presentation import render_presentation_draft
+from portal.product_worker import _review_payload, run_once
 from .test_product_pair import PairDraftTests
 from .base import PortalTestCase, json_body
 
@@ -19,6 +23,72 @@ class ThreeDraftFlowTests(PortalTestCase):
     blueprint_payload = PairDraftTests.blueprint_payload
     save_blueprint = PairDraftTests.save_blueprint
     approve_blueprint = PairDraftTests.approve_blueprint
+
+    def test_business_technology_presentation_runtime_is_editable_and_source_bound(self):
+        runtime = Path(__file__).resolve().parents[3] / ".runtime" / "product-documents-python" / "Scripts" / "python.exe"
+        if not runtime.is_file():
+            self.skipTest("isolated document runtime is not installed")
+        pair = {
+            "approval_inherited": False,
+            "sha256": "c" * 64,
+            "sources": [
+                {"family": "technical-solution", "id": "1", "version": 1, "sha256": "a" * 64},
+                {"family": "feasibility", "id": "2", "version": 1, "sha256": "b" * 64},
+            ],
+            "blocks": [
+                {"ref": "technical-solution:H1", "type": "heading", "text": "总体技术架构", "source_ids": ["S1"]},
+                {"ref": "technical-solution:P1", "type": "paragraph", "text": "平台接入、审计分析和运维处置形成可追溯流程。", "source_ids": ["S1"]},
+                {"ref": "feasibility:H1", "type": "heading", "text": "实施可行性", "source_ids": ["S2"]},
+                {"ref": "feasibility:P1", "type": "paragraph", "text": "项目按准备、并行验证、迁移和验收推进，最终结论待人工确认。", "source_ids": ["S2"]},
+            ],
+            "pending": [{"text": "最终实施窗口待确认。", "refs": ["technical-solution:P1", "feasibility:P1"]}],
+        }
+        with tempfile.TemporaryDirectory() as storage:
+            with override_settings(PRODUCT_DOCUMENT_PYTHON=runtime, PRODUCT_STORAGE_ROOT=Path(storage),
+                                   PRODUCT_DOCUMENT_RENDER_TIMEOUT_SECONDS=60):
+                rendered = render_presentation_draft(SimpleNamespace(pk=uuid.uuid4(), title="合成园区安全项目"), pair)
+            target = Path(storage) / rendered["path"]
+            evidence = rendered["render_evidence"]
+            self.assertEqual(evidence["engine"], "business-tech-pptx")
+            self.assertEqual(evidence["engine_version"], "v3")
+            self.assertEqual(evidence["quality_gate"]["status"], "pass")
+            self.assertEqual(evidence["slides"], 5)
+            self.assertGreaterEqual(evidence["diagram_slides"], 4)
+            self.assertLessEqual(evidence["dominant_layout_ratio"], 0.25)
+            self.assertEqual(evidence["native_charts"], 1)
+            self.assertGreaterEqual(evidence["editable_data_visuals"], 4)
+            self.assertEqual(evidence["source_block_coverage"]["total"],
+                             evidence["source_block_coverage"]["mapped"])
+            with ZipFile(target) as archive:
+                names = archive.namelist()
+                self.assertTrue(any(name.startswith("ppt/media/") for name in names))
+                self.assertTrue(any(name.startswith("ppt/embeddings/") for name in names))
+                slides = "".join(archive.read(name).decode("utf-8") for name in names
+                                 if name.startswith("ppt/slides/slide") and name.endswith(".xml"))
+                self.assertIn("<p:sp>", slides)
+                self.assertIn("技术方案总体架构", slides)
+                self.assertIn("可行性判断与实施控制", slides)
+                self.assertNotIn("待人工审核草稿", slides)
+
+    def test_large_report_review_is_bounded_and_marked_sampled(self):
+        created = self.create_task(reviewer=False)
+        self.save_blueprint(created)
+        task = DocumentTask.objects.get(pk=created["id"])
+        input_revision = task.revisions.get(kind="input", version=task.input_version)
+        blueprint = task.revisions.get(kind="blueprint", version=task.blueprint_version)
+        chapter = SimpleNamespace(payload={
+            "chapter_id": "overview", "title": "项目概述",
+            "paragraphs": ["完整报告正文。" * 5000], "source_ids": ["1"],
+        })
+
+        payload, scope = _review_payload(
+            task, input_revision, blueprint, [chapter], "feasibility"
+        )
+
+        self.assertEqual(scope, "sampled")
+        self.assertEqual(payload["review_scope"], "sampled; full-document human review required")
+        self.assertLessEqual(len(json.dumps(payload, ensure_ascii=False)), 14500)
+        self.assertGreater(payload["chapters"][0]["actual_characters"], 30000)
 
     @override_settings(PRODUCT_MODEL_CALLS_ALLOWED=True)
     @patch("portal.product_presentation.render_presentation_draft")
@@ -53,8 +123,8 @@ class ThreeDraftFlowTests(PortalTestCase):
             return {"path": path.relative_to(self.storage.name).as_posix(),
                     "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                     "template_hash": "d" * 64,
-                    "render_evidence": {"status": "draft_unverified", "engine": "python-pptx-simple-draft",
-                                        "engine_version": "v1", "block_refs": [block["ref"] for block in pair["blocks"]],
+                    "render_evidence": {"status": "draft_unverified", "engine": "business-tech-pptx",
+                                        "engine_version": "v3", "block_refs": [block["ref"] for block in pair["blocks"]],
                                         "source_versions": pair["sources"], "pair_hash": pair["sha256"]}}
 
         render_report.side_effect = report_result
@@ -89,8 +159,8 @@ class ThreeDraftFlowTests(PortalTestCase):
             self.assertIn("technical-solution", slide)
             self.assertIn("technical-solution:", slide)
             self.assertIn("feasibility:", archive.read("ppt/slides/slide3.xml").decode())
-        self.assertEqual(ppt.render_evidence["engine"], "python-pptx-simple-draft")
-        self.assertEqual(ppt.render_evidence["engine_version"], "v1")
+        self.assertEqual(ppt.render_evidence["engine"], "business-tech-pptx")
+        self.assertEqual(ppt.render_evidence["engine_version"], "v3")
         self.assertTrue(ppt.render_evidence["block_refs"])
         self.assertEqual(self.other_client.get(f"/api/product/tasks/{task_id}/outputs/").status_code, 404)
         current_record = DocumentTask.objects.get(pk=task_id)

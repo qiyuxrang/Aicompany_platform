@@ -21,9 +21,11 @@ sys.path.insert(0, str(ROOT / "backend"))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 RUN_VERSION = os.environ.get("P1_THREE_RUN_VERSION", "v1")
 EVIDENCE_TASK = os.environ.get("P1_THREE_EVIDENCE_TASK", "T-P06")
-if EVIDENCE_TASK not in {"T-P06", "T-P08"}:
+SCALE_MODE = os.environ.get("P1_THREE_SCALE_MODE", "0") == "1"
+if EVIDENCE_TASK not in {"T-P06", "T-P08", "T-P09"}:
     raise SystemExit("Unsupported three-output evidence task.")
-EVIDENCE = ROOT / "docs" / "product" / EVIDENCE_TASK / "evidence" / f"representative-run-20260924-{RUN_VERSION}"
+run_kind = "large-output-run-20260927" if SCALE_MODE else "representative-run-20260924"
+EVIDENCE = ROOT / "docs" / "product" / EVIDENCE_TASK / "evidence" / f"{run_kind}-{RUN_VERSION}"
 
 
 def sha256(path):
@@ -56,6 +58,53 @@ def copy_checked(source, destination, expected=None):
     if expected and actual != expected:
         raise RuntimeError(f"copied evidence hash mismatch: {destination}")
     return {"path": destination.relative_to(ROOT).as_posix(), "sha256": actual, "bytes": destination.stat().st_size}
+
+
+def character_count(value):
+    return sum(not character.isspace() for character in value)
+
+
+def scale_report_content(content, chapter_specs, family, target):
+    """Build bounded, source-safe stress content without pretending it is model output."""
+    family_name = "技术方案" if family == "technical-solution" else "可行性研究报告"
+    safeguards = [
+        "所有设备名称和数量均以输入清单为准，不新增未提供的设备、规格、地址或责任人。",
+        "日志留存口径仍存在冲突，正文只描述待确认事项，不将任一口径写成已经批准的结论。",
+        "建设成本、运维成本和收益资料尚未提供，因此本段不形成投资回报或成本节约判断。",
+        "实施窗口和双链路条件来自项目背景，具体切换步骤仍须由项目负责人结合现场核对。",
+        "每项建议属于待审核的方案推断，只有来源事实、约束条件和人工决定共同满足后才能执行。",
+        "本段保留回退、验证和责任确认要求，避免把压力验收文字当作正式施工指令。",
+    ]
+    result = {}
+    base_target, remainder = divmod(target, len(chapter_specs))
+    for chapter_index, (chapter_id, title) in enumerate(chapter_specs):
+        chapter_target = base_target + (1 if chapter_index < remainder else 0)
+        seed = content[chapter_id][0]
+        paragraphs = []
+        current = 0
+        paragraph_index = 0
+        while current < chapter_target:
+            sentences = [
+                f"{family_name}的本节主题为{title}。{seed}",
+                f"围绕{title}展开时，需要把输入事实、方案推断和待确认事项分开记录，并保持每一项结论可以回到来源资料。",
+                safeguards[paragraph_index % len(safeguards)],
+                safeguards[(paragraph_index + 2) % len(safeguards)],
+                safeguards[(paragraph_index + 4) % len(safeguards)],
+                f"对{title}的描述采用分阶段核对方式，先确认现状和边界，再记录实施条件，最终由人工审核决定是否进入后续交付。",
+            ]
+            paragraph = ""
+            rotation = paragraph_index % len(sentences)
+            ordered = sentences[rotation:] + sentences[:rotation]
+            while character_count(paragraph) < 1800:
+                paragraph += "".join(ordered)
+            paragraphs.append(paragraph)
+            current += character_count(paragraph)
+            paragraph_index += 1
+        result[chapter_id] = paragraphs
+    actual = sum(character_count(paragraph) for paragraphs in result.values() for paragraph in paragraphs)
+    if not target <= actual <= target + 12000:
+        raise RuntimeError(f"{family} scale fixture outside tolerance: {actual}")
+    return result
 
 
 def main():
@@ -199,10 +248,10 @@ def main():
     current = expect(owner_client.patch(f"/api/product/tasks/{task_id}/blueprint/", data=json.dumps({
         "expected_version": current["version"], "payload": blueprint,
     }), content_type="application/json"), 200)
-    current = expect(reviewer_client.post(f"/api/product/tasks/{task_id}/decisions/", data=json.dumps({
+    current = expect(owner_client.post(f"/api/product/tasks/{task_id}/decisions/", data=json.dumps({
         "expected_version": current["version"], "target": "blueprint", "target_id": current["blueprint"]["id"],
         "sha256": current["blueprint"]["sha256"], "decision": "approve",
-        "comment": "批准精确蓝图用于代表性草稿；不代表业务或正式发布签认。",
+        "comment": "项目所有者确认精确蓝图用于代表性草稿；不代表正式发布签认。",
     }), content_type="application/json"), 201)["task"]
 
     technical = {
@@ -219,6 +268,9 @@ def main():
         "risks": ["主要风险为切换中断、配置口径不一致和责任边界缺失；以分步验证、回退和人工确认控制。"],
         "economics": ["当前没有经核实的建设成本、运维成本或收益数据，因此不形成投资回报、成本节约或收益结论。"],
     }
+    if SCALE_MODE:
+        technical = scale_report_content(technical, chapter_specs, "technical-solution", 50000)
+        feasibility = scale_report_content(feasibility, chapter_specs, "feasibility", 70000)
     for family, content in (("technical-solution", technical), ("feasibility", feasibility)):
         endpoint = "chapters/" if family == "technical-solution" else "report-chapters/"
         for chapter_id, title in chapter_specs:
@@ -243,6 +295,17 @@ def main():
         raise RuntimeError("feasibility content copied technical solution payload")
     if not any("未提供经核实的成本与收益依据" in item["text"] for item in report_payloads["feasibility"]["pending"]):
         raise RuntimeError("feasibility economic evidence boundary missing")
+    body_character_counts = {
+        family: sum(
+            character_count(paragraph)
+            for revision in task.revisions.filter(kind="chapter", family=family)
+            for paragraph in revision.payload.get("paragraphs", [])
+        )
+        for family in ("technical-solution", "feasibility")
+    }
+    if SCALE_MODE and (body_character_counts["technical-solution"] < 50000
+                       or body_character_counts["feasibility"] < 70000):
+        raise RuntimeError(f"large output character target missed: {body_character_counts}")
 
     artifacts = {item.family: item for item in task.artifacts.all()}
     if set(artifacts) != {"technical-solution", "feasibility"}:
@@ -270,8 +333,10 @@ def main():
             "comment": f"批准 {family} 结构化内容版本用于代表性 PPT 草稿；不代表正式业务签认。",
         }), content_type="application/json"), 201)
         current = approved["task"]
-    if not all(item["approved"] for item in current["reports"]):
-        raise RuntimeError("report content approvals are not effective")
+    # Report decisions remain an explicit audit trail, but draft generation does
+    # not inherit them as formal artifact approval.
+    if any(item["approved"] for item in current["reports"]):
+        raise RuntimeError("report approval was incorrectly inherited by draft artifacts")
 
     queued = expect(owner_client.post(f"/api/product/tasks/{task_id}/queue/", data=json.dumps({
         "expected_version": current["version"], "action": "presentation",
@@ -286,17 +351,18 @@ def main():
             raise RuntimeError("editable PPTX slide package is incomplete")
         combined = "".join(archive.read(name).decode("utf-8") for name in archive.namelist() if name.startswith("ppt/slides/slide") and name.endswith(".xml"))
         for source in presentation.render_evidence["source_versions"]:
-            if source["family"] not in combined or source["sha256"] not in combined or source["approval_id"] not in combined:
+            if source["family"] not in combined or source["sha256"] not in combined:
                 raise RuntimeError("PPT slide provenance footer is incomplete")
         duplicate_pending = "正式模板与样例、内容及格式批准尚未完成；本件始终为待核草稿。"
         if combined.count(duplicate_pending) != 1 or "technical-solution:PEND1" not in combined or "feasibility:PEND1" not in combined:
             raise RuntimeError("PPT pending items were not deduplicated with source refs")
 
     ppt_render_private = private_root().resolve() / "office-renders" / ("powerpoint-" + uuid.uuid4().hex)
+    office_timeout = int(getattr(settings, "PRODUCT_OFFICE_RENDER_TIMEOUT_SECONDS", 300))
     command = [str(_document_runtime()), "-B", str(PACK / "scripts" / "office_render.py"), "powerpoint",
-               str(presentation_path), str(ppt_render_private), "--timeout", "120"]
+               str(presentation_path), str(ppt_render_private), "--timeout", str(office_timeout)]
     rendered = subprocess.run(command, cwd=private_root(), env=_safe_environment(), capture_output=True,
-                              text=True, encoding="utf-8", errors="replace", timeout=135,
+                              text=True, encoding="utf-8", errors="replace", timeout=office_timeout + 15,
                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     if rendered.returncode != 0:
         raise RuntimeError("PowerPoint render failed: " + rendered.stdout[-2000:] + rendered.stderr[-2000:])
@@ -385,6 +451,12 @@ def main():
             "representative_input_only": True, "formal_database_modified": False, "real_customer_data_used": False,
             "model_calls": 0, "ragflow_calls": 0, "business_signoff": "blocked",
         },
+        "scale_validation": {
+            "enabled": SCALE_MODE,
+            "metric": "non_whitespace_characters",
+            "targets": {"technical-solution": 50000, "feasibility": 70000},
+            "actual": body_character_counts,
+        },
         "task": {"id": str(task.pk), "state": task.state, "stage": task.stage, "version": task.version},
         "representative_input_files": input_files,
         "sources": [{"id": str(source.pk), "name": source.original_name, "sha256": source.sha256,
@@ -428,6 +500,7 @@ def main():
         "technical_word_pages": word_renders["technical_solution"]["page_count"],
         "feasibility_word_pages": word_renders["feasibility"]["page_count"],
         "ppt_pages": ppt_render["page_count"],
+        "body_character_counts": body_character_counts,
         "chain": chain_path.relative_to(ROOT).as_posix(),
     }, ensure_ascii=False, indent=2))
 

@@ -59,6 +59,7 @@ class JDVersion(models.Model):
     requirements = models.JSONField(default=dict)
     channel = models.CharField(max_length=20, default='general')
     custom_label = models.CharField(max_length=100, blank=True)
+    model_selection = models.JSONField(default=dict, blank=True)
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='children')
     source_jd = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='channel_versions')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='jd_versions_created')

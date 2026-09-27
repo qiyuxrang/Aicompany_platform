@@ -1,8 +1,11 @@
 """Persisted report content and its exact two-family provenance."""
 
+from pathlib import Path
+
 from .product_models import DocumentRevision
 from .product_service import (ProductError, append_revision, approved_blueprint,
                               current_revision, digest, input_authorized)
+from .product_storage import private_root
 
 FAMILIES = ("technical-solution", "feasibility")
 
@@ -101,9 +104,22 @@ def pair_snapshot(task):
     if any(report is None or report.input_hash != current_input.sha256 or report.blueprint_hash != blueprint.sha256
            or not report_current(task, report) for report in reports):
         raise ProductError("stale_pair", "两份报告尚未生成或来源已变化。", 409)
-    blocks = [{"ref": f"{report.family}:{block['id']}", "text": block.get("text", ""),
-               "type": block.get("type", "paragraph"), "source_ids": block.get("source_ids", [])}
-              for report in reports for block in report.payload["blocks"]]
+    blocks = []
+    storage = private_root().resolve()
+    for report in reports:
+        artifact = next((item for item in task.artifacts.filter(family=report.family)
+                         if item.render_evidence.get("report_id") == str(report.pk)), None)
+        asset_root = (storage / Path(artifact.path).parent).resolve() if artifact else None
+        for block in report.payload["blocks"]:
+            item = {"ref": f"{report.family}:{block['id']}", "text": block.get("text", ""),
+                    "type": block.get("type", "paragraph"), "level": block.get("level"),
+                    "caption": block.get("caption", ""), "alt": block.get("alt", ""),
+                    "source_ids": block.get("source_ids", [])}
+            if block.get("type") == "figure" and asset_root is not None:
+                candidate = (asset_root / block.get("path", "")).resolve()
+                if candidate.is_relative_to(asset_root) and candidate.is_file():
+                    item["asset_path"] = str(candidate)
+            blocks.append(item)
     sources = [{"family": report.family, "id": str(report.pk), "version": report.version,
                 "sha256": report.sha256, "created_by": report.created_by_id,
                 "created_at": report.created_at.isoformat()} for report in reports]

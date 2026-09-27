@@ -1,4 +1,5 @@
 import json
+import uuid
 from datetime import timedelta
 from http.client import HTTPException
 from time import monotonic
@@ -10,6 +11,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 
 from .integration import NoRedirect
 from .security import audit, authorized_modules
@@ -36,6 +38,7 @@ ERROR_MESSAGES = {
     "forbidden": "当前账号无权执行此模型调用。",
     "disabled": "模型或业务用途未启用。",
     "unsupported_capability": "当前模型未声明支持所需的文本或图片能力。",
+    "model_configuration_changed": "模型配置已更新，请刷新模型列表后重试。",
 }
 
 
@@ -163,28 +166,163 @@ def _route_for(user, code):
     route = ModelRoute.objects.select_related("model__provider", "module").filter(code=code).first()
     if not route or not authorized_modules(user).filter(pk=route.module_id, enabled=True).exists():
         raise GatewayError("forbidden", status=403)
+    # A route is only valid while its configured default remains usable. Optional
+    # models supplement the default; they do not mask a broken route baseline.
     if not route.enabled or not route.model.enabled or not route.model.provider.enabled:
         raise GatewayError("disabled", status=409)
     return user, route
 
 
-def _reserve(user, model, purpose, route):
-    from .models import ModelCallLog, User
+def _configuration_version(route, model, option=None):
+    """Return an opaque revision without exposing provider or remote model data."""
+    payload = {
+        "route": [route.pk, route.code, route.module_id, route.model_id, route.enabled,
+                  route.max_calls_per_minute],
+        "route_updated": route.updated_at.isoformat(),
+        "model": [str(model.public_id), model.provider_id, model.model_name, model.supports_text,
+                  model.supports_vision, model.enabled, model.timeout_seconds,
+                  model.max_output_tokens, model.token_parameter],
+        "model_updated": model.updated_at.isoformat(),
+        "provider": [model.provider.protocol, model.provider.base_url,
+                     model.provider.api_key_env, model.provider.enabled],
+        "provider_updated": model.provider.updated_at.isoformat(),
+        "option": [option.pk, option.model_id, option.enabled, option.display_order] if option else None,
+        "option_updated": option.updated_at.isoformat() if option else None,
+        "roles": sorted(option.allowed_roles.values_list("pk", flat=True)) if option else [],
+        "users": sorted(option.allowed_users.values_list("pk", flat=True)) if option else [],
+    }
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return salted_hmac("portal.model-selection", serialized, algorithm="sha256").hexdigest()
+
+
+def _available_route_models(user, route):
+    """Return enabled models authorized by route, role and direct-user scopes."""
+    from .models import ModelRouteOption
+
+    role_ids = set(user.roles.values_list("pk", flat=True))
+    options = list(
+        ModelRouteOption.objects.filter(route=route)
+        .select_related("model__provider")
+        .prefetch_related("allowed_roles", "allowed_users")
+        .order_by("display_order", "id")
+    )
+    by_model = {option.model_id: option for option in options}
+    choices = []
+    for option in options:
+        allowed_roles = {role.pk for role in option.allowed_roles.all()}
+        allowed_users = {allowed.pk for allowed in option.allowed_users.all()}
+        scoped = bool(allowed_roles or allowed_users)
+        if (option.enabled and option.model.enabled and option.model.provider.enabled
+                and (not scoped or user.pk in allowed_users or bool(role_ids & allowed_roles))):
+            choices.append((option.model, option))
+    # Backward compatibility: existing routes need no option row for their default.
+    if route.model_id not in by_model and route.model.enabled and route.model.provider.enabled:
+        choices.insert(0, (route.model, None))
+    # A model can only appear once even if legacy data is unusual.
+    unique = {}
+    for model, option in choices:
+        unique.setdefault(model.pk, (model, option))
+    return list(unique.values())
+
+
+def _normalize_selection(selection):
+    if selection is None:
+        return None, None
+    if not isinstance(selection, dict) or set(selection) - {"model_id", "config_version"}:
+        raise GatewayError("invalid_request", status=400)
+    model_id, version = selection.get("model_id"), selection.get("config_version")
+    if not isinstance(model_id, str) or not isinstance(version, str) or len(version) != 64:
+        raise GatewayError("invalid_request", status=400)
+    try:
+        model_id = uuid.UUID(model_id)
+        int(version, 16)
+    except (ValueError, TypeError):
+        raise GatewayError("invalid_request", status=400) from None
+    return model_id, version.lower()
+
+
+def _select_route_model(user, route, selection=None):
+    requested_id, requested_version = _normalize_selection(selection)
+    choices = _available_route_models(user, route)
+    if requested_id is None:
+        selected = next((choice for choice in choices if choice[0].pk == route.model_id), None)
+        selected = selected or (choices[0] if choices else None)
+    else:
+        selected = next((choice for choice in choices if choice[0].public_id == requested_id), None)
+    if not selected:
+        # Do not reveal whether an unknown model exists or merely lacks authorization.
+        if requested_id is not None:
+            raise GatewayError("forbidden", status=403)
+        raise GatewayError("disabled", status=409)
+    model, option = selected
+    version = _configuration_version(route, model, option)
+    if requested_version is not None and requested_version != version:
+        raise GatewayError("model_configuration_changed", status=409)
+    return model, option, version
+
+
+def selectable_models(user, purpose_code):
+    """Safe metadata for a UI model picker; secrets and remote identifiers stay server-side."""
+    user, route = _route_for(user, purpose_code)
+    choices = [choice for choice in _available_route_models(user, route) if choice[0].supports_text]
+    if not choices:
+        raise GatewayError("disabled", status=409)
+    default = next((choice for choice in choices if choice[0].pk == route.model_id), None)
+    default = default or (choices[0] if choices else None)
+    models = []
+    for model, option in choices:
+        models.append({
+            "id": str(model.public_id),
+            "name": model.name,
+            "capabilities": {"text": model.supports_text, "vision": model.supports_vision},
+            "max_output_tokens": model.max_output_tokens,
+            "is_default": bool(default and default[0].pk == model.pk),
+            "config_version": _configuration_version(route, model, option),
+        })
+    return {
+        "route": {"code": route.code, "name": route.name, "module": route.module.code},
+        "default_model_id": str(default[0].public_id) if default else None,
+        "models": models,
+    }
+
+
+def validate_model_selection(user, purpose_code, selection=None, required_capability="text"):
+    """Resolve and pin a selection before persisting an asynchronous task."""
+    if required_capability not in {"text", "vision"}:
+        raise GatewayError("invalid_request", status=400)
+    user, route = _route_for(user, purpose_code)
+    model, option, version = _select_route_model(user, route, selection)
+    if not model.supports_text or (required_capability == "vision" and not model.supports_vision):
+        raise GatewayError("unsupported_capability", status=400)
+    return {"model_id": str(model.public_id), "config_version": version}
+
+
+def _reserve(user, model, purpose, route, config_version=""):
+    from .models import GatewayModel, ModelCallLog, User
     with transaction.atomic():
         User.objects.select_for_update().get(pk=user.pk)
+        GatewayModel.objects.select_for_update().get(pk=model.pk)
         recent = ModelCallLog.objects.filter(actor=user, created_at__gte=timezone.now() - timedelta(minutes=1))
-        if recent.count() >= 10 or (purpose == "test" and recent.filter(purpose="test", model=model).exists()):
+        limit = route.max_calls_per_minute if route else 10
+        pending_since = timezone.now() - timedelta(seconds=model.timeout_seconds + 30)
+        pending = ModelCallLog.objects.filter(model=model, status="pending", created_at__gte=pending_since).count()
+        max_pending = getattr(settings, "MODEL_MAX_PENDING_PER_MODEL", 4)
+        if pending >= max_pending:
+            raise GatewayError("busy", status=429)
+        route_recent = recent.filter(route=route) if route else recent
+        if route_recent.count() >= limit or (purpose == "test" and recent.filter(purpose="test", model=model).exists()):
             raise GatewayError("rate_limited", status=429)
         return ModelCallLog.objects.create(actor=user, route=route, model=model, purpose=purpose,
-                                           status="pending", duration_ms=0)
+                                           status="pending", duration_ms=0, model_public_id=model.public_id,
+                                           config_version=config_version)
 
 
-def _invoke(user, model, messages, purpose, route=None):
+def _invoke(user, model, messages, purpose, route=None, config_version="", selection_pinned=False):
     from .models import GatewayModel
     config = _model_config(model)
     revisions = (model.provider.updated_at, model.updated_at, route.updated_at if route else None)
     payload = {**config, "messages": _messages(messages, model.supports_vision), "purpose": purpose}
-    record = _reserve(user, model, purpose, route)
+    record = _reserve(user, model, purpose, route, config_version)
     started = monotonic()
     try:
         result = _request_gateway(payload)
@@ -193,9 +331,17 @@ def _invoke(user, model, messages, purpose, route=None):
             raise GatewayError("forbidden", status=403)
         if purpose == "business":
             fresh, current = _route_for(fresh, route.code)
-            if (current.model_id != model.pk or _model_config(current.model) != config
-                    or (current.model.provider.updated_at, current.model.updated_at, current.updated_at) != revisions):
-                raise GatewayError("disabled", status=409)
+            try:
+                current_model, current_option, current_version = _select_route_model(fresh, current, {
+                    "model_id": str(model.public_id), "config_version": config_version,
+                })
+            except GatewayError as error:
+                if error.code == "model_configuration_changed" and not selection_pinned:
+                    raise GatewayError("disabled", status=409) from None
+                raise
+            if (_model_config(current_model) != config or current_version != config_version
+                    or (current_model.provider.updated_at, current_model.updated_at, current.updated_at) != revisions):
+                raise GatewayError("model_configuration_changed" if selection_pinned else "disabled", status=409)
         elif not fresh.is_platform_admin:
             raise GatewayError("forbidden", status=403)
         else:
@@ -218,9 +364,11 @@ def _invoke(user, model, messages, purpose, route=None):
         audit(user, "model_test" if purpose == "test" else "model_call", record.pk, result=record.status)
 
 
-def generate_for_use(user, purpose_code, messages):
+def generate_for_use(user, purpose_code, messages, model_selection=None):
     user, route = _route_for(user, purpose_code)
-    return _invoke(user, route.model, messages, "business", route)
+    model, option, config_version = _select_route_model(user, route, model_selection)
+    return _invoke(user, model, messages, "business", route, config_version,
+                   selection_pinned=model_selection is not None)
 
 
 def test_connection(user, model_id):

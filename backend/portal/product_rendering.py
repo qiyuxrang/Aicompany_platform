@@ -85,11 +85,12 @@ def render_office(artifact_path, artifact_sha256):
         raise DocumentError("office_render_unavailable")
     parent.mkdir(parents=True, exist_ok=True)
     directory = parent / uuid.uuid4().hex
-    command = [str(runtime), "-B", str(PACK / "scripts" / "office_render.py"), "word", str(source), str(directory), "--timeout", "90"]
+    timeout = int(getattr(settings, "PRODUCT_OFFICE_RENDER_TIMEOUT_SECONDS", 300))
+    command = [str(runtime), "-B", str(PACK / "scripts" / "office_render.py"), "word", str(source), str(directory), "--timeout", str(timeout)]
     try:
         result = subprocess.run(
             command, cwd=parent, env=_safe_environment(), capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=100,
+            encoding="utf-8", errors="replace", timeout=timeout + 15,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except subprocess.TimeoutExpired:

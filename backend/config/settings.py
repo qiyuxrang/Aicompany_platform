@@ -72,6 +72,12 @@ TICKET_TTL_SECONDS = 30
 MODEL_GATEWAY_URL = os.environ.get("PORTAL_MODEL_GATEWAY_URL", "")
 MODEL_GATEWAY_TOKEN = os.environ.get("PORTAL_MODEL_GATEWAY_TOKEN", "")
 MODEL_GATEWAY_ALLOWED_URLS = tuple(filter(None, os.environ.get("PORTAL_MODEL_GATEWAY_ALLOWED_URLS", "http://127.0.0.1:18410,http://model-gateway:18410").split(",")))
+try:
+    MODEL_MAX_PENDING_PER_MODEL = int(os.environ.get("PORTAL_MODEL_MAX_PENDING_PER_MODEL", "4"))
+except ValueError:
+    raise ImproperlyConfigured("模型并发上限必须为整数") from None
+if not 1 <= MODEL_MAX_PENDING_PER_MODEL <= 100:
+    raise ImproperlyConfigured("模型并发上限必须位于1至100之间")
 PRODUCT_P1_ENABLED = os.environ.get("PORTAL_PRODUCT_P1_ENABLED") == "1"
 PRODUCT_MODEL_CALLS_ALLOWED = os.environ.get("PORTAL_PRODUCT_MODEL_CALLS_ALLOWED") == "1"
 PRODUCT_FORMAL_RELEASE_ENABLED = os.environ.get("PORTAL_PRODUCT_FORMAL_RELEASE_ENABLED") == "1"
@@ -84,11 +90,31 @@ PRODUCT_PARSE_TIMEOUT_SECONDS = 120
 PRODUCT_OCR_ENABLED = os.environ.get("PORTAL_PRODUCT_OCR_ENABLED", "1") == "1"
 PRODUCT_MAX_ATTEMPTS = 8
 PRODUCT_MAX_MODEL_CALLS = 24
+PRODUCT_BLUEPRINT_MAX_REVISIONS = 3
 PRODUCT_LEASE_SECONDS = 180
+try:
+    PRODUCT_TECHNICAL_TARGET_CHARACTERS = int(os.environ.get("PORTAL_PRODUCT_TECHNICAL_TARGET_CHARACTERS", "3000"))
+    PRODUCT_FEASIBILITY_TARGET_CHARACTERS = int(os.environ.get("PORTAL_PRODUCT_FEASIBILITY_TARGET_CHARACTERS", "5000"))
+except ValueError:
+    raise ImproperlyConfigured("产品文档目标字数必须为整数") from None
+if not (1000 <= PRODUCT_TECHNICAL_TARGET_CHARACTERS <= 300000
+        and 1000 <= PRODUCT_FEASIBILITY_TARGET_CHARACTERS <= 300000):
+    raise ImproperlyConfigured("产品文档目标字数必须位于1000至300000之间")
+PRODUCT_ENFORCE_OUTPUT_LENGTH = os.environ.get("PORTAL_PRODUCT_ENFORCE_OUTPUT_LENGTH", "0") == "1"
 PRODUCT_BLUEPRINT_ROUTE = os.environ.get("PORTAL_PRODUCT_BLUEPRINT_ROUTE", "product_blueprint")
 PRODUCT_WRITING_ROUTE = os.environ.get("PORTAL_PRODUCT_WRITING_ROUTE", "product_writing")
 PRODUCT_REVIEW_ROUTE = os.environ.get("PORTAL_PRODUCT_REVIEW_ROUTE", "product_review")
 PRODUCT_DOCUMENT_PYTHON = Path(os.environ.get("PORTAL_PRODUCT_DOCUMENT_PYTHON", BASE_DIR / ".runtime" / "product-documents-python" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")))
+PRODUCT_MERMAID_NODE = os.environ.get("PORTAL_MERMAID_NODE", "node")
+PRODUCT_MERMAID_CHROMIUM = os.environ.get("PORTAL_MERMAID_CHROMIUM", "")
+try:
+    PRODUCT_DOCUMENT_RENDER_TIMEOUT_SECONDS = int(os.environ.get("PORTAL_PRODUCT_DOCUMENT_RENDER_TIMEOUT_SECONDS", "300"))
+    PRODUCT_OFFICE_RENDER_TIMEOUT_SECONDS = int(os.environ.get("PORTAL_PRODUCT_OFFICE_RENDER_TIMEOUT_SECONDS", "300"))
+except ValueError:
+    raise ImproperlyConfigured("产品文档渲染超时必须为整数秒") from None
+if not (30 <= PRODUCT_DOCUMENT_RENDER_TIMEOUT_SECONDS <= 1200
+        and 30 <= PRODUCT_OFFICE_RENDER_TIMEOUT_SECONDS <= 1200):
+    raise ImproperlyConfigured("产品文档渲染超时必须位于30至1200秒之间")
 
 
 def _product_configuration(name):
@@ -107,6 +133,13 @@ def _product_configuration(name):
 PRODUCT_TEMPLATE_APPROVAL = _product_configuration("PORTAL_PRODUCT_TEMPLATE_APPROVAL")
 PRODUCT_OFFICE_RENDER_ENABLED = os.environ.get("PORTAL_PRODUCT_OFFICE_RENDER_ENABLED") == "1"
 PRODUCT_REVIEW_POLICY_REVISION = os.environ.get("PORTAL_PRODUCT_REVIEW_POLICY_REVISION", "")
+PRODUCT_BLUEPRINT_KNOWLEDGE_MODE = os.environ.get(
+    "PORTAL_PRODUCT_BLUEPRINT_KNOWLEDGE_MODE", "source_only_preview"
+)
+if PRODUCT_BLUEPRINT_KNOWLEDGE_MODE not in {"source_only_preview", "ragflow_required"}:
+    raise ImproperlyConfigured(
+        "PORTAL_PRODUCT_BLUEPRINT_KNOWLEDGE_MODE 必须为 source_only_preview 或 ragflow_required"
+    )
 PRODUCT_RETRIEVAL_ENABLED = os.environ.get("PORTAL_PRODUCT_RETRIEVAL_ENABLED") == "1"
 PRODUCT_RETRIEVAL_URL = os.environ.get("PORTAL_PRODUCT_RETRIEVAL_URL", "")
 PRODUCT_RETRIEVAL_ALLOWED_URLS = tuple(filter(None, os.environ.get("PORTAL_PRODUCT_RETRIEVAL_ALLOWED_URLS", "").split(",")))

@@ -1,0 +1,72 @@
+{
+  "schema": "PRODUCT_DELIVERABLE_QUALITY_V1",
+  "technical_solution": {
+    "path": "docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\artifacts\\technical-solution.docx",
+    "sha256": "79f5a5af9de32076334e7961def42f3a31467ac5871b69c08b74eacca7ca77d5",
+    "bytes": 788987,
+    "characters_non_whitespace": 3201,
+    "heading1_count": 6,
+    "heading2_count": 30,
+    "toc_depth_two": true,
+    "embedded_media": 16,
+    "minimum_figures": 15,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "feasibility": {
+    "path": "docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\artifacts\\feasibility-report.docx",
+    "sha256": "4287b346208aa1ff4409d95b910fec81f8f1587ce28e5cc0af6a3450ab3640a5",
+    "bytes": 1018677,
+    "characters_non_whitespace": 3701,
+    "heading1_count": 6,
+    "heading2_count": 35,
+    "toc_depth_two": true,
+    "embedded_media": 21,
+    "minimum_figures": 20,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "presentation": {
+    "path": "docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\artifacts\\business-technology-presentation.pptx",
+    "sha256": "a450da2684ff4ffafdbb30cf939c9f5396693cdab401f88884d86f4699b426ea",
+    "bytes": 38977,
+    "slides": 5,
+    "native_shapes": 104,
+    "native_charts": 0,
+    "native_connectors": 17,
+    "pictures": 0,
+    "source_marked_slides": 5,
+    "slide_inventory": [
+      {
+        "slide": 1,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 2,
+        "shapes": 38,
+        "source_marked": true
+      },
+      {
+        "slide": 3,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 4,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 5,
+        "shapes": 19,
+        "source_marked": true
+      }
+    ],
+    "passed": true,
+    "issues": []
+  },
+  "passed": true
+}

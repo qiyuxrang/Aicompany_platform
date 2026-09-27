@@ -140,8 +140,13 @@ Pop-Location
 ```powershell
 .\scripts\manage.ps1 -AppEnvFile .runtime/validation.env seed_portal
 .\scripts\manage.ps1 -AppEnvFile .runtime/validation.env check --deploy
+.\scripts\manage.ps1 -AppEnvFile .runtime/validation.env check_production_readiness --json
 .\scripts\manage.ps1 -AppEnvFile .runtime/validation.env test
 ```
+
+`check_production_readiness` 是只读检查：不联网、不写业务数据，也不输出密钥。它把平台配置错误记为
+`blocked`，把真实模型、正式基础设施等尚需现场完成的事项记为 `external_gate`。构建平台侧生产候选包时可以使用
+`--allow-external-gates`，但该参数只改变命令退出码，不会把外部门槛改写成通过，也不能用于正式发布签字。
 
 Django 测试会创建并删除 `test_portal_phase1`；运行前确认没有同名人工数据库。
 `check --deploy` 当前会保留 `security.W021`：站点已启用 HSTS，但没有自动加入浏览器 preload 列表；只有在域名及所有子域长期满足 preload 要求并经负责人确认后才应修改该策略。

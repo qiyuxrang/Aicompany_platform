@@ -69,12 +69,11 @@ def main():
         assert "TOC" in body and "PAGEREF" in body and "w:hyperlink" in body
     with ZipFile(presentation) as archive:
         slides = [name for name in archive.namelist() if name.startswith("ppt/slides/slide") and name.endswith(".xml")]
-        assert len(slides) == 7
+        assert len(slides) == chain["ppt_render"]["page_count"] >= 3
         slide_xml = "".join(archive.read(name).decode() for name in slides)
-        for approval in chain["approvals"]:
-            if approval["target_id"] in {source["id"] for output in chain["outputs"]
-                                         for source in output.get("source_versions", [])}:
-                assert approval["id"] in slide_xml
+        presentation_record = next(record for record in chain["artifacts"] if record["family"] == "presentation")
+        for source in presentation_record["render_evidence"]["source_versions"]:
+            assert source["family"] in slide_xml and source["sha256"] in slide_xml
 
     assert set(chain["word_renders"]) == {"technical_solution", "feasibility"}
     for key, render in chain["word_renders"].items():
@@ -93,7 +92,7 @@ def main():
             checked_file(page)
     render = chain["ppt_render"]
     assert render["renderer"] == "Microsoft PowerPoint 16.0" and render["status"] == "rendered"
-    assert render["page_count"] == 7 and len(render["pages"]) == 7
+    assert render["page_count"] >= 3 and len(render["pages"]) == render["page_count"]
     assert render["quality_claim"] == "not_ppt_master"
     checked_file(render["pdf"])
     for page in render["pages"]:
@@ -112,6 +111,11 @@ def main():
         "technical-solution", "feasibility", "presentation"}
     assert all(record["code"] == "formal_release_blocked"
                for record in chain["formal_artifact_approval_attempts"].values())
+    scale = chain.get("scale_validation", {"enabled": False})
+    if scale.get("enabled"):
+        assert scale["metric"] == "non_whitespace_characters"
+        assert scale["actual"]["technical-solution"] >= scale["targets"]["technical-solution"]
+        assert scale["actual"]["feasibility"] >= scale["targets"]["feasibility"]
     print(json.dumps({
         "result": "PASS",
         "chain": chain_path.relative_to(ROOT).as_posix(),
@@ -122,7 +126,7 @@ def main():
         "renders": {
             "technical_word_pages": chain["word_renders"]["technical_solution"]["page_count"],
             "feasibility_word_pages": chain["word_renders"]["feasibility"]["page_count"],
-            "ppt_slides": 7,
+            "ppt_slides": render["page_count"],
         },
         "external_calls": {"model": 0, "ragflow": 0},
         "formal_approval": "blocked",

@@ -29,10 +29,18 @@ def queue(request, batch_id, retry=False):
         items = batch.artifacts.filter(processing_status='failed' if retry else 'pending')
         if not items.exists():
             raise HrError('invalid_state', '没有可处理的简历。', 409)
+        selection = batch.model_selection
+        if selection:
+            from .model_gateway import GatewayError, validate_model_selection
+            try:
+                selection = validate_model_selection(request.user, 'hr_match_summary', selection)
+            except GatewayError as error:
+                raise HrError(error.code, error.message, error.status) from None
         items.update(processing_status='queued', error_code='', next_retry_at=None)
         batch.status = 'queued'
+        batch.model_selection = selection or {}
         batch.version += 1
-        batch.save(update_fields=['status', 'version', 'updated_at'])
+        batch.save(update_fields=['status', 'model_selection', 'version', 'updated_at'])
         audit(request.user, 'hr_batch_retry' if retry else 'hr_batch_queue', batch.pk)
     return Response(batch_data(batch))
 

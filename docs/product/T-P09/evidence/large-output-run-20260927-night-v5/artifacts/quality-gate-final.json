@@ -1,0 +1,377 @@
+{
+  "schema": "PRODUCT_DELIVERABLE_QUALITY_V1",
+  "technical_solution": {
+    "path": "docs\\product\\T-P09\\evidence\\large-output-run-20260927-night-v5\\artifacts\\technical-solution.docx",
+    "sha256": "516aad3fb43ae09d48bdd210f9c3050468e1dd02a02bbf7ef30da3b2316f1447",
+    "bytes": 793942,
+    "characters_non_whitespace": 58170,
+    "heading1_count": 6,
+    "heading2_count": 44,
+    "toc_depth_two": true,
+    "embedded_media": 16,
+    "minimum_figures": 15,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "feasibility": {
+    "path": "docs\\product\\T-P09\\evidence\\large-output-run-20260927-night-v5\\artifacts\\feasibility-report.docx",
+    "sha256": "9acc46002a2ef96944c9c2af12134688da8ff4af0f16d51629e4c48e0ddf8b94",
+    "bytes": 1024996,
+    "characters_non_whitespace": 76937,
+    "heading1_count": 6,
+    "heading2_count": 57,
+    "toc_depth_two": true,
+    "embedded_media": 21,
+    "minimum_figures": 20,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "presentation": {
+    "path": "docs\\product\\T-P09\\evidence\\large-output-run-20260927-night-v5\\artifacts\\business-technology-presentation.pptx",
+    "sha256": "6227f9bca25ffefdfadda7b50480581c82b3d9431301c57a62b05890323c6804",
+    "bytes": 178836,
+    "slides": 66,
+    "native_shapes": 1152,
+    "native_charts": 0,
+    "native_connectors": 187,
+    "pictures": 0,
+    "source_marked_slides": 64,
+    "slide_inventory": [
+      {
+        "slide": 1,
+        "shapes": 10,
+        "source_marked": true
+      },
+      {
+        "slide": 2,
+        "shapes": 38,
+        "source_marked": true
+      },
+      {
+        "slide": 3,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 4,
+        "shapes": 15,
+        "source_marked": false
+      },
+      {
+        "slide": 5,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 6,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 7,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 8,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 9,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 10,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 11,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 12,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 13,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 14,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 15,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 16,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 17,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 18,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 19,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 20,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 21,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 22,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 23,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 24,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 25,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 26,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 27,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 28,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 29,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 30,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 31,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 32,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 33,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 34,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 35,
+        "shapes": 15,
+        "source_marked": false
+      },
+      {
+        "slide": 36,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 37,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 38,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 39,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 40,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 41,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 42,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 43,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 44,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 45,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 46,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 47,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 48,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 49,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 50,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 51,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 52,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 53,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 54,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 55,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 56,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 57,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 58,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 59,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 60,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 61,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 62,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 63,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 64,
+        "shapes": 11,
+        "source_marked": true
+      },
+      {
+        "slide": 65,
+        "shapes": 15,
+        "source_marked": true
+      },
+      {
+        "slide": 66,
+        "shapes": 19,
+        "source_marked": true
+      }
+    ],
+    "passed": true,
+    "issues": []
+  },
+  "passed": true
+}

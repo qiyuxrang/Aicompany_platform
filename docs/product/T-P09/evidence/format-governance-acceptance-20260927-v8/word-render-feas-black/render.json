@@ -1,0 +1,40 @@
+{
+  "structural_pass": true,
+  "rendered": true,
+  "visually_reviewed": false,
+  "unverified_items": [
+    "Open every page image and record visual review separately",
+    "Engineering facts not verified by renderer"
+  ],
+  "input_sha256": "4c4f32cb9f4a6bdb514288b1f0642f307f894c9399a6deb74180453c573490bb",
+  "toc_count": 1,
+  "field_update_error_index": 0,
+  "renderer": "Microsoft Word 16.0",
+  "page_count": 19,
+  "pdf": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\document.pdf",
+  "rendered_docx": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\reviewed.docx",
+  "text_color": "#000000",
+  "images": [
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-001.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-002.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-003.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-004.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-005.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-006.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-007.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-008.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-009.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-010.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-011.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-012.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-013.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-014.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-015.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-016.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-017.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-018.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v8\\word-render-feas-black\\page-019.png"
+  ],
+  "rendered_docx_sha256": "3a8dc0910389e15869bfa446ed199c27ed47bd1b5bd596681f94c2c04b405195",
+  "pdf_sha256": "aaf0e3986da0576a892ba4e1d7d606d0602ec49f1cd689c814cbc161a566b516"
+}

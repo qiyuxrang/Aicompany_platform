@@ -3,6 +3,7 @@
 !uv.lock
 !backend/
 !backend/**
+backend/portal/product_assets/mermaid-runtime/node_modules/
 !model_gateway/
 !model_gateway/**
 model_gateway/tests/

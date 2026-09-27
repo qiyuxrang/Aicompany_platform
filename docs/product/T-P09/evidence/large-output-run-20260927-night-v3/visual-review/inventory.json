@@ -1,0 +1,2185 @@
+{
+  "root": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\large-output-run-20260927-night-v3",
+  "sets": {
+    "word-render-technical-solution": {
+      "pages": [
+        {
+          "file": "page-001.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            208,
+            106,
+            530,
+            1005
+          ],
+          "grayscale_stddev": 11.35,
+          "blank": false
+        },
+        {
+          "file": "page-002.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            104,
+            637,
+            1005
+          ],
+          "grayscale_stddev": 16.576,
+          "blank": false
+        },
+        {
+          "file": "page-003.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            107,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.54,
+          "blank": false
+        },
+        {
+          "file": "page-004.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.103,
+          "blank": false
+        },
+        {
+          "file": "page-005.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.011,
+          "blank": false
+        },
+        {
+          "file": "page-006.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.17,
+          "blank": false
+        },
+        {
+          "file": "page-007.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.087,
+          "blank": false
+        },
+        {
+          "file": "page-008.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.045,
+          "blank": false
+        },
+        {
+          "file": "page-009.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.17,
+          "blank": false
+        },
+        {
+          "file": "page-010.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.143,
+          "blank": false
+        },
+        {
+          "file": "page-011.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.042,
+          "blank": false
+        },
+        {
+          "file": "page-012.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.767,
+          "blank": false
+        },
+        {
+          "file": "page-013.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.381,
+          "blank": false
+        },
+        {
+          "file": "page-014.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            107,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.111,
+          "blank": false
+        },
+        {
+          "file": "page-015.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.996,
+          "blank": false
+        },
+        {
+          "file": "page-016.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.319,
+          "blank": false
+        },
+        {
+          "file": "page-017.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.158,
+          "blank": false
+        },
+        {
+          "file": "page-018.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.951,
+          "blank": false
+        },
+        {
+          "file": "page-019.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.953,
+          "blank": false
+        },
+        {
+          "file": "page-020.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.043,
+          "blank": false
+        },
+        {
+          "file": "page-021.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.432,
+          "blank": false
+        },
+        {
+          "file": "page-022.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.143,
+          "blank": false
+        },
+        {
+          "file": "page-023.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            635,
+            1005
+          ],
+          "grayscale_stddev": 42.894,
+          "blank": false
+        },
+        {
+          "file": "page-024.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.97,
+          "blank": false
+        },
+        {
+          "file": "page-025.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.067,
+          "blank": false
+        },
+        {
+          "file": "page-026.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            635,
+            1005
+          ],
+          "grayscale_stddev": 42.936,
+          "blank": false
+        },
+        {
+          "file": "page-027.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.92,
+          "blank": false
+        },
+        {
+          "file": "page-028.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.753,
+          "blank": false
+        },
+        {
+          "file": "page-029.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.646,
+          "blank": false
+        },
+        {
+          "file": "page-030.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.032,
+          "blank": false
+        },
+        {
+          "file": "page-031.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.816,
+          "blank": false
+        },
+        {
+          "file": "page-032.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.373,
+          "blank": false
+        },
+        {
+          "file": "page-033.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.757,
+          "blank": false
+        },
+        {
+          "file": "page-034.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.963,
+          "blank": false
+        },
+        {
+          "file": "page-035.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.377,
+          "blank": false
+        },
+        {
+          "file": "page-036.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.757,
+          "blank": false
+        },
+        {
+          "file": "page-037.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.468,
+          "blank": false
+        },
+        {
+          "file": "page-038.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 43.467,
+          "blank": false
+        },
+        {
+          "file": "page-039.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.49,
+          "blank": false
+        },
+        {
+          "file": "page-040.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.764,
+          "blank": false
+        },
+        {
+          "file": "page-041.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.875,
+          "blank": false
+        },
+        {
+          "file": "page-042.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.958,
+          "blank": false
+        },
+        {
+          "file": "page-043.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.858,
+          "blank": false
+        },
+        {
+          "file": "page-044.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.857,
+          "blank": false
+        },
+        {
+          "file": "page-045.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            106,
+            95,
+            631,
+            1005
+          ],
+          "grayscale_stddev": 42.939,
+          "blank": false
+        },
+        {
+          "file": "page-046.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            105,
+            95,
+            639,
+            1005
+          ],
+          "grayscale_stddev": 28.458,
+          "blank": false
+        }
+      ],
+      "contacts": [
+        {
+          "file": "contact-001.jpg",
+          "pages": [
+            "page-001.png",
+            "page-002.png",
+            "page-003.png",
+            "page-004.png",
+            "page-005.png",
+            "page-006.png"
+          ]
+        },
+        {
+          "file": "contact-002.jpg",
+          "pages": [
+            "page-007.png",
+            "page-008.png",
+            "page-009.png",
+            "page-010.png",
+            "page-011.png",
+            "page-012.png"
+          ]
+        },
+        {
+          "file": "contact-003.jpg",
+          "pages": [
+            "page-013.png",
+            "page-014.png",
+            "page-015.png",
+            "page-016.png",
+            "page-017.png",
+            "page-018.png"
+          ]
+        },
+        {
+          "file": "contact-004.jpg",
+          "pages": [
+            "page-019.png",
+            "page-020.png",
+            "page-021.png",
+            "page-022.png",
+            "page-023.png",
+            "page-024.png"
+          ]
+        },
+        {
+          "file": "contact-005.jpg",
+          "pages": [
+            "page-025.png",
+            "page-026.png",
+            "page-027.png",
+            "page-028.png",
+            "page-029.png",
+            "page-030.png"
+          ]
+        },
+        {
+          "file": "contact-006.jpg",
+          "pages": [
+            "page-031.png",
+            "page-032.png",
+            "page-033.png",
+            "page-034.png",
+            "page-035.png",
+            "page-036.png"
+          ]
+        },
+        {
+          "file": "contact-007.jpg",
+          "pages": [
+            "page-037.png",
+            "page-038.png",
+            "page-039.png",
+            "page-040.png",
+            "page-041.png",
+            "page-042.png"
+          ]
+        },
+        {
+          "file": "contact-008.jpg",
+          "pages": [
+            "page-043.png",
+            "page-044.png",
+            "page-045.png",
+            "page-046.png"
+          ]
+        }
+      ]
+    },
+    "word-render-feasibility": {
+      "pages": [
+        {
+          "file": "page-001.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            154,
+            237,
+            647,
+            338
+          ],
+          "grayscale_stddev": 19.41,
+          "blank": false
+        },
+        {
+          "file": "page-002.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            984
+          ],
+          "grayscale_stddev": 24.937,
+          "blank": false
+        },
+        {
+          "file": "page-003.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.113,
+          "blank": false
+        },
+        {
+          "file": "page-004.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.744,
+          "blank": false
+        },
+        {
+          "file": "page-005.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.695,
+          "blank": false
+        },
+        {
+          "file": "page-006.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.809,
+          "blank": false
+        },
+        {
+          "file": "page-007.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.638,
+          "blank": false
+        },
+        {
+          "file": "page-008.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 42.667,
+          "blank": false
+        },
+        {
+          "file": "page-009.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.774,
+          "blank": false
+        },
+        {
+          "file": "page-010.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.833,
+          "blank": false
+        },
+        {
+          "file": "page-011.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.655,
+          "blank": false
+        },
+        {
+          "file": "page-012.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 42.602,
+          "blank": false
+        },
+        {
+          "file": "page-013.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.108,
+          "blank": false
+        },
+        {
+          "file": "page-014.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.068,
+          "blank": false
+        },
+        {
+          "file": "page-015.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.075,
+          "blank": false
+        },
+        {
+          "file": "page-016.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.906,
+          "blank": false
+        },
+        {
+          "file": "page-017.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 43.185,
+          "blank": false
+        },
+        {
+          "file": "page-018.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.142,
+          "blank": false
+        },
+        {
+          "file": "page-019.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 42.85,
+          "blank": false
+        },
+        {
+          "file": "page-020.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.187,
+          "blank": false
+        },
+        {
+          "file": "page-021.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.233,
+          "blank": false
+        },
+        {
+          "file": "page-022.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 42.956,
+          "blank": false
+        },
+        {
+          "file": "page-023.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.091,
+          "blank": false
+        },
+        {
+          "file": "page-024.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.245,
+          "blank": false
+        },
+        {
+          "file": "page-025.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            637,
+            951
+          ],
+          "grayscale_stddev": 43.166,
+          "blank": false
+        },
+        {
+          "file": "page-026.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            632,
+            951
+          ],
+          "grayscale_stddev": 42.74,
+          "blank": false
+        },
+        {
+          "file": "page-027.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.609,
+          "blank": false
+        },
+        {
+          "file": "page-028.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.669,
+          "blank": false
+        },
+        {
+          "file": "page-029.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            632,
+            951
+          ],
+          "grayscale_stddev": 42.807,
+          "blank": false
+        },
+        {
+          "file": "page-030.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            637,
+            951
+          ],
+          "grayscale_stddev": 42.597,
+          "blank": false
+        },
+        {
+          "file": "page-031.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 42.639,
+          "blank": false
+        },
+        {
+          "file": "page-032.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            637,
+            951
+          ],
+          "grayscale_stddev": 42.913,
+          "blank": false
+        },
+        {
+          "file": "page-033.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.441,
+          "blank": false
+        },
+        {
+          "file": "page-034.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            637,
+            951
+          ],
+          "grayscale_stddev": 42.611,
+          "blank": false
+        },
+        {
+          "file": "page-035.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.936,
+          "blank": false
+        },
+        {
+          "file": "page-036.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            632,
+            951
+          ],
+          "grayscale_stddev": 42.799,
+          "blank": false
+        },
+        {
+          "file": "page-037.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.555,
+          "blank": false
+        },
+        {
+          "file": "page-038.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.367,
+          "blank": false
+        },
+        {
+          "file": "page-039.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.418,
+          "blank": false
+        },
+        {
+          "file": "page-040.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.537,
+          "blank": false
+        },
+        {
+          "file": "page-041.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.402,
+          "blank": false
+        },
+        {
+          "file": "page-042.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.316,
+          "blank": false
+        },
+        {
+          "file": "page-043.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.843,
+          "blank": false
+        },
+        {
+          "file": "page-044.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            637,
+            951
+          ],
+          "grayscale_stddev": 42.065,
+          "blank": false
+        },
+        {
+          "file": "page-045.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.278,
+          "blank": false
+        },
+        {
+          "file": "page-046.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.984,
+          "blank": false
+        },
+        {
+          "file": "page-047.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.009,
+          "blank": false
+        },
+        {
+          "file": "page-048.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.425,
+          "blank": false
+        },
+        {
+          "file": "page-049.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            637,
+            951
+          ],
+          "grayscale_stddev": 43.069,
+          "blank": false
+        },
+        {
+          "file": "page-050.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.393,
+          "blank": false
+        },
+        {
+          "file": "page-051.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.552,
+          "blank": false
+        },
+        {
+          "file": "page-052.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 43.174,
+          "blank": false
+        },
+        {
+          "file": "page-053.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.459,
+          "blank": false
+        },
+        {
+          "file": "page-054.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.482,
+          "blank": false
+        },
+        {
+          "file": "page-055.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 43.144,
+          "blank": false
+        },
+        {
+          "file": "page-056.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.53,
+          "blank": false
+        },
+        {
+          "file": "page-057.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.366,
+          "blank": false
+        },
+        {
+          "file": "page-058.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            637,
+            951
+          ],
+          "grayscale_stddev": 43.09,
+          "blank": false
+        },
+        {
+          "file": "page-059.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            636,
+            951
+          ],
+          "grayscale_stddev": 42.523,
+          "blank": false
+        },
+        {
+          "file": "page-060.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 42.815,
+          "blank": false
+        },
+        {
+          "file": "page-061.png",
+          "width": 745,
+          "height": 1053,
+          "ink_bounds": [
+            113,
+            96,
+            631,
+            951
+          ],
+          "grayscale_stddev": 19.418,
+          "blank": false
+        }
+      ],
+      "contacts": [
+        {
+          "file": "contact-001.jpg",
+          "pages": [
+            "page-001.png",
+            "page-002.png",
+            "page-003.png",
+            "page-004.png",
+            "page-005.png",
+            "page-006.png"
+          ]
+        },
+        {
+          "file": "contact-002.jpg",
+          "pages": [
+            "page-007.png",
+            "page-008.png",
+            "page-009.png",
+            "page-010.png",
+            "page-011.png",
+            "page-012.png"
+          ]
+        },
+        {
+          "file": "contact-003.jpg",
+          "pages": [
+            "page-013.png",
+            "page-014.png",
+            "page-015.png",
+            "page-016.png",
+            "page-017.png",
+            "page-018.png"
+          ]
+        },
+        {
+          "file": "contact-004.jpg",
+          "pages": [
+            "page-019.png",
+            "page-020.png",
+            "page-021.png",
+            "page-022.png",
+            "page-023.png",
+            "page-024.png"
+          ]
+        },
+        {
+          "file": "contact-005.jpg",
+          "pages": [
+            "page-025.png",
+            "page-026.png",
+            "page-027.png",
+            "page-028.png",
+            "page-029.png",
+            "page-030.png"
+          ]
+        },
+        {
+          "file": "contact-006.jpg",
+          "pages": [
+            "page-031.png",
+            "page-032.png",
+            "page-033.png",
+            "page-034.png",
+            "page-035.png",
+            "page-036.png"
+          ]
+        },
+        {
+          "file": "contact-007.jpg",
+          "pages": [
+            "page-037.png",
+            "page-038.png",
+            "page-039.png",
+            "page-040.png",
+            "page-041.png",
+            "page-042.png"
+          ]
+        },
+        {
+          "file": "contact-008.jpg",
+          "pages": [
+            "page-043.png",
+            "page-044.png",
+            "page-045.png",
+            "page-046.png",
+            "page-047.png",
+            "page-048.png"
+          ]
+        },
+        {
+          "file": "contact-009.jpg",
+          "pages": [
+            "page-049.png",
+            "page-050.png",
+            "page-051.png",
+            "page-052.png",
+            "page-053.png",
+            "page-054.png"
+          ]
+        },
+        {
+          "file": "contact-010.jpg",
+          "pages": [
+            "page-055.png",
+            "page-056.png",
+            "page-057.png",
+            "page-058.png",
+            "page-059.png",
+            "page-060.png"
+          ]
+        },
+        {
+          "file": "contact-011.jpg",
+          "pages": [
+            "page-061.png"
+          ]
+        }
+      ]
+    },
+    "ppt-render": {
+      "pages": [
+        {
+          "file": "slide-001.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 24.838,
+          "blank": false
+        },
+        {
+          "file": "slide-002.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.749,
+          "blank": false
+        },
+        {
+          "file": "slide-003.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.431,
+          "blank": false
+        },
+        {
+          "file": "slide-004.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.717,
+          "blank": false
+        },
+        {
+          "file": "slide-005.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.73,
+          "blank": false
+        },
+        {
+          "file": "slide-006.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.351,
+          "blank": false
+        },
+        {
+          "file": "slide-007.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.56,
+          "blank": false
+        },
+        {
+          "file": "slide-008.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.502,
+          "blank": false
+        },
+        {
+          "file": "slide-009.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.243,
+          "blank": false
+        },
+        {
+          "file": "slide-010.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.576,
+          "blank": false
+        },
+        {
+          "file": "slide-011.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.748,
+          "blank": false
+        },
+        {
+          "file": "slide-012.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.573,
+          "blank": false
+        },
+        {
+          "file": "slide-013.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.675,
+          "blank": false
+        },
+        {
+          "file": "slide-014.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.639,
+          "blank": false
+        },
+        {
+          "file": "slide-015.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.608,
+          "blank": false
+        },
+        {
+          "file": "slide-016.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 36.862,
+          "blank": false
+        },
+        {
+          "file": "slide-017.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.889,
+          "blank": false
+        },
+        {
+          "file": "slide-018.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.613,
+          "blank": false
+        },
+        {
+          "file": "slide-019.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.883,
+          "blank": false
+        },
+        {
+          "file": "slide-020.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.986,
+          "blank": false
+        },
+        {
+          "file": "slide-021.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.896,
+          "blank": false
+        },
+        {
+          "file": "slide-022.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.96,
+          "blank": false
+        },
+        {
+          "file": "slide-023.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 50.038,
+          "blank": false
+        },
+        {
+          "file": "slide-024.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.629,
+          "blank": false
+        },
+        {
+          "file": "slide-025.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.524,
+          "blank": false
+        },
+        {
+          "file": "slide-026.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.559,
+          "blank": false
+        },
+        {
+          "file": "slide-027.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.58,
+          "blank": false
+        },
+        {
+          "file": "slide-028.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.856,
+          "blank": false
+        },
+        {
+          "file": "slide-029.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.477,
+          "blank": false
+        },
+        {
+          "file": "slide-030.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.632,
+          "blank": false
+        },
+        {
+          "file": "slide-031.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.988,
+          "blank": false
+        },
+        {
+          "file": "slide-032.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.814,
+          "blank": false
+        },
+        {
+          "file": "slide-033.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.75,
+          "blank": false
+        },
+        {
+          "file": "slide-034.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 49.902,
+          "blank": false
+        },
+        {
+          "file": "slide-035.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 39.449,
+          "blank": false
+        },
+        {
+          "file": "slide-036.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 18.589,
+          "blank": false
+        },
+        {
+          "file": "slide-037.png",
+          "width": 1200,
+          "height": 675,
+          "ink_bounds": [
+            0,
+            0,
+            1200,
+            675
+          ],
+          "grayscale_stddev": 29.341,
+          "blank": false
+        }
+      ],
+      "contacts": [
+        {
+          "file": "contact-001.jpg",
+          "pages": [
+            "slide-001.png",
+            "slide-002.png",
+            "slide-003.png",
+            "slide-004.png"
+          ]
+        },
+        {
+          "file": "contact-002.jpg",
+          "pages": [
+            "slide-005.png",
+            "slide-006.png",
+            "slide-007.png",
+            "slide-008.png"
+          ]
+        },
+        {
+          "file": "contact-003.jpg",
+          "pages": [
+            "slide-009.png",
+            "slide-010.png",
+            "slide-011.png",
+            "slide-012.png"
+          ]
+        },
+        {
+          "file": "contact-004.jpg",
+          "pages": [
+            "slide-013.png",
+            "slide-014.png",
+            "slide-015.png",
+            "slide-016.png"
+          ]
+        },
+        {
+          "file": "contact-005.jpg",
+          "pages": [
+            "slide-017.png",
+            "slide-018.png",
+            "slide-019.png",
+            "slide-020.png"
+          ]
+        },
+        {
+          "file": "contact-006.jpg",
+          "pages": [
+            "slide-021.png",
+            "slide-022.png",
+            "slide-023.png",
+            "slide-024.png"
+          ]
+        },
+        {
+          "file": "contact-007.jpg",
+          "pages": [
+            "slide-025.png",
+            "slide-026.png",
+            "slide-027.png",
+            "slide-028.png"
+          ]
+        },
+        {
+          "file": "contact-008.jpg",
+          "pages": [
+            "slide-029.png",
+            "slide-030.png",
+            "slide-031.png",
+            "slide-032.png"
+          ]
+        },
+        {
+          "file": "contact-009.jpg",
+          "pages": [
+            "slide-033.png",
+            "slide-034.png",
+            "slide-035.png",
+            "slide-036.png"
+          ]
+        },
+        {
+          "file": "contact-010.jpg",
+          "pages": [
+            "slide-037.png"
+          ]
+        }
+      ]
+    }
+  },
+  "issues": []
+}

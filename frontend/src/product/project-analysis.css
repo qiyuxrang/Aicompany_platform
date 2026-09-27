@@ -1,5 +1,23 @@
-.pd-analysis-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0 0 20px; padding: 0; }
-.pd-analysis-progress li { padding: 15px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
-.pd-analysis-progress strong { display: block; font-size: 14px; margin-bottom: 8px; }.pd-analysis-progress span, .pd-analysis-progress small { color: var(--muted); font-size: 12px; }.pd-analysis-progress small { margin-left: 12px; }
-.pd-analysis-progress li[data-status=running] { border-color: var(--accent); }.pd-analysis-progress li[data-status=running] span { color: var(--accent); font-weight: 600; }
-@media(max-width: 640px) { .pd-analysis-progress { grid-template-columns: 1fr; gap: 6px; }.pd-analysis-progress li { padding: 12px; }.pd-analysis-progress strong { display: inline; margin-right: 12px; } }
+.pd-workflow-monitor { margin: 0 0 20px; border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: linear-gradient(135deg,#f7faff,#fff 62%); }
+.pd-workflow-monitor .pd-panel-heading { margin-bottom: 14px; }
+.pd-workflow-monitor .pd-panel-heading h3 { margin: 0 0 4px; }
+.pd-analysis-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
+.pd-analysis-progress li { display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; min-height: 96px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
+.pd-analysis-progress strong { display: block; font-size: 14px; margin-bottom: 5px; }
+.pd-analysis-progress .pd-phase-index { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e5eaf1; color: #65748a; font-size: 12px; font-weight: 800; }
+.pd-analysis-progress .pd-phase-status { display: inline-block; color: var(--muted); font-size: 12px; font-weight: 700; }
+.pd-analysis-progress small { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.pd-analysis-progress li[data-status=running] { border-color: var(--accent); background: #f2f7ff; box-shadow: 0 0 0 1px rgba(23,92,211,.08); }
+.pd-analysis-progress li[data-status=running] .pd-phase-index { background: var(--accent); color: #fff; }
+.pd-analysis-progress li[data-status=running] .pd-phase-status { color: var(--accent); }
+.pd-analysis-progress li[data-status=completed] { border-color: #a9d9c1; background: #f2fbf6; }
+.pd-analysis-progress li[data-status=completed] .pd-phase-index { background: #18875d; color: #fff; }
+.pd-analysis-progress li[data-status=waiting] { border-color: #e5c36d; background: #fffaf0; }
+.pd-analysis-progress li[data-status=waiting] .pd-phase-index { background: #a26b00; color: #fff; }
+.pd-analysis-progress li[data-status=failed],.pd-analysis-progress li[data-status=blocked] { border-color: #e3a29e; background: #fff6f5; }
+.pd-analysis-progress li[data-status=failed] .pd-phase-index,.pd-analysis-progress li[data-status=blocked] .pd-phase-index { background: #ae3e36; color: #fff; }
+.pd-knowledge-preview { border-color: #e5c36d!important; background: #fffaf0!important; }
+.pd-review-round { display:flex; justify-content:space-between; gap:16px; margin:14px 0; border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff; }
+.pd-review-round span { color:var(--muted); font-size:13px; }
+@media(max-width: 900px) { .pd-analysis-progress { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width: 640px) { .pd-analysis-progress { grid-template-columns: 1fr; gap: 6px; }.pd-analysis-progress li { min-height: 0; padding: 12px; }.pd-review-round{flex-direction:column;gap:4px} }

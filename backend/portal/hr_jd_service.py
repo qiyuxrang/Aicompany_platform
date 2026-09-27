@@ -35,12 +35,14 @@ def _jd(row, jd_id):
         raise HrError('not_found', '对象不存在。', 404) from None
 
 
-def _append(row, actor, body, *, source='skill', parent=None, channel='general', source_jd=None, custom_label='', requirements=None):
+def _append(row, actor, body, *, source='skill', parent=None, channel='general', source_jd=None,
+            custom_label='', requirements=None, model_selection=None):
     number = (row.jd_versions.aggregate(value=Max('version'))['value'] or 0) + 1
     jd = JDVersion.objects.create(request=row, version=number, input_version=row.input_version,
         body=_body(body), requirements=requirements if requirements is not None else row.structured_payload(),
         source=source, parent=parent, created_by=actor,
-        channel=channel, source_jd=source_jd, custom_label=custom_label)
+        channel=channel, source_jd=source_jd, custom_label=custom_label,
+        model_selection=model_selection or {})
     if channel == 'general':
         row.current_jd = jd
         row.save(update_fields=['current_jd', 'updated_at'])
@@ -49,7 +51,8 @@ def _append(row, actor, body, *, source='skill', parent=None, channel='general',
     return jd
 
 
-def generate(actor, request_id, expected, *, channel='general', source_id=None, custom_label=''):
+def generate(actor, request_id, expected, *, channel='general', source_id=None, custom_label='',
+             model_selection=None):
     if not isinstance(channel, str) or channel not in CHANNELS or not isinstance(custom_label, str) or len(custom_label) > 100:
         raise HrError('invalid_request', '招聘平台参数无效。')
     if channel == 'custom' and not custom_label.strip():
@@ -69,10 +72,12 @@ def generate(actor, request_id, expected, *, channel='general', source_id=None, 
     if source:
         payload['confirmed_jd'] = source.body
     try:
-        result = model_gateway.generate_for_use(actor, 'hr_jd_draft', [
+        arguments = [actor, 'hr_jd_draft', [
             {'role': 'system', 'content': '仅根据提供的招聘事实生成中文JD草稿。不得编造薪资、福利或要求。保留所有已知薪资、福利、社保事实，未知项标注待补充。年龄仅为备注，不作为筛选要求。平台类型仅调整排版和文风，不更改事实。输出纯文本正文，不自动发布。'},
             {'role': 'user', 'content': json.dumps(payload, ensure_ascii=False)},
-        ])
+        ]]
+        result = (model_gateway.generate_for_use(*arguments, model_selection=model_selection)
+                  if model_selection is not None else model_gateway.generate_for_use(*arguments))
     except model_gateway.GatewayError as error:
         raise HrError(error.code, error.message, error.status) from None
     with transaction.atomic():
@@ -93,7 +98,8 @@ def generate(actor, request_id, expected, *, channel='general', source_id=None, 
             content += fact_appendix(row)
         return _append(row, fresh, content, channel=channel,
                        source_jd=source, custom_label=custom_label.strip(),
-                       requirements=source.requirements if source else row.structured_payload())
+                       requirements=source.requirements if source else row.structured_payload(),
+                       model_selection=model_selection)
 
 
 @transaction.atomic
@@ -109,7 +115,8 @@ def edit(actor, request_id, expected, base_id, body, requirements=None):
     except RecruitmentValidationError as error:
         raise HrError('invalid_request', str(error)) from None
     record_message(row, 'user', body)
-    return _append(row, actor, body, source='hr_edit', parent=base, requirements=extracted)
+    return _append(row, actor, body, source='hr_edit', parent=base, requirements=extracted,
+                   model_selection=base.model_selection)
 
 
 @transaction.atomic

@@ -17,6 +17,8 @@ function task(overrides: Partial<DocumentTask> = {}): DocumentTask {
     ],
     sources: [{ id: "source-1", original_name: "真实背景.txt" }], approvals: [], issues: [], error_code: "", reviewer_id: 2, owner_id: 1,
     input_issues: [], impact: {},
+    blueprint_review: { revision_count: 0, revision_limit: 3, revisions_remaining: 3 },
+    blueprint_knowledge: { mode: "source_only_preview", required: false, status: "source_only_preview", ragflow_used: false, source_count: 0, detail: "当前为资料直生成预览，仅使用本项目上传资料。" },
     actions: ["edit", "add_source", "review_input", "add_statement", "queue_retrieve", "queue_blueprint", "save_blueprint", "confirm_blueprint", "cancel", "retry"],
     blockers: {},
     ...overrides,

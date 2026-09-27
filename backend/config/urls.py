@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/modules/", views.modules),
     path("api/modules/<slug:code>/", views.module_detail),
     path("api/modules/<slug:code>/launch/", views.launch),
+    path("api/models/", include("portal.model_api")),
     path("api/ops/overview/", operations.ops_overview),
     path("api/ops/users/", operations.ops_users),
     path("api/ops/users/<int:user_id>/", operations.ops_user_detail),

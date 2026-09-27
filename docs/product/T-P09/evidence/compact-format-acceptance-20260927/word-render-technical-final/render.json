@@ -1,0 +1,34 @@
+{
+  "structural_pass": true,
+  "rendered": true,
+  "visually_reviewed": false,
+  "unverified_items": [
+    "Open every page image and record visual review separately",
+    "Engineering facts not verified by renderer"
+  ],
+  "input_sha256": "79f5a5af9de32076334e7961def42f3a31467ac5871b69c08b74eacca7ca77d5",
+  "toc_count": 1,
+  "field_update_error_index": 0,
+  "renderer": "Microsoft Word 16.0",
+  "page_count": 14,
+  "pdf": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\document.pdf",
+  "rendered_docx": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\reviewed.docx",
+  "images": [
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-001.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-002.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-003.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-004.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-005.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-006.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-007.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-008.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-009.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-010.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-011.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-012.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-013.png",
+    "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\compact-format-acceptance-20260927\\word-render-technical-final\\page-014.png"
+  ],
+  "rendered_docx_sha256": "16d76922c414016b389c7ffc20bf69b04fbadcb1bb01311011bab4516fbacd33",
+  "pdf_sha256": "0f3e3e00d7fcb83f850f955cd63e34bee8ca9d222cfe465b0b7af680e6b2a090"
+}

@@ -9,6 +9,12 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN pnpm build
 
+FROM node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8 AS mermaid-build
+WORKDIR /build/mermaid
+RUN corepack enable
+COPY backend/portal/product_assets/mermaid-runtime/package.json backend/portal/product_assets/mermaid-runtime/pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
 FROM ghcr.io/astral-sh/uv:0.11.17@sha256:03bdc89bb9798628846e60c3a9ad19006c8c3c724ccd2985a33145c039a0577b AS uv
 
 FROM python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285 AS runtime
@@ -25,16 +31,25 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project && rm -rf /root/.cache/uv
 
-# Rich uploads/OCR run in a separate Python 3.12 interpreter without portal secrets.
+# Rich uploads/OCR and Office artifact generation use isolated Python 3.12 runtimes.
 COPY backend/portal/source_parsers/requirements.txt /tmp/intake-requirements.txt
+COPY backend/portal/product_assets/document-runtime.txt /tmp/document-runtime.txt
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python \
-    PORTAL_PRODUCT_PARSER_PYTHON=/opt/product-parser/bin/python
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    PORTAL_PRODUCT_PARSER_PYTHON=/opt/product-parser/bin/python \
+    PORTAL_PRODUCT_DOCUMENT_PYTHON=/opt/product-documents/bin/python \
+    PORTAL_MERMAID_NODE=/usr/local/bin/node \
+    PORTAL_MERMAID_CHROMIUM=/usr/bin/chromium
+RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-noto-cjk libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && uv python install 3.12 \
     && uv venv --python 3.12 /opt/product-parser \
     && uv pip sync --python /opt/product-parser/bin/python /tmp/intake-requirements.txt \
+    && uv venv --python 3.12 /opt/product-documents \
+    && uv pip sync --python /opt/product-documents/bin/python /tmp/document-runtime.txt \
     && rm -rf /root/.cache/uv
+
+COPY --from=mermaid-build /usr/local/bin/node /usr/local/bin/node
+COPY --from=mermaid-build /build/mermaid/node_modules /app/backend/portal/product_assets/mermaid-runtime/node_modules
 
 RUN groupadd --system portal && useradd --system --gid portal --home-dir /app portal
 COPY --chown=portal:portal backend/ ./backend/

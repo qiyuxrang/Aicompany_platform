@@ -30,6 +30,7 @@ from .security import audit
 from .models import User
 from .product_intake import summary as extraction_summary
 from .product_service import require_project_materials
+from .product_blueprint_knowledge import blueprint_knowledge_status
 
 
 def product_endpoint(function):
@@ -180,12 +181,15 @@ def _task_actions(task, user, input_revision, blueprint):
                 actions.extend(["edit", "save_blueprint", "add_source"])
         if queueable and input_revision is not None:
             actions.extend(["queue_retrieve", "queue_blueprint"])
+            knowledge_status = blueprint_knowledge_status(input_revision.payload)
+            if knowledge_status["required"] and knowledge_status["status"] != "ready":
+                actions.append("queue_blueprint_knowledge")
         if (queueable and task.state == DocumentTask.State.WAITING_REVIEW
                 and task.stage == DocumentTask.Stage.BLUEPRINT and blueprint is not None):
             actions.append("confirm_blueprint")
         if (task.state in {DocumentTask.State.FAILED, DocumentTask.State.WAITING_INPUT}
                 and task.attempt_count < int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8))
-                and task.pending_action in {"blueprint", "generate_outputs"}):
+                and task.pending_action in {"knowledge", "blueprint", "generate_outputs"}):
             actions.append("retry")
         if not (task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING} or ended):
             actions.append("add_statement")
@@ -200,8 +204,16 @@ def _task_actions(task, user, input_revision, blueprint):
     return actions
 
 
-def _task_blockers(actions):
+def _task_blockers(actions, input_revision=None):
     blockers = {}
+    if "queue_blueprint_knowledge" in actions and (
+            not getattr(settings, "PRODUCT_KNOWLEDGE_ENABLED", False)
+            or not getattr(settings, "PRODUCT_KNOWLEDGE_AI_CALLS_ALLOWED", False)
+            or not getattr(settings, "PRODUCT_KNOWLEDGE_AUTHORIZATIONS", {})):
+        blockers["queue_blueprint_knowledge"] = {
+            "code": "ragflow_unconfigured",
+            "detail": "RAGFlow 正式检索尚未配置或未授权；正式蓝图保持关闭，不会降级为模拟命中。",
+        }
     if "queue_retrieve" in actions and (
             not getattr(settings, "PRODUCT_RETRIEVAL_ENABLED", False)
             or not getattr(settings, "PRODUCT_RETRIEVAL_AUTHORIZATIONS", {})):
@@ -216,6 +228,13 @@ def _task_blockers(actions):
             blockers[action] = {
                 "code": "model_authorization_required",
                 "detail": "D-01 尚未批准真实模型调用与资料外发，当前不能执行模型生成。",
+            }
+    if "queue_blueprint" in actions and input_revision is not None:
+        knowledge = blueprint_knowledge_status(input_revision.payload)
+        if knowledge["required"] and knowledge["status"] != "ready":
+            blockers["queue_blueprint"] = {
+                "code": "ragflow_required",
+                "detail": knowledge["detail"],
             }
     if "queue_render" in actions and not getattr(settings, "PRODUCT_TEMPLATE_APPROVAL", {}):
         blockers["queue_render"] = {
@@ -295,6 +314,12 @@ def _task_detail(task, user):
     if not getattr(settings, "PRODUCT_FORMAL_RELEASE_ENABLED", False):
         issues.append({"code": "formal_release_blocked", "text": "D-02 格式与发布基线未批准，成果仅可作为草稿。"})
     actions = _task_actions(task, user, input_revision, blueprint)
+    revision_count = task.approvals.filter(
+        revision__kind=DocumentRevision.Kind.BLUEPRINT,
+        decision=DocumentApproval.Decision.REVISE,
+    ).count()
+    revision_limit = int(getattr(settings, "PRODUCT_BLUEPRINT_MAX_REVISIONS", 3))
+    knowledge = blueprint_knowledge_status(input_revision.payload if input_revision else {})
     return {
         "id": str(task.pk), "title": task.title, "state": task.state, "stage": task.stage,
         "version": task.version, "input_version": task.input_version,
@@ -306,7 +331,29 @@ def _task_detail(task, user):
         "blueprint": _revision_data(blueprint), "chapters": chapters, "reports": reports, "artifacts": artifacts,
         "sources": sources, "approvals": approvals, "issues": issues,
         "error_code": task.error_code,
-        "actions": actions, "blockers": _task_blockers(actions),
+        "actions": actions, "blockers": _task_blockers(actions, input_revision),
+        "blueprint_review": {
+            "revision_count": revision_count,
+            "revision_limit": revision_limit,
+            "revisions_remaining": max(0, revision_limit - revision_count),
+        },
+        "blueprint_knowledge": knowledge,
+        "output_targets": {
+            "technical-solution": int(getattr(settings, "PRODUCT_TECHNICAL_TARGET_CHARACTERS", 3000)),
+            "feasibility": int(getattr(settings, "PRODUCT_FEASIBILITY_TARGET_CHARACTERS", 5000)),
+        },
+        "output_generation": task.checkpoint.get("output_generation", {}),
+        "orchestration": {
+            "engine": "langgraph",
+            "node": task.checkpoint.get("workflow_graph", {}).get("node", ""),
+            "action": task.checkpoint.get("workflow_graph", {}).get("action", task.pending_action),
+            "resumable": task.state in {
+                DocumentTask.State.QUEUED, DocumentTask.State.RUNNING,
+                DocumentTask.State.WAITING_INPUT, DocumentTask.State.WAITING_REVIEW,
+                DocumentTask.State.FAILED,
+            },
+            "human_review_boundary": task.state == DocumentTask.State.WAITING_REVIEW,
+        },
         "reviewer_id": task.reviewer_id, "owner_id": task.owner_id,
         "input_issues": [{**issue, "issue_hash": digest(issue)} for issue in (input_revision.payload.get("issues", []) if input_revision else [])],
         "impact": task.checkpoint.get("impact", {}),
@@ -675,13 +722,22 @@ def _queue(task, action):
         raise ProductError("invalid_action", "任务动作无效。")
     if task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING, DocumentTask.State.CANCELLED, DocumentTask.State.COMPLETED}:
         raise ProductError("invalid_state", "当前状态不能排队。", 409)
-    if action in {"blueprint", "retrieve"}:
+    if action in {"blueprint", "retrieve", "knowledge"}:
         if _input_revision(task) is None:
             raise ProductError("input_required", "请先保存输入。", 409)
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
         if action == "blueprint":
             require_project_materials(task)
+            # Formal mode is fail-closed at the public boundary.  Once a
+            # separately authorized RAGFlow snapshot is attached, the graph's
+            # mandatory knowledge node revalidates it before generation.
+            from .product_blueprint_knowledge import require_blueprint_knowledge
+            require_blueprint_knowledge(_input_revision(task).payload)
             task.checkpoint = {**task.checkpoint, "analysis_progress": {}}
+        elif action == "knowledge":
+            require_project_materials(task)
+            if blueprint_knowledge_status(_input_revision(task).payload)["required"] is not True:
+                raise ProductError("invalid_action", "预览模式不调用 RAGFlow。")
     elif action in {"write", "render", "candidate", "three_drafts", "presentation", "generate_outputs"}:
         blueprint_revision = approved_blueprint(task)
         if blueprint_revision is None:
@@ -781,13 +837,26 @@ def decisions(request, task_id):
             raise ProductError("invalid_state", "任务当前不处于可审核状态。", 409)
         if body["target"] == "artifact" and body["decision"] == DocumentApproval.Decision.APPROVE and not artifact_releasable(target):
             raise ProductError("formal_release_blocked", "缺少正式发布许可、渲染证据或通过的内容审查。", 409)
+        if body["decision"] == DocumentApproval.Decision.REVISE:
+            if not body["comment"].strip():
+                raise ProductError("invalid_request", "退回必须说明修改依据。")
+            if body["target"] == "blueprint":
+                revision_count = task.approvals.filter(
+                    revision__kind=DocumentRevision.Kind.BLUEPRINT,
+                    decision=DocumentApproval.Decision.REVISE,
+                ).count()
+                revision_limit = int(getattr(settings, "PRODUCT_BLUEPRINT_MAX_REVISIONS", 3))
+                if revision_count >= revision_limit:
+                    raise ProductError(
+                        "blueprint_revision_limit_reached",
+                        f"蓝图自动修改已达到{revision_limit}次上限；可以批准当前版本，或补充资料后创建新的生成周期。",
+                        409,
+                    )
         approval = DocumentApproval.objects.create(
             task=task, actor=request.user, decision=body["decision"], comment=body["comment"],
             sha256=target.sha256, authorization=approval_authorization(task, request.user), **lookup,
         )
         if body["decision"] == DocumentApproval.Decision.REVISE:
-            if not body["comment"].strip():
-                raise ProductError("invalid_request", "退回必须说明修改依据。")
             blueprint = _blueprint_revision(task)
             all_chapters = [chapter["id"] for chapter in blueprint.payload["chapters"]] if blueprint else []
             scope = body.get("scope", {"chapters": all_chapters, "tables": ["INPUT_TABLE"]})
@@ -871,7 +940,7 @@ def retry(request, task_id):
             raise ProductError("invalid_state", "当前状态不能重试。", 409)
         if task.attempt_count >= int(getattr(settings, "PRODUCT_MAX_ATTEMPTS", 8)):
             raise ProductError("attempt_limit", "已达到隔离环境安全重试上限。", 409)
-        if task.pending_action not in {"blueprint", "write", "render", "three_drafts", "presentation", "generate_outputs"}:
+        if task.pending_action not in {"knowledge", "blueprint", "write", "render", "three_drafts", "presentation", "generate_outputs"}:
             raise ProductError("invalid_action", "没有可重试的持久动作。", 409)
         blocked = task.pending_action in {"blueprint", "write", "generate_outputs"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
         task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED

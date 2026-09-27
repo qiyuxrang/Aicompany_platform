@@ -9,11 +9,13 @@ export interface Requirement {
   missing_items: { field: string; reason: string }[]; updated_at: string; created_at?: string; expires_at?: string;
 }
 export interface Jd { id: string; request_id: string; version: number; input_version: number; body: string;
-  state: string; channel: string; source?: string; requirements?: Record<string, unknown>; missing_items?: { field: string; reason: string }[]; stale: boolean; source_jd_id: string | null }
+  state: string; channel: string; source?: string; requirements?: Record<string, unknown>; missing_items?: { field: string; reason: string }[]; stale: boolean; source_jd_id: string | null;
+  model_selection?: { model_id: string; config_version: string; model_name?: string } | null }
 export interface Resume { id: string; filename: string; processing_status: string; error_code: string; size: number }
 export interface Batch { id: string; position_name: string; jd_version_id: string; jd_version: number;
   version: number; status: string; stale: boolean; total: number; completed: number; failed: number;
-  progress: number; updated_at: string; created_at?: string; expires_at?: string; request_id?: string; jd_body?: string; pending?: number; prescreened?: number; status_counts?: Record<string, number>; artifacts?: Resume[] }
+  progress: number; updated_at: string; created_at?: string; expires_at?: string; request_id?: string; jd_body?: string; pending?: number; prescreened?: number; status_counts?: Record<string, number>; artifacts?: Resume[];
+  model_selection?: { model_id: string; config_version: string; model_name?: string } | null }
 export interface Result extends Resume { score: number | null; unknown_count: number | null; hard_gap_count: number;
   stale: boolean; rule_version: string | null; matrix: { id: string; text: string; verdict: string; evidence: { quote: string; locator: string }[] }[] }
 export const get = <T,>(path: string, signal?: AbortSignal) => apiRequest<T>(root + path, { signal });

@@ -8,7 +8,7 @@ from django.urls import path, reverse
 from django.views.decorators.http import require_POST
 
 from .admin import ManagedAdmin, site
-from .models import GatewayModel, ModelCallLog, ModelRoute, Provider, User
+from .models import GatewayModel, ModelCallLog, ModelRoute, ModelRouteOption, Provider, User
 
 
 class KeyEnvironmentWidget(forms.TextInput):
@@ -23,6 +23,19 @@ class ProviderForm(forms.ModelForm):
         model = Provider
         fields = ("code", "name", "protocol", "base_url", "api_key_env", "enabled")
         widgets = {"api_key_env": KeyEnvironmentWidget()}
+
+
+class ModelRouteForm(forms.ModelForm):
+    max_calls_per_minute = forms.IntegerField(
+        label="单用户每分钟调用上限", required=False, initial=10, min_value=1, max_value=120,
+    )
+
+    class Meta:
+        model = ModelRoute
+        fields = ("code", "name", "module", "model", "max_calls_per_minute", "enabled")
+
+    def clean_max_calls_per_minute(self):
+        return self.cleaned_data.get("max_calls_per_minute") or 10
 
 
 @admin.register(Provider, site=site)
@@ -85,9 +98,11 @@ class GatewayModelAdmin(ManagedAdmin):
 @admin.register(ModelRoute, site=site)
 class ModelRouteAdmin(ManagedAdmin):
     admin_label = admin_label_plural = "业务模型路由"
-    fields = ("code", "name", "module", "model", "enabled")
-    list_display = ("id", "name", "code", "module", "model", "enabled")
+    form = ModelRouteForm
+    fields = ("code", "name", "module", "model", "max_calls_per_minute", "enabled")
+    list_display = ("id", "name", "code", "module", "model", "max_calls_per_minute", "enabled")
     list_filter = ("enabled", "module")
+    inlines = ()
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         field = super().formfield_for_foreignkey(db_field, request, **kwargs)
@@ -96,12 +111,26 @@ class ModelRouteAdmin(ManagedAdmin):
         return field
 
 
+class ModelRouteOptionInline(admin.TabularInline):
+    model = ModelRouteOption
+    extra = 0
+    fields = ("model", "allowed_roles", "allowed_users", "enabled", "display_order")
+    filter_horizontal = ("allowed_roles", "allowed_users")
+    verbose_name = "可选模型授权"
+    verbose_name_plural = "可选模型授权（角色和用户均为空时，对具有模块权限的用户开放）"
+    can_delete = False
+
+
+ModelRouteAdmin.inlines = (ModelRouteOptionInline,)
+
+
 @admin.register(ModelCallLog, site=site)
 class ModelCallLogAdmin(ManagedAdmin):
     admin_label = admin_label_plural = "模型调用日志"
     list_display = ("id", "created_at", "actor", "route", "model", "purpose", "status_label", "duration_ms")
     list_filter = ("purpose",)
-    readonly_fields = ("created_at", "actor", "route", "model", "purpose", "status_label", "duration_ms", "prompt_tokens", "completion_tokens")
+    readonly_fields = ("created_at", "actor", "route", "model", "model_public_id", "config_version",
+                       "purpose", "status_label", "duration_ms", "prompt_tokens", "completion_tokens")
     fields = readonly_fields
 
     @admin.display(description="调用状态", ordering="status")

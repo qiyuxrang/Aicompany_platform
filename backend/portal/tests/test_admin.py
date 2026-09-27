@@ -67,10 +67,10 @@ class AdminSecurityTests(PortalTestCase):
     def test_admin_home_cards_keep_native_permission_filtered_links(self):
         response = self.client.get("/admin/")
         self.assertContains(response, 'aria-label="管理功能"')
-        self.assertContains(response, '<article class="admin-home-card', count=9)
+        self.assertContains(response, '<article class="admin-home-card', count=10)
         models = response.context["app_list"][0]["models"]
-        self.assertEqual([model["object_name"] for model in models], ["User", "Role", "Module", "BusinessMapping", "AuditEvent", "Provider", "GatewayModel", "ModelRoute", "ModelCallLog"])
-        for path in ("user/", "user/add/", "role/", "module/", "businessmapping/", "businessmapping/add/", "auditevent/", "provider/", "gatewaymodel/", "modelroute/", "modelcalllog/"):
+        self.assertEqual([model["object_name"] for model in models], ["User", "Role", "Module", "BusinessMapping", "AuditEvent", "BusinessLedgerGrant", "Provider", "GatewayModel", "ModelRoute", "ModelCallLog"])
+        for path in ("user/", "user/add/", "role/", "module/", "businessmapping/", "businessmapping/add/", "auditevent/", "businessledgergrant/", "businessledgergrant/add/", "provider/", "gatewaymodel/", "modelroute/", "modelcalllog/"):
             self.assertContains(response, f'href="/admin/portal/{path}"')
         for path in ("role/add/", "module/add/", "auditevent/add/", "modelcalllog/add/"):
             self.assertNotContains(response, f'href="/admin/portal/{path}"')

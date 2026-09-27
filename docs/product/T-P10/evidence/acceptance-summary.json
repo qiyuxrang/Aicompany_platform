@@ -1,0 +1,31 @@
+{
+  "schema": "PRODUCT_AGENT_WORKFLOW_ACCEPTANCE_V1",
+  "implemented_at": "2026-09-27T23:31:54+08:00",
+  "stages": {
+    "delivery_baseline_frozen": true,
+    "product_platform_integrated": true,
+    "langgraph_orchestration_enabled": true,
+    "langchain_model_nodes_enabled": true,
+    "ragflow_adapter_and_fail_closed_gate_enabled": true
+  },
+  "ragflow_runtime": {
+    "connected": false,
+    "reason": "service_unavailable_on_current_computer",
+    "preview_external_calls": 0,
+    "formal_mode": "ragflow_required",
+    "preview_mode": "source_only_preview",
+    "fabricated_hits": 0
+  },
+  "tests": {
+    "backend": {"ran": 486, "failed": 0, "skipped": 4, "passed": true},
+    "core_workflow": {"ran": 61, "failed": 0, "passed": true},
+    "workflow_specific": {"ran": 6, "failed": 0, "passed": true},
+    "frontend": {"files": 23, "ran": 227, "failed": 0, "passed": true},
+    "browser": {"checks": 15, "page_errors": 0, "passed": true},
+    "django_system_check": {"issues": 0, "passed": true},
+    "migration_drift": {"changes_detected": false, "passed": true},
+    "dependency_lock": {"python": "3.13.15", "langchain": "1.4.2", "langgraph": "1.2.12", "passed": true},
+    "delivery_baseline": {"passed": true}
+  },
+  "passed": true
+}

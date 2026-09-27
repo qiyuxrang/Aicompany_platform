@@ -1,0 +1,32 @@
+{
+  "environment": "isolated synthetic Django + real Chromium browser",
+  "checks": [
+    "dashboard-real-authorized-metrics",
+    "create-upload-real-http-csrf-idempotency",
+    "authorized-original-source-download",
+    "business-input-edit-new-version",
+    "manual-blueprint-requires-explicit-owner-confirmation",
+    "refresh-preserves-project-input-and-blueprint",
+    "unassigned-reviewer-cannot-access-new-owner-project",
+    "owner-confirmation-queues-three-outputs-but-stops-at-real-model-gate",
+    "unassigned-user-denied-project-and-source",
+    "no-fabricated-generated-results",
+    "server-project-search",
+    "mobile-390-no-page-overflow",
+    "mobile-blueprint-no-page-overflow",
+    "dark-theme-layout",
+    "no-browser-runtime-errors"
+  ],
+  "page_errors": [],
+  "screenshots": [
+    "01-dashboard-desktop.png",
+    "02-new-project-desktop.png",
+    "03-blueprint-owner.png",
+    "04-blueprint-owner-confirmation.png",
+    "05-current-outputs.png",
+    "06-dashboard-mobile.png",
+    "07-blueprint-mobile.png",
+    "08-dashboard-dark.png"
+  ],
+  "task_id": "3d295f4c-aefd-4a7d-8e00-ff617dad3356"
+}

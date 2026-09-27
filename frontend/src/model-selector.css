@@ -1,0 +1,4 @@
+.model-selector { display: grid; gap: 5px; min-width: min(100%, 280px); }
+.model-selector label { display: grid; gap: 6px; font-weight: 650; }
+.model-selector-meta { color: var(--muted, #64748b); font-size: .82rem; }
+.model-selector-error { color: #b91c1c; font-size: .86rem; }

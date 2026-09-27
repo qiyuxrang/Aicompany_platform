@@ -54,8 +54,8 @@
     {
       "path": "scripts/artifacts.py",
       "source": "skills/bj-docs/scripts/artifacts.py",
-      "sha256": "85c8a7ed861dcac02ba77ff494e9d4b693f1333b9e2a2f640be2e33797474305",
-      "bytes": 22375,
+      "sha256": "b3f0e734c4da4a3bf81a15b1bddce20136e06ed01dbe87856e16471dfe5ac732",
+      "bytes": 29344,
       "source_status": " M skills/bj-docs/scripts/artifacts.py"
     },
     {
@@ -96,8 +96,8 @@
     {
       "path": "scripts/office_render.py",
       "source": "skills/bj-docs/scripts/office_render.py",
-      "sha256": "d0e079b76c79a55f3aa6a33a8402defb3ea5e381588c84738e955b20ad5cee97",
-      "bytes": 11113,
+      "sha256": "1f93daa6df29c6db7c142bac10150de150db85b2a584f4ce065e7390ecdd5693",
+      "bytes": 12932,
       "source_status": " M skills/bj-docs/scripts/office_render.py"
     },
     {
@@ -123,10 +123,17 @@
     },
     {
       "path": "assets/document-format-policy.json",
-      "source": "user instruction 2026-09-24",
-      "sha256": "b6dc76eb6034320b515a9b99059ed766c20e9b6c35ccc8ef8f67d0ab38ef23dd",
-      "bytes": 3657,
-      "source_status": "approved interim baseline"
+      "source": "user acceptance 2026-09-27",
+      "sha256": "28a8059b2d8cec3afdf8dd459419a63aa22d228635310fe8408f95f69f60840d",
+      "bytes": 5737,
+      "source_status": "approved format baseline v4; acceptance evidence v10"
+    },
+    {
+      "path": "assets/delivery-baseline.json",
+      "source": "user acceptance 2026-09-27",
+      "sha256": "078afb98670e1de042db1c9673bb9a3f79c8029262b0dcc1e44eea2b505dbcf9",
+      "bytes": 3210,
+      "source_status": "accepted and frozen delivery baseline v1"
     },
     {
       "path": "assets/company/company-logo.png",

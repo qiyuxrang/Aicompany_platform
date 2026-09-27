@@ -36,26 +36,19 @@ it('preview never reads or imports business data', async () => {
   expect(api.apiRequest).not.toHaveBeenCalled();
   expect(screen.queryByLabelText('台账 CSV')).toBeNull();
 });
-it('unconfigured data is a dash rather than fabricated zero and offers an empty template', async () => {
+it('unconfigured data is a dash rather than fabricated zero and remains read only', async () => {
   api.apiRequest.mockResolvedValue(fixture('engineering', false));
   render(<BusinessBoards />);
-  expect(await screen.findByText('尚未导入工程部台账')).toBeTruthy();
+  expect(await screen.findByText('尚无已发布的工程部台账')).toBeTruthy();
   expect(screen.getByText('—')).toBeTruthy();
-  expect(screen.getByRole('link', { name: '下载工程部看板模板' }).getAttribute('href')).toBe('/api/business/boards/engineering/template/');
+  expect(screen.queryByLabelText('台账 CSV')).toBeNull();
 });
-it('uploads FormData with the current snapshot version and refreshes after success', async () => {
-  api.apiRequest.mockResolvedValue(fixture('engineering', false));
-  render(<BusinessBoards />);
-  await screen.findByLabelText('台账 CSV');
-  await userEvent.upload(screen.getByLabelText('台账 CSV'), new File(['项目编号,项目名称\nP1,一期'], '台账.csv', { type: 'text/csv' }));
+it('manager board never exposes data mutation controls', async () => {
   api.apiRequest.mockResolvedValue(fixture());
-  await userEvent.click(screen.getByRole('button', { name: '导入并更新看板' }));
-  expect(await screen.findByText('已导入 1 条台账记录。')).toBeTruthy();
-  const call = api.apiRequest.mock.calls.find(([, options]) => options?.method === 'POST');
-  expect(call?.[1].body).toBeInstanceOf(FormData);
-  expect(call?.[1].body.get('expected_snapshot_id')).toBe('');
-  expect(call?.[1].body.get('file').name).toBe('台账.csv');
-  expect(await screen.findByText('一期项目')).toBeTruthy();
+  render(<BusinessBoards />);
+  await screen.findByText('一期项目');
+  expect(screen.queryByRole('button', { name: /导入|发布|提交|新增|删除/ })).toBeNull();
+  expect(api.apiRequest.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true);
 });
 it('server-side filtering preserves the source while showing filtered counts', async () => {
   api.apiRequest.mockResolvedValue(fixture());

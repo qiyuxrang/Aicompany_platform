@@ -1,0 +1,80 @@
+{
+  "schema": "PRODUCT_DELIVERABLE_QUALITY_V1",
+  "technical_solution": {
+    "path": "docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v10\\artifacts\\technical-solution.docx",
+    "sha256": "2426bfc08d3b499cac63b1666f5506561df9abf5433b721fe664e7f098ca7949",
+    "bytes": 783997,
+    "characters_non_whitespace": 3478,
+    "heading1_count": 6,
+    "heading2_count": 30,
+    "toc_depth_two": true,
+    "heading1_page_breaks": 5,
+    "section_count": 1,
+    "all_visible_word_text_black": true,
+    "embedded_media": 16,
+    "minimum_figures": 15,
+    "chapter_embedded_figures": 15,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "feasibility": {
+    "path": "docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v10\\artifacts\\feasibility-report.docx",
+    "sha256": "3fac5296163eeee6109889290d148725b243b948bccdd0b3dc0dc0f1e256034c",
+    "bytes": 1011393,
+    "characters_non_whitespace": 5271,
+    "heading1_count": 6,
+    "heading2_count": 45,
+    "toc_depth_two": true,
+    "heading1_page_breaks": 5,
+    "section_count": 3,
+    "all_visible_word_text_black": true,
+    "embedded_media": 21,
+    "minimum_figures": 20,
+    "chapter_embedded_figures": 20,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "presentation": {
+    "path": "docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v10\\artifacts\\business-technology-presentation.pptx",
+    "sha256": "b9198fcaae296b9ff30a2459cc296178a2f943b9d36e7c9a1d4be51755c3f0b4",
+    "bytes": 243141,
+    "slides": 5,
+    "native_shapes": 114,
+    "native_charts": 1,
+    "native_connectors": 13,
+    "pictures": 5,
+    "source_marked_slides": 4,
+    "slide_inventory": [
+      {
+        "slide": 1,
+        "shapes": 9,
+        "source_marked": false
+      },
+      {
+        "slide": 2,
+        "shapes": 20,
+        "source_marked": true
+      },
+      {
+        "slide": 3,
+        "shapes": 20,
+        "source_marked": true
+      },
+      {
+        "slide": 4,
+        "shapes": 31,
+        "source_marked": true
+      },
+      {
+        "slide": 5,
+        "shapes": 34,
+        "source_marked": true
+      }
+    ],
+    "passed": true,
+    "issues": []
+  },
+  "passed": true
+}

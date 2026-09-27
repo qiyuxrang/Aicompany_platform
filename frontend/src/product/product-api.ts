@@ -60,10 +60,35 @@ export interface ArtifactVerification {
   comment: string;
 }
 export interface TaskSummary { id: string; title: string; state: string; stage: string; version: number; created_at?: string; updated_at?: string; owner_name?: string; reviewer_name?: string | null; pending_action?: string; error_code?: string }
+export type ProductWorkflowPhase = 'documents' | 'equipment' | 'knowledge' | 'blueprint' | 'review' | 'outputs';
+export interface ProductWorkflowProgress {
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'waiting';
+  updated_at?: string;
+  source_count?: number;
+  item_count?: number;
+  issue_count?: number;
+  detail?: string;
+}
+export interface ProductKnowledgeStatus {
+  mode: 'source_only_preview' | 'ragflow_required';
+  required: boolean;
+  status: 'source_only_preview' | 'waiting_for_ragflow' | 'ready';
+  ragflow_used: boolean;
+  source_count: number;
+  detail: string;
+}
 export interface DocumentTask extends TaskSummary {
   intake_mode?: 'manual' | 'equipment_background';
-  analysis_progress?: Partial<Record<'documents' | 'equipment' | 'blueprint', { status: 'running' | 'completed' | 'failed'; updated_at: string; source_count?: number; item_count?: number; issue_count?: number }>>;
+  analysis_progress?: Partial<Record<ProductWorkflowPhase, ProductWorkflowProgress>>;
+  /** New orchestration payloads are optional so older deployments remain readable. */
+  checkpoint?: { analysis_progress?: Partial<Record<ProductWorkflowPhase, ProductWorkflowProgress>>; current_node?: string; detail?: string };
+  workflow?: { current_node?: string; status?: string; detail?: string };
+  knowledge?: ProductKnowledgeStatus;
   blueprint_approved?: boolean;
+  blueprint_review: { revision_count: number; revision_limit: number; revisions_remaining: number };
+  blueprint_knowledge?: ProductKnowledgeStatus;
+  output_targets?: { 'technical-solution': number; feasibility: number };
+  output_generation?: Partial<Record<'technical-solution' | 'feasibility', { target_characters: number; actual_characters: number; minimum_characters: number; status: 'target_met' | 'below_target'; updated_at: string }>>;
   input_version: number;
   blueprint_version: number;
   input: TaskInput | null;

@@ -11,6 +11,7 @@ class ResumeScreeningBatch(models.Model):
     idempotency_key = models.CharField(max_length=128)
     input_version = models.PositiveIntegerField()
     requirements = models.JSONField(default=dict)
+    model_selection = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=24, default='pending')
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)

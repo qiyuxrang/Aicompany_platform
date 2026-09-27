@@ -3,6 +3,9 @@ import { isApiError, launchModule, PortalModule } from "../api";
 import { CenterLink, EmptyPanel, SectionHeader } from "./shared";
 
 import BusinessBoards from './BusinessBoards';
+import BusinessLedgerWorkspace from './BusinessLedgerWorkspace';
+import ModelSelector from '../ModelSelector';
+import type { ModelSelection } from '../model-selection-api';
 
 const legacyAreas = [
   { title: "经营总览", description: "在原系统查看项目台账与商机管理，沿用现有经营口径。", items: "项目台账 · 商机管理" },
@@ -17,6 +20,8 @@ export default function ManagerWorkspace({ section, preview, module, businessPan
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [analysisModel, setAnalysisModel] = useState<ModelSelection | null>(null);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const launchRequest = useRef(0);
   const navigationReady = !preview && module?.enabled && module.status !== "pending" && module.status !== "disabled";
 
@@ -52,17 +57,23 @@ export default function ManagerWorkspace({ section, preview, module, businessPan
   </section>;
 
   if (['engineering', 'finance', 'presales'].includes(section)) return <BusinessBoards initial={section as 'engineering' | 'finance' | 'presales'} preview={preview} />;
+  if (section === 'ledgers') return <><BusinessLedgerWorkspace preview={preview} /><section className="center-panel"><h3>原台账系统</h3><p>新录入工作台不影响原系统；过渡期仍可按原有权限进入。</p><div className="center-actions">{launchButton}</div>{error && <p className="notice error" role="alert">{error}</p>}</section></>;
 
   return <>
     {section === 'overview' && <BusinessBoards preview={preview} />}
-    {section === "overview" && <section className="center-manager-intro"><div><p className="eyebrow">经营入口 · 原有口径</p><h2>台账看板，回到同一工作入口</h2><p>原经营系统继续管理项目和业务权限。上方看板分析当前账号导入的台账快照；也可进入原系统或查询已授权项目。</p><div className="center-actions">{launchButton}<CenterLink href="/centers/business/projects" className="button secondary">查看授权项目</CenterLink></div></div><div className="center-boundaries"><div><strong>台账业务归属</strong><span>原监控看板保持独立运行</span></div><div><strong>浏览器登录</strong><span>保留原系统登录，未实现单点登录</span></div><div><strong>访问边界</strong><span>只按本人已获授权的范围访问</span></div></div></section>}
+    {section === 'overview' && <section className="center-panel" aria-label="经营智能分析"><SectionHeader title="经营智能分析" description="分析模型只读取总经理有权查看的已发布台账，不修改指标或台账记录。" />
+      {!preview && !analysisOpen && <button className="button secondary" type="button" onClick={() => setAnalysisOpen(true)}>选择分析模型</button>}
+      {!preview && analysisOpen && <ModelSelector route="manager_analysis" value={analysisModel} onChange={setAnalysisModel} label="分析模型" />}
+      <p className="center-note">模型选择能力已预留。正式启用分析前，将补充回答引用、数据截止时间和分析审计；基础经营指标始终由程序计算。</p>
+      <button className="button secondary" type="button" disabled>智能分析接口待启用</button>
+    </section>}
+    {section === "overview" && <section className="center-manager-intro"><div><p className="eyebrow">经营入口 · 已发布口径</p><h2>部门录入，总经理统一查看</h2><p>上方看板只分析工程、财务和售前人员已经发布的台账版本。草稿和退回数据不会改变正式经营指标。</p><div className="center-actions">{launchButton}<CenterLink href="/centers/business/projects" className="button secondary">查看授权项目</CenterLink></div></div><div className="center-boundaries"><div><strong>数据来源</strong><span>部门录入与发布</span></div><div><strong>指标口径</strong><span>程序确定性计算</span></div><div><strong>访问边界</strong><span>总经理只读已发布版本</span></div></div></section>}
     <section className="center-panel">
       <SectionHeader title="台账与经营视图" description="以下是现有监控看板已具备的菜单。原系统使用内部切换，没有独立菜单网址；进入后再选择相应栏目。" />
       <div className="center-feature-grid">{legacyAreas.map((area) => <article className="center-feature-card" key={area.title}><span className="eyebrow">原系统菜单</span><h3>{area.title}</h3><p>{area.description}</p><span>{area.items}</span></article>)}</div>
-      {section === "ledgers" && <div className="center-actions">{launchButton}</div>}
       {error && <p className="notice error" role="alert">{error}</p>}
       <p className="center-note">{preview ? "当前为页面预览，不会跳转旧系统或读取台账。平台管理员不会默认获得总经理业务权限。" : "入口先由门户后端核验。平台撤权只影响后续门户请求，不会默认停用旧系统原生账号或注销旧会话。"}</p>
     </section>
-    {section === "overview" && <section className="center-panel"><SectionHeader title="业务边界清晰，数据口径不变" description="本期只连接已经存在的经营能力，不把导航接入宣传为系统重建。" /><div className="center-grid"><div className="center-note"><strong>授权项目</strong><p>已配置可信桥接时，可查询本人授权的项目名称、标识和数量；未配置时明确提示，不以缓存或样例数据替代。</p><CenterLink href="/centers/business/projects">进入只读项目页 →</CenterLink></div><div className="center-note"><strong>完整台账</strong><p>销售、在建与应收的查看和业务规则仍留在原监控看板。门户没有新增财务计算或修改入口。</p><CenterLink href="/centers/business/ledgers">查看台账入口说明 →</CenterLink></div></div></section>}
+    {section === "overview" && <section className="center-panel"><SectionHeader title="业务边界清晰，数据口径不变" description="本期只连接已经存在的经营能力，不把导航接入宣传为系统重建。" /><div className="center-grid"><div className="center-note"><strong>授权项目</strong><p>已配置可信桥接时，可查询本人授权的项目名称、标识和数量；未配置时明确提示，不以缓存或样例数据替代。</p><CenterLink href="/centers/business/projects">进入只读项目页 →</CenterLink></div><div className="center-note"><strong>完整台账</strong><p>销售、在建与应收的查看和业务规则仍留在原监控看板。门户没有新增财务计算或修改入口。</p></div></div></section>}
   </>;
 }

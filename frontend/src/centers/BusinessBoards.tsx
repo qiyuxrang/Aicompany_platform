@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiRequest, isApiError } from '../api';
 import './business-boards.css';
 
@@ -37,19 +37,13 @@ function display(value: number | string | null, unit: string) {
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return unit === '元' ? `${grouped}.${fraction.padEnd(2, '0')}` : grouped;
 }
-function localToday() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
 export default function BusinessBoards({ initial = 'engineering', preview = false }: { initial?: Department; preview?: boolean }) {
   const [department, setDepartment] = useState<Department>(initial);
-  const [data, setData] = useState<Board | null>(null), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [loading, setLoading] = useState(false), [importing, setImporting] = useState(false);
+  const [data, setData] = useState<Board | null>(null), [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState(''), [status, setStatus] = useState('');
   const [filter, setFilter] = useState({ q: '', status: '' }), [refresh, setRefresh] = useState(0);
-  const [file, setFile] = useState<File | null>(null), [asOf, setAsOf] = useState(localToday);
-  const requestVersion = useRef(0), fileInput = useRef<HTMLInputElement>(null), importLock = useRef(false);
+  const requestVersion = useRef(0);
   useEffect(() => { setDepartment(initial); }, [initial]);
   useEffect(() => {
     const version = ++requestVersion.current;
@@ -65,42 +59,23 @@ export default function BusinessBoards({ initial = 'engineering', preview = fals
     return () => { controller.abort(); requestVersion.current += 1; };
   }, [department, filter, refresh, preview]);
   const choose = (next: Department) => {
-    setDepartment(next); setSearch(''); setStatus(''); setFilter({ q: '', status: '' }); setFile(null); setNotice('');
-    if (fileInput.current) fileInput.current.value = '';
+    setDepartment(next); setSearch(''); setStatus(''); setFilter({ q: '', status: '' });
   };
-  async function importSnapshot(event: FormEvent) {
-    event.preventDefault();
-    if (!file || !data || importLock.current || preview) return;
-    importLock.current = true; setImporting(true); setError(''); setNotice('');
-    const version = requestVersion.current;
-    const body = new FormData(); body.append('file', file); body.append('as_of', asOf); body.append('expected_snapshot_id', data.snapshot_id);
-    try {
-      const result = await apiRequest<unknown>(`/api/business/boards/${department}/`, { method: 'POST', body });
-      if (!validBoard(result) || result.department !== department) throw new Error('看板返回格式无效，请刷新核对。');
-      if (requestVersion.current !== version) return;
-      setFile(null); if (fileInput.current) fileInput.current.value = '';
-      setSearch(''); setStatus(''); setFilter({ q: '', status: '' });
-      setNotice(`已导入 ${result.total} 条台账记录。`); setRefresh(x => x + 1);
-    } catch (e) {
-      if (requestVersion.current === version) setError(isApiError(e) ? e.message : e instanceof Error ? e.message : '导入未完成。');
-    } finally { importLock.current = false; setImporting(false); }
-  }
   return <section className="business-bi" aria-label="企业台账 BI 看板">
-    <div className="business-bi-head"><div><p className="eyebrow">企业台账</p><h2>经营数据，一处查看</h2><p>按部门查看指标、状态分布和项目明细。</p></div>
-      {!preview && <button className="button secondary" disabled={loading || importing} onClick={() => setRefresh(x => x + 1)}>刷新看板</button>}</div>
-    <div role="tablist" aria-label="部门看板" className="business-tabs">{departments.map(([key, label]) => <button key={key} role="tab" aria-selected={department === key} disabled={importing} onClick={() => choose(key)}>{label}</button>)}</div>
+    <div className="business-bi-head"><div><p className="eyebrow">企业台账</p><h2>经营数据，一处查看</h2><p>这里只读取各部门最新发布版本；草稿和待审核数据不会进入总经理看板。</p></div>
+      {!preview && <button className="button secondary" disabled={loading} onClick={() => setRefresh(x => x + 1)}>刷新看板</button>}</div>
+    <div role="tablist" aria-label="部门看板" className="business-tabs">{departments.map(([key, label]) => <button key={key} role="tab" aria-selected={department === key} onClick={() => choose(key)}>{label}</button>)}</div>
     {preview ? <div className="center-empty"><h3>看板预览</h3><p>包含工程、财务和售前三类看板。预览不读取业务数据；请使用已授权的总经理账号进入。</p></div> : <>
       {loading && <p role="status">正在读取台账…</p>}
       {error && <p className="notice error" role="alert">{error}</p>}
-      {notice && <p className="notice info" role="status">{notice}</p>}
       {data && <div role="tabpanel" aria-label={data.title}>
         <div className="business-metrics">{data.metrics.map(item => <article key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></article>)}</div>
-        {data.source ? <p className="business-source">来源：{data.source.name} · 台账截止 {data.source.as_of} · 导入于 {new Date(data.source.imported_at).toLocaleString('zh-CN')}</p>
-          : <div className="center-empty"><h3>尚未导入{data.title.replace('看板', '')}台账</h3><p>先下载模板、填写实际台账并导入。未提供的数据以“—”展示，不会填入样例数字。</p></div>}
+        {data.source ? <p className="business-source">来源：{data.source.name} · 台账截止 {data.source.as_of} · 发布/更新时间 {new Date(data.source.imported_at).toLocaleString('zh-CN')}</p>
+          : <div className="center-empty"><h3>尚无已发布的{data.title.replace('看板', '')}台账</h3><p>请由已授权的部门录入人员维护并发布数据。未提供的数据以“—”展示，不会填入样例数字。</p></div>}
         <form className="business-filters" onSubmit={e => { e.preventDefault(); setFilter({ q: search, status }); }}>
           <label>搜索项目<input placeholder="项目编号、名称或负责人" value={search} maxLength={100} onChange={e => setSearch(e.target.value)} /></label>
           {!!data.statuses.length && <label>状态<select value={status} onChange={e => setStatus(e.target.value)}><option value="">全部状态</option>{data.statuses.map(x => <option key={x}>{x}</option>)}</select></label>}
-          <button className="button secondary" disabled={loading || importing}>查询</button>
+          <button className="button secondary" disabled={loading}>查询</button>
         </form>
         {data.available && <div className="business-detail-grid">
           <section className="business-distribution"><h3>状态分布</h3>{data.distribution.map(item => <div className="business-bar" key={item.label}>
@@ -110,13 +85,7 @@ export default function BusinessBoards({ initial = 'engineering', preview = fals
             {!data.records.length && <p>没有符合筛选条件的记录。</p>}</section>
         </div>}
         <p className="business-definition">{explanations[department]}</p>
-        <details className="business-import" open={!data.available}><summary>导入台账快照</summary><p>CSV 为 UTF-8 编码，最多 2,000 行、2 MiB；一次导入该部门的完整台账。导入不修改原业务系统。金额列均为人民币元。</p>
-          <a href={`/api/business/boards/${department}/template/`}>下载{data.title}模板</a>
-          {!!data.statuses.length && <p>可用状态：{data.statuses.join('、')}。</p>}
-          <form onSubmit={e => void importSnapshot(e)}><label>台账 CSV<input ref={fileInput} type="file" accept=".csv,text/csv" disabled={importing} onChange={e => setFile(e.target.files?.[0] || null)} /></label>
-            <label>台账截止日期<input type="date" required max={localToday()} value={asOf} disabled={importing} onChange={e => setAsOf(e.target.value)} /></label>
-            <button className="button primary" disabled={!file || importing || loading}>{importing ? '正在导入…' : '导入并更新看板'}</button></form>
-        </details><p className="business-scope">{data.scope}</p>
+        <p className="business-scope">{data.scope}</p>
       </div>}
     </>}
   </section>;

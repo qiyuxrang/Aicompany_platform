@@ -1,0 +1,76 @@
+{
+  "schema": "PRODUCT_DELIVERABLE_QUALITY_V1",
+  "technical_solution": {
+    "path": "docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v2\\artifacts\\technical-solution.docx",
+    "sha256": "23c149edb4d94842837ba1258ba54df7d7094918019d60235dd02b26bd9ff07a",
+    "bytes": 790407,
+    "characters_non_whitespace": 3101,
+    "heading1_count": 6,
+    "heading2_count": 30,
+    "toc_depth_two": true,
+    "heading1_page_breaks": 6,
+    "section_count": 1,
+    "embedded_media": 16,
+    "minimum_figures": 15,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "feasibility": {
+    "path": "docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v2\\artifacts\\feasibility-report.docx",
+    "sha256": "00a43876d853e4079976bd92fc05dbce7fe3ca68d6c20cf8b3535c66d0ef4ab3",
+    "bytes": 1019764,
+    "characters_non_whitespace": 4695,
+    "heading1_count": 6,
+    "heading2_count": 45,
+    "toc_depth_two": true,
+    "heading1_page_breaks": 6,
+    "section_count": 3,
+    "embedded_media": 21,
+    "minimum_figures": 20,
+    "mermaid_source_embedded": false,
+    "passed": true,
+    "issues": []
+  },
+  "presentation": {
+    "path": "docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v2\\artifacts\\business-technology-presentation.pptx",
+    "sha256": "4b79ce83f884bebbe1b8ee8820e43a67f23318fd34e16382cea2c10340e55a5c",
+    "bytes": 244702,
+    "slides": 5,
+    "native_shapes": 118,
+    "native_charts": 1,
+    "native_connectors": 13,
+    "pictures": 5,
+    "source_marked_slides": 4,
+    "slide_inventory": [
+      {
+        "slide": 1,
+        "shapes": 9,
+        "source_marked": false
+      },
+      {
+        "slide": 2,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 3,
+        "shapes": 21,
+        "source_marked": true
+      },
+      {
+        "slide": 4,
+        "shapes": 32,
+        "source_marked": true
+      },
+      {
+        "slide": 5,
+        "shapes": 35,
+        "source_marked": true
+      }
+    ],
+    "passed": true,
+    "issues": []
+  },
+  "passed": true
+}

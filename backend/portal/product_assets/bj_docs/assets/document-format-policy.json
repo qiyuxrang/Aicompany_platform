@@ -1,12 +1,13 @@
 {
-  "schema": "BJ_PRODUCT_DOCUMENT_FORMAT_POLICY_V1",
-  "status": "approved_interim_baseline_v3",
+  "schema": "BJ_PRODUCT_DOCUMENT_FORMAT_POLICY_V2",
+  "status": "approved_format_baseline_v4",
+  "acceptance_evidence_revision": "format-governance-acceptance-20260927-v10",
   "applies_to": [
     "technical-solution",
     "feasibility"
   ],
-  "approved_source": "user_instruction_2026-09-24",
-  "scope_note": "本规则固化已明确的通用版式；不等同于企业正式模板、视觉签认或业务签认。",
+  "approved_source": "user_acceptance_2026-09-27",
+  "scope_note": "本规则固化用户于2026-09-27确认通过的技术方案、可行性研究报告测试版格式基线。",
   "company_identity": {
     "name": "陕西省一二三数字信息技术有限公司",
     "logo_path": "assets/company/company-logo.png",
@@ -20,6 +21,15 @@
     "width_mm": 210,
     "height_mm": 297,
     "print": "single_sided",
+    "margins_mm": {
+      "top": 25.4,
+      "bottom": 25.4,
+      "left": 25.4,
+      "right": 25.4,
+      "gutter": 0
+    },
+    "header_distance_mm": 15,
+    "footer_distance_mm": 17.5,
     "body_grid": {
       "rows": 38,
       "characters_per_row": 39,
@@ -29,6 +39,19 @@
   },
   "typography": {
     "language": "zh-CN-simplified",
+    "all_visible_text_color": "#000000",
+    "applies_to": [
+      "cover",
+      "table_of_contents",
+      "body",
+      "headings",
+      "headers",
+      "footers",
+      "page_numbers",
+      "tables",
+      "captions",
+      "diagram_labels"
+    ],
     "body": {
       "font": "宋体",
       "size_pt": 12,
@@ -80,23 +103,65 @@
     "table": "表 {chapter}.{sequence}"
   },
   "table_of_contents": {
-    "depth_strategy": "maximum_heading_level_actually_present",
+    "depth_strategy": "fixed_two_levels",
     "minimum_level": 1,
-    "maximum_level": 3,
+    "maximum_level": 2,
     "refresh_in_microsoft_word_before_delivery": true
   },
   "header_footer": {
-    "ordinary_header": null,
+    "ordinary_header": "document_title",
     "ordinary_header_bottom_border": "double",
-    "chapter_opening_header": null,
+    "chapter_opening_header": "document_title",
+    "cover_header": null,
+    "cover_footer": null,
     "page_number": {
-      "position": "bottom_center"
+      "position": "bottom_center",
+      "format": "arabic"
     }
   },
+  "pagination": {
+    "heading1_starts_new_page": true,
+    "heading2_starts_new_page": false,
+    "heading3_starts_new_page": false
+  },
+  "test_version_targets": {
+    "technical_solution": {
+      "target_characters": 3000,
+      "minimum_characters": 2700,
+      "maximum_characters": 4000,
+      "minimum_diagrams": 15
+    },
+    "feasibility_report": {
+      "target_characters": 5000,
+      "minimum_characters": 4500,
+      "maximum_characters": 6000,
+      "minimum_diagrams": 20
+    },
+    "presentation": {
+      "slides": 5,
+      "aspect_ratio": "16:9",
+      "visual_style": "business_technology",
+      "minimum_native_charts": 1,
+      "minimum_native_connectors": 8,
+      "minimum_embedded_visual_assets": 3,
+      "editable_native_objects_required": true
+    }
+  },
+  "prohibited_output_copy": [
+    "待核草稿：未经正式内容、格式及产品负责人批准，不得作为正式方案使用。",
+    "待核草稿 · 未获正式发布批准",
+    "正式模板与样例、内容及格式批准尚未完成；本件始终为待核草稿。",
+    "技术方案与可行性研究 · 待人工审核草稿",
+    "内容来自平台当前报告版本，不继承正式业务批准",
+    "平台自动生成的商务科技风待审草稿",
+    "只使用当前报告来源；正式发布需要人工审核。"
+  ],
   "figures": {
     "caption_position": "below",
     "reference_before_figure": true,
     "must_not_cross_section": true,
+    "embedded_in_relevant_chapter": true,
+    "standalone_figure_chapter_prohibited": true,
     "subfigure_labels": "a,b,c",
     "standards": "applicable_national_standards"
   },
@@ -114,6 +179,8 @@
     "retain_mermaid_source": false,
     "retain_output_sha256": true,
     "caption_and_source_refs_required": true,
+    "label_text_color": "#000000",
+    "colored_fill_and_strokes_allowed": true,
     "fallback_engine": null
   },
   "tables": {
@@ -124,7 +191,6 @@
   },
   "pending_formal_template_confirmation": [
     "formal_cover_layout",
-    "exact_page_margins_and_gutter",
     "table_theme_colors_header_fill_border_width_and_color",
     "compiler_reviewer_approver_signature_and_stamp_area",
     "complete_enterprise_word_template_and_long_form_sample",

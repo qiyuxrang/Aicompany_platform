@@ -102,6 +102,18 @@ describe("product business workbench", () => {
     await user.click(screen.getByRole("checkbox")); await user.click(approve);
     expect(props.onAction).toHaveBeenCalledWith("decisions/", expect.objectContaining({ target: "blueprint", target_id: "blueprint-id", sha256: "a".repeat(64), decision: "approve" }));
   });
+  it("shows preview provenance and disables a fourth automatic blueprint revision", async () => {
+    window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");
+    const task = blueprintTask();
+    task.blueprint_review = { revision_count: 3, revision_limit: 3, revisions_remaining: 0 };
+    const props = stages(task); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
+    expect(screen.getByText("测试预览 · RAGFlow 等待接入")).toBeTruthy();
+    expect(screen.getByText(/仅使用本项目上传资料/)).toBeTruthy();
+    expect(screen.getByText(/不会显示或伪造知识库命中/)).toBeTruthy();
+    await user.type(screen.getByLabelText("蓝图确认依据"), "仍需继续修改");
+    expect((screen.getByRole("button", { name: "退回修改（剩余 0/3 次）" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/自动修改次数已用完/)).toBeTruthy();
+  });
   it("does not expose legacy report approval steps or let legacy reviewers confirm a blueprint", () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");
     const view = render(<ProjectStages {...stages({ ...blueprintTask(), actions: ["review_input"] })}/>);
@@ -197,11 +209,53 @@ describe("product business workbench", () => {
     expect(screen.getByText('生成蓝图中').closest('li')?.getAttribute('data-status')).toBe('running');
     expect(screen.getByText('3 行设备事实')).toBeTruthy();
   });
+  it('shows the complete six-stage workflow and prioritizes checkpoint progress', () => {
+    const task = sampleTask({ state: 'RUNNING', stage: 'BLUEPRINT', pending_action: 'blueprint',
+      analysis_progress: { documents: { status: 'failed', detail: '旧状态' } },
+      checkpoint: { analysis_progress: {
+        documents: { status: 'completed', source_count: 4 },
+        equipment: { status: 'completed', item_count: 18 },
+        knowledge: { status: 'waiting', detail: 'RAGFlow 连接待配置' },
+        blueprint: { status: 'running', detail: '正在编排章节' },
+      } } });
+    render(<ProjectStages {...stages(task)}/>);
+    const flow = screen.getByLabelText('智能体工作状态');
+    expect(flow.querySelectorAll(':scope > li')).toHaveLength(6);
+    expect(screen.getByText('解析项目背景').closest('li')?.getAttribute('data-status')).toBe('completed');
+    expect(screen.getByText('RAGFlow 知识检索').closest('li')?.getAttribute('data-status')).toBe('waiting');
+    expect(screen.getByText('生成蓝图中').closest('li')?.getAttribute('data-status')).toBe('running');
+    expect(screen.getByText('RAGFlow 连接待配置')).toBeTruthy();
+    expect(screen.queryByText('旧状态')).toBeNull();
+  });
+  it('queues the real RAGFlow preparation action before a formal blueprint', async () => {
+    const task = sampleTask({
+      actions: ['queue_blueprint_knowledge', 'queue_blueprint'],
+      blockers: { queue_blueprint: { code: 'ragflow_required', detail: '正式蓝图必须先检索 RAGFlow。' } },
+      blueprint_knowledge: {
+        mode: 'ragflow_required', required: true, status: 'waiting_for_ragflow',
+        ragflow_used: false, source_count: 0, detail: '等待真实 RAGFlow 检索。',
+      },
+    });
+    const props = stages(task);
+    const user = userEvent.setup();
+    render(<ProjectStages {...props}/>);
+    await user.click(screen.getByRole('button', { name: '先检索 RAGFlow' }));
+    expect(props.onAction).toHaveBeenCalledWith('queue/', { action: 'knowledge' });
+    expect((screen.getByRole('button', { name: '生成项目蓝图' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+  it('shows explicit blueprint review rounds and output generation readiness', () => {
+    window.history.replaceState({}, '', '/centers/product/projects?tab=blueprint');
+    const task = blueprintTask();
+    task.blueprint_review = { revision_count: 2, revision_limit: 3, revisions_remaining: 1 };
+    render(<ProjectStages {...stages(task)}/>);
+    expect(screen.getByText('已修改 2 次 · 最多 3 次 · 剩余 1 次')).toBeTruthy();
+    expect(screen.getByText('等待第 3/3 轮人工审核')).toBeTruthy();
+  });
   it('binds modification opinions to the exact displayed blueprint', async () => {
     window.history.replaceState({}, '', '/centers/product/projects?tab=blueprint');
     const props = stages(blueprintTask()); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
     await user.type(screen.getByLabelText('蓝图确认依据'), '增加分阶段实施说明');
-    await user.click(screen.getByRole('button', { name: '退回修改' }));
+    await user.click(screen.getByRole('button', { name: /退回修改/ }));
     expect(props.onAction).toHaveBeenCalledWith('decisions/', expect.objectContaining({
       decision: 'revise', target_id: 'blueprint-id', sha256: 'a'.repeat(64), comment: '增加分阶段实施说明' }));
   });

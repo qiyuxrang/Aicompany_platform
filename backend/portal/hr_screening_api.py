@@ -42,7 +42,19 @@ def batch_data(batch):
             'jd_body': batch.jd_version.body,
             'progress': round((done + failed) * 100 / total, 1) if total else 0,
             'created_at': batch.created_at.isoformat(), 'updated_at': batch.updated_at.isoformat(),
-            'expires_at': (min(batch.created_at, batch.jd_version.request.created_at) + RETENTION).isoformat()}
+            'expires_at': (min(batch.created_at, batch.jd_version.request.created_at) + RETENTION).isoformat(),
+            'model_selection': _selection_data(batch.model_selection)}
+
+
+def _selection_data(selection):
+    if not selection:
+        return None
+    from .models import GatewayModel
+    try:
+        name = GatewayModel.objects.filter(public_id=selection.get('model_id')).values_list('name', flat=True).first()
+    except (TypeError, ValueError):
+        name = None
+    return {**selection, 'model_name': name or '历史模型'}
 
 
 def artifact_data(item):
@@ -57,7 +69,7 @@ def batches(request):
     if request.method == 'GET':
         return Response([batch_data(b) for b in active_batches(ResumeScreeningBatch.objects.filter(created_by=request.user))
                          .select_related('jd_version__request')])
-    body = _body(request, {'jd_version_id'})
+    body = _body(request, {'jd_version_id'}, {'model_selection'})
     key = request.headers.get('Idempotency-Key', '')
     if not key or len(key) > 128 or any(ord(c) < 33 for c in key):
         raise HrError('invalid_request', '请提供有效幂等键。')
@@ -76,11 +88,22 @@ def batches(request):
                 raise HrError('not_found', '批次已超过15天保留期。', 404)
             if existing.jd_version_id != jd.pk:
                 raise HrError('idempotency_conflict', '幂等键已用于其他岗位。', 409)
+            supplied = body.get('model_selection') or {}
+            if supplied and supplied != existing.model_selection:
+                raise HrError('idempotency_conflict', '幂等键已用于其他模型选择。', 409)
             return Response(batch_data(existing))
         if jd.stale or jd.state != 'confirmed' or jd.channel != 'general' or jd.request.official_jd_id != jd.pk:
             raise HrError('stale_revision', '请选择当前有效的正式通用 JD。', 409)
+        selection = body.get('model_selection')
+        if selection is not None:
+            from .model_gateway import GatewayError, validate_model_selection
+            try:
+                selection = validate_model_selection(request.user, 'hr_match_summary', selection)
+            except GatewayError as error:
+                raise HrError(error.code, error.message, error.status) from None
         batch = ResumeScreeningBatch.objects.create(jd_version=jd, created_by=request.user,
-            idempotency_key=key, input_version=jd.input_version, requirements=jd.requirements or jd.request.structured_payload())
+            idempotency_key=key, input_version=jd.input_version,
+            requirements=jd.requirements or jd.request.structured_payload(), model_selection=selection or {})
         audit(request.user, 'hr_batch_create', batch.pk, changes=['jd_version'])
     return Response(batch_data(batch), status=201)
 

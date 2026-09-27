@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
@@ -38,6 +40,7 @@ class GatewayModel(models.Model):
         MAX_TOKENS = "max_tokens", "max_tokens"
         MAX_COMPLETION_TOKENS = "max_completion_tokens", "max_completion_tokens"
 
+    public_id = models.UUIDField("公开选择标识", default=uuid.uuid4, unique=True, editable=False)
     name = models.CharField("模型名称", max_length=100)
     provider = models.ForeignKey(Provider, verbose_name="模型服务商", on_delete=models.PROTECT)
     model_name = models.CharField("远程模型标识", max_length=200)
@@ -65,6 +68,10 @@ class ModelRoute(models.Model):
     name = models.CharField("路由名称", max_length=100)
     module = models.ForeignKey("portal.Module", verbose_name="业务模块", on_delete=models.PROTECT)
     model = models.ForeignKey(GatewayModel, verbose_name="网关模型", on_delete=models.PROTECT)
+    max_calls_per_minute = models.PositiveIntegerField(
+        "单用户每分钟调用上限", default=10,
+        validators=[MinValueValidator(1), MaxValueValidator(120)],
+    )
     enabled = models.BooleanField("启用", default=False)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
@@ -74,6 +81,38 @@ class ModelRoute(models.Model):
 
     def __str__(self):
         return f"路由 #{self.pk}"
+
+
+class ModelRouteOption(models.Model):
+    """A model that may be selected for a route, optionally scoped to roles/users.
+
+    Empty role and user scopes mean every user who can access the route module.  The
+    route's legacy ``model`` remains the default and is implicitly available when no
+    explicit option row exists for it, preserving existing deployments.
+    """
+
+    route = models.ForeignKey(ModelRoute, verbose_name="业务模型路由", related_name="model_options",
+                              on_delete=models.CASCADE)
+    model = models.ForeignKey(GatewayModel, verbose_name="可选网关模型", related_name="route_options",
+                              on_delete=models.PROTECT)
+    allowed_roles = models.ManyToManyField("portal.Role", verbose_name="允许角色", blank=True,
+                                           related_name="model_route_options")
+    allowed_users = models.ManyToManyField(settings.AUTH_USER_MODEL, verbose_name="允许用户", blank=True,
+                                           related_name="model_route_options")
+    enabled = models.BooleanField("启用", default=True)
+    display_order = models.PositiveIntegerField("显示顺序", default=100)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        verbose_name = "业务路由可选模型"
+        verbose_name_plural = "业务路由可选模型"
+        ordering = ("display_order", "id")
+        constraints = [
+            models.UniqueConstraint(fields=("route", "model"), name="model_route_option_unique"),
+        ]
+
+    def __str__(self):
+        return f"路由可选模型 #{self.pk}"
 
 
 class ModelCallLog(models.Model):
@@ -90,11 +129,17 @@ class ModelCallLog(models.Model):
     duration_ms = models.PositiveIntegerField("耗时（毫秒）")
     prompt_tokens = models.PositiveBigIntegerField("输入令牌数", null=True, blank=True)
     completion_tokens = models.PositiveBigIntegerField("输出令牌数", null=True, blank=True)
+    model_public_id = models.UUIDField("模型选择标识", null=True, blank=True, editable=False)
+    config_version = models.CharField("模型配置版本", max_length=64, blank=True, editable=False)
 
     class Meta:
         verbose_name = "模型调用日志"
         verbose_name_plural = "模型调用日志"
         ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=("actor", "route", "created_at"), name="model_log_actor_route_time"),
+            models.Index(fields=("model", "status", "created_at"), name="model_log_pending_time"),
+        ]
 
     def __str__(self):
         return f"调用日志 #{self.pk}"

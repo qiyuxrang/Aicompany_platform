@@ -15,7 +15,19 @@ if BASE != "http://127.0.0.1:18743":
     raise RuntimeError("This acceptance script is restricted to the isolated local server.")
 EVIDENCE = RUNTIME / "evidence"
 EVIDENCE.mkdir(exist_ok=True)
-results = {"environment": "isolated synthetic Django + real Chrome", "checks": [], "page_errors": [], "screenshots": []}
+results = {"environment": "isolated synthetic Django + real Chromium browser", "checks": [], "page_errors": [], "screenshots": []}
+
+
+def browser_executable():
+    candidates = [
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+    ]
+    found = next((path for path in candidates if path.is_file()), None)
+    if found is None:
+        raise RuntimeError("Chrome or Edge executable is required for browser acceptance")
+    return str(found)
 
 
 def mark(name):
@@ -40,7 +52,7 @@ def no_overflow(page):
 
 try:
     with sync_playwright() as runner:
-        browser = runner.chromium.launch(executable_path=r"C:\Program Files\Google\Chrome\Application\chrome.exe", headless=True)
+        browser = runner.chromium.launch(executable_path=browser_executable(), headless=True)
         context = browser.new_context(viewport={"width": 1512, "height": 1050}, locale="zh-CN", reduced_motion="reduce")
         login(context, 1)
         page = context.new_page()
@@ -59,6 +71,7 @@ try:
         page.get_by_label("项目背景", exact=True).fill("独立验收环境中的合成项目，不含真实业务资料。")
         page.get_by_label("约束条件", exact=True).fill("不调用外部模型")
         expect(page.get_by_label("蓝图与成果审核人")).to_have_count(0)
+        page.get_by_label("设备清单文件").set_input_files({"name": "设备清单.csv", "mimeType": "text/csv", "buffer": "row_id,name,quantity,unit\n1,测试设备,2,台".encode("utf-8")})
         page.get_by_label("选择项目资料文件").set_input_files({"name": "项目背景.txt", "mimeType": "text/plain", "buffer": "纯合成资料，用于确认上传、来源下载和持久化。".encode("utf-8")})
         screenshot(page, "02-new-project-desktop.png")
         page.get_by_role("button", name="创建项目", exact=True).click()
@@ -69,7 +82,8 @@ try:
         mark("create-upload-real-http-csrf-idempotency")
         page.get_by_role("button", name="输入资料", exact=False).click()
         expect(page.get_by_text("项目背景.txt", exact=True).first).to_be_visible()
-        source_url = page.get_by_role("link", name="下载原文件").first.get_attribute("href")
+        expect(page.get_by_text("设备清单.csv", exact=True).first).to_be_visible()
+        source_url = page.get_by_text("项目背景.txt", exact=True).first.locator("xpath=ancestor::li").get_by_role("link", name="下载原文件").get_attribute("href")
         downloaded = context.request.get(BASE + source_url)
         assert downloaded.status == 200 and "纯合成资料" in downloaded.body().decode("utf-8")
         mark("authorized-original-source-download")

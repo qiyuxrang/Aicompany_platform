@@ -17,6 +17,7 @@ def _data(jd):
                              'skill': '模型网关生成', 'hr_edit': '人工编辑'}.get(jd.source, jd.source),
             'body': jd.body, 'requirements': jd.requirements, 'missing_items': pending_fields(jd.requirements), 'stale': jd.stale, 'channel': jd.channel, 'custom_label': jd.custom_label,
             'source_jd_id': str(jd.source_jd_id) if jd.source_jd_id else None,
+            'model_selection': jd.model_selection or None,
             'created_at': jd.created_at.isoformat(),
             'confirmed_at': jd.confirmed_at.isoformat() if jd.confirmed_at else None}
 
@@ -25,8 +26,9 @@ def _data(jd):
 @hr_endpoint
 def generate(request, request_id):
     _require_hr(request)
-    body = _body(request, {'expected_version'})
-    return Response(_data(service.generate(request.user, request_id, _expected(body['expected_version']))), status=201)
+    body = _body(request, {'expected_version'}, {'model_selection'})
+    return Response(_data(service.generate(request.user, request_id, _expected(body['expected_version']),
+                                           model_selection=body.get('model_selection'))), status=201)
 
 
 @api_view(['GET', 'POST'])
@@ -53,9 +55,10 @@ def confirm(request, request_id, jd_id):
 @hr_endpoint
 def adapt(request, request_id, jd_id):
     _require_hr(request)
-    body = _body(request, {'expected_version', 'channel'}, {'custom_label'})
+    body = _body(request, {'expected_version', 'channel'}, {'custom_label', 'model_selection'})
     jd = service.generate(request.user, request_id, _expected(body['expected_version']),
-                          channel=body['channel'], source_id=jd_id, custom_label=body.get('custom_label', ''))
+                          channel=body['channel'], source_id=jd_id, custom_label=body.get('custom_label', ''),
+                          model_selection=body.get('model_selection'))
     return Response(_data(jd), status=201)
 
 

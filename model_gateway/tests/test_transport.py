@@ -26,11 +26,13 @@ class TransportProtocolSimulationTests(unittest.TestCase):
         self.model = {"model_name": "simulated-model", "token_parameter": "max_tokens",
                       "max_output_tokens": 100, "timeout_seconds": 2}
         self.messages = [{"role": "user", "content": "private-prompt-sentinel"}]
+        # Keep operating-system variables such as SystemRoot: clearing the whole
+        # environment prevents OpenSSL from creating a TLS context on Windows.
         self.environment = patch.dict(transport.os.environ, {
             "MODEL_GATEWAY_ALLOWED_BASE_URLS": BASE,
             "PORTAL_MODEL_KEY_TEST": SECRET,
             "HTTPS_PROXY": "http://127.0.0.1:1",
-        }, clear=True)
+        }, clear=False)
         self.environment.start()
         self.addCleanup(self.environment.stop)
         self.dns = patch.object(transport.socket, "getaddrinfo", return_value=[PUBLIC]).start()

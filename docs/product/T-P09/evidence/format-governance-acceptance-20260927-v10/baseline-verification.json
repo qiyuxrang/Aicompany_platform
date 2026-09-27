@@ -1,0 +1,105 @@
+{
+  "schema": "PRODUCT_DELIVERY_BASELINE_ACCEPTANCE_V1",
+  "baseline_sha256": "078afb98670e1de042db1c9673bb9a3f79c8029262b0dcc1e44eea2b505dbcf9",
+  "contract": {
+    "passed": true,
+    "issues": [],
+    "p1_rules_sha256": "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55",
+    "note": "旧5万/7万字与每份Word统一20图规则保持排除；本次3000/5000字及15/20图由已验收基线单独确定。"
+  },
+  "manifest": {
+    "passed": true,
+    "issues": [],
+    "manifest_sha256": "183d70d3cb19b02db66e275b63a37e53615e06b642da47324f5bec172e9526e2",
+    "checked_files": 16
+  },
+  "artifacts": {
+    "identity": {
+      "passed": true,
+      "issues": []
+    },
+    "technical_solution": {
+      "path": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v10\\artifacts\\technical-solution.docx",
+      "sha256": "2426bfc08d3b499cac63b1666f5506561df9abf5433b721fe664e7f098ca7949",
+      "bytes": 783997,
+      "characters_non_whitespace": 3478,
+      "heading1_count": 6,
+      "heading2_count": 30,
+      "toc_depth_two": true,
+      "heading1_page_breaks": 5,
+      "section_count": 1,
+      "all_visible_word_text_black": true,
+      "embedded_media": 16,
+      "minimum_figures": 15,
+      "chapter_embedded_figures": 15,
+      "mermaid_source_embedded": false,
+      "passed": true,
+      "issues": []
+    },
+    "feasibility": {
+      "path": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v10\\artifacts\\feasibility-report.docx",
+      "sha256": "3fac5296163eeee6109889290d148725b243b948bccdd0b3dc0dc0f1e256034c",
+      "bytes": 1011393,
+      "characters_non_whitespace": 5271,
+      "heading1_count": 6,
+      "heading2_count": 45,
+      "toc_depth_two": true,
+      "heading1_page_breaks": 5,
+      "section_count": 3,
+      "all_visible_word_text_black": true,
+      "embedded_media": 21,
+      "minimum_figures": 20,
+      "chapter_embedded_figures": 20,
+      "mermaid_source_embedded": false,
+      "passed": true,
+      "issues": []
+    },
+    "presentation": {
+      "path": "C:\\Users\\YLJJT\\Desktop\\Aicompany_platform-main (1)\\Aicompany_platform-main\\docs\\product\\T-P09\\evidence\\format-governance-acceptance-20260927-v10\\artifacts\\business-technology-presentation.pptx",
+      "sha256": "b9198fcaae296b9ff30a2459cc296178a2f943b9d36e7c9a1d4be51755c3f0b4",
+      "bytes": 243141,
+      "slides": 5,
+      "native_shapes": 114,
+      "native_charts": 1,
+      "native_connectors": 13,
+      "pictures": 5,
+      "source_marked_slides": 4,
+      "slide_inventory": [
+        {
+          "slide": 1,
+          "shapes": 9,
+          "source_marked": false
+        },
+        {
+          "slide": 2,
+          "shapes": 20,
+          "source_marked": true
+        },
+        {
+          "slide": 3,
+          "shapes": 20,
+          "source_marked": true
+        },
+        {
+          "slide": 4,
+          "shapes": 31,
+          "source_marked": true
+        },
+        {
+          "slide": 5,
+          "shapes": 34,
+          "source_marked": true
+        }
+      ],
+      "passed": true,
+      "issues": []
+    },
+    "passed": true
+  },
+  "external_calls": {
+    "model": 0,
+    "ragflow": 0,
+    "network": 0
+  },
+  "passed": true
+}

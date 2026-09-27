@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, CurrentUser, PortalModule } from "../api";
 import CenterWorkspace from "./CenterWorkspace";
 
+vi.mock("./ManagerWorkspace", () => ({ default: ({ section }: { section: string }) => <div>经营页面：{section}</div> }));
+
 const apiMocks = vi.hoisted(() => ({
   getMe: vi.fn(),
   getModule: vi.fn(),
@@ -66,6 +68,29 @@ describe("CenterWorkspace", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
     expect(container.querySelector(".center-layout")).toBeNull();
     expect(apiMocks.getModule).not.toHaveBeenCalled();
+  });
+
+  it("非总经理的台账授权人员进入经营模块时只展示录入工作台", async () => {
+    const ledgerStaff: CurrentUser = { ...staff, id: 3, username: "ledger-user", roles: [{ code: "engineering", name: "工程人员" }] };
+    const business = { code: "business", name: "经营工作台", description: "台账录入", status: "verified", enabled: true } as PortalModule;
+    apiMocks.getModule.mockResolvedValue(business);
+    apiMocks.getModules.mockResolvedValue([business]);
+    render(<CenterWorkspace code="business" section="overview" user={ledgerStaff} businessPanel={null} />);
+    expect(await screen.findByText("经营页面：ledgers")).toBeTruthy();
+    const navigation = screen.getByRole("navigation", { name: "总经理工作台菜单" });
+    expect(navigation.textContent).toContain("台账录入");
+    expect(navigation.textContent).not.toContain("财务部看板");
+  });
+
+  it("总经理不显示台账录入入口且直接访问录入地址回到只读总览", async () => {
+    const manager: CurrentUser = { ...staff, id: 4, username: "manager", roles: [{ code: "general_manager", name: "总经理" }] };
+    const business = { code: "business", name: "总经理工作台", description: "只读看板", status: "verified", enabled: true } as PortalModule;
+    apiMocks.getModule.mockResolvedValue(business);
+    apiMocks.getModules.mockResolvedValue([business]);
+    render(<CenterWorkspace code="business" section="ledgers" user={manager} businessPanel={null} />);
+    expect(await screen.findByText("经营页面：overview")).toBeTruthy();
+    const navigation = screen.getByRole("navigation", { name: "总经理工作台菜单" });
+    expect(navigation.textContent).not.toContain("台账录入");
   });
 
 });

@@ -105,7 +105,20 @@ class GenerateResponse(StrictModel):
 
 app = FastAPI(title="内部模型网关", docs_url=None, redoc_url=None, openapi_url=None, debug=False)
 app.add_middleware(ServiceBoundary)
-slots = BoundedSemaphore(2)
+
+
+def gateway_concurrency():
+    raw = os.environ.get("MODEL_GATEWAY_CONCURRENCY", "2")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise RuntimeError("MODEL_GATEWAY_CONCURRENCY must be an integer") from None
+    if not 1 <= value <= 100:
+        raise RuntimeError("MODEL_GATEWAY_CONCURRENCY must be between 1 and 100")
+    return value
+
+
+slots = BoundedSemaphore(gateway_concurrency())
 
 
 @app.exception_handler(RequestValidationError)

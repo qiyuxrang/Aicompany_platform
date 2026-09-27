@@ -15,7 +15,7 @@ export const centers = {
   },
   business: {
     name: "总经理工作台", icon: "usage" as IconName, description: "工程、财务与售前台账分部门呈现，来源和统计口径清晰可查。",
-    sections: [{ code: "overview", title: "企业台账" }, { code: "engineering", title: "工程部看板" }, { code: "finance", title: "财务部看板" }, { code: "presales", title: "售前部门看板" }, { code: "projects", title: "授权项目" }, { code: "ledgers", title: "原台账入口" }],
+    sections: [{ code: "overview", title: "企业台账" }, { code: "engineering", title: "工程部看板" }, { code: "finance", title: "财务部看板" }, { code: "presales", title: "售前部门看板" }, { code: "ledgers", title: "台账录入" }, { code: "projects", title: "授权项目" }],
   },
 } as const;
 

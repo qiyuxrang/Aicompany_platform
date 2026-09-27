@@ -1,0 +1,8 @@
+{
+  "structural_pass": false,
+  "rendered": false,
+  "visually_reviewed": false,
+  "unverified_items": [
+    "ValueError: unsafe package part: ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"
+  ]
+}

@@ -26,9 +26,12 @@ from .security import audit, authorized_modules
 def _portal_modules(user):
     result = authorized_modules(user)
     if user.is_active and not user.must_change_password:
+        from .business_models import BusinessLedgerGrant
         from .hr_models import ProbationCase
         if ProbationCase.objects.filter(assigned_manager=user).exists():
             result = Module.objects.filter(Q(pk__in=result.values("pk")) | Q(code="hr", enabled=True)).distinct()
+        if BusinessLedgerGrant.objects.filter(user=user).exists():
+            result = Module.objects.filter(Q(pk__in=result.values("pk")) | Q(code="business", enabled=True)).distinct()
     return result
 
 

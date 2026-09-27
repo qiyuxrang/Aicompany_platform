@@ -10,7 +10,7 @@ from django.db import transaction
 from django.http import Http404, HttpResponseNotAllowed
 from django.shortcuts import redirect
 
-from .models import AuditEvent, BusinessMapping, Module, Role, User
+from .models import AuditEvent, BusinessLedgerGrant, BusinessMapping, Module, Role, User
 from .security import audit
 
 
@@ -66,10 +66,11 @@ class PortalAdminSite(admin.AdminSite):
             "Module": (2, "入口", "维护业务入口地址、接入状态与启停配置。", "配置模块入口", "新增模块"),
             "BusinessMapping": (3, "身份", "关联平台账号与旧系统用户标识；建立映射不等于完成单点登录。", "管理账号映射", "新增映射"),
             "AuditEvent": (4, "留痕", "只读查询登录、账号变更与权限调整记录，不可修改或删除。", "查看审计记录", "新增记录"),
-            "Provider": (5, "模型", "维护兼容接口及独立 FastAPI 服务的密钥环境变量引用；Key 不入库。", "管理模型服务商", "新增服务商"),
-            "GatewayModel": (6, "模型", "配置已保存的模型参数；连接测试仅发送固定短文本，可能产生费用。", "管理网关模型", "新增模型"),
-            "ModelRoute": (7, "业务", "按业务模块配置模型路由，新增配置默认停用。", "管理业务路由", "新增路由"),
-            "ModelCallLog": (8, "留痕", "只读查看调用状态、耗时与令牌计数，不记录输入或输出内容。", "查看调用日志", "新增记录"),
+            "BusinessLedgerGrant": (5, "授权", "按账号和台账授予录入、提交或发布权限；管理员不因此获得台账正文访问权。", "管理台账授权", "新增台账授权"),
+            "Provider": (6, "模型", "维护兼容接口及独立 FastAPI 服务的密钥环境变量引用；Key 不入库。", "管理模型服务商", "新增服务商"),
+            "GatewayModel": (7, "模型", "配置已保存的模型参数；连接测试仅发送固定短文本，可能产生费用。", "管理网关模型", "新增模型"),
+            "ModelRoute": (8, "业务", "按业务模块配置模型路由，新增配置默认停用。", "管理业务路由", "新增路由"),
+            "ModelCallLog": (9, "留痕", "只读查看调用状态、耗时与令牌计数，不记录输入或输出内容。", "查看调用日志", "新增记录"),
         }
         labels = {
             model._meta.object_name: model_admin.admin_label_plural
@@ -320,6 +321,28 @@ class MappingAdmin(ManagedAdmin):
     @admin.display(description="编号", ordering="id")
     def mapping_id(self, obj):
         return obj.pk
+
+
+@admin.register(BusinessLedgerGrant, site=site)
+class BusinessLedgerGrantAdmin(ManagedAdmin):
+    admin_label = "台账授权"
+    admin_label_plural = "台账授权"
+    fields = ("user", "department", "can_edit", "can_submit", "can_publish")
+    list_display = ("user", "department", "can_edit", "can_submit", "can_publish")
+    list_filter = ("department", "can_edit", "can_submit", "can_publish")
+    search_fields = ("user__username", "user__display_name")
+    form_labels = {
+        "user": "账号", "department": "台账", "can_edit": "允许录入与编辑",
+        "can_submit": "允许提交", "can_publish": "允许发布与退回",
+    }
+
+    def has_delete_permission(self, request, obj=None):
+        return site.has_permission(request)
+
+    def delete_model(self, request, obj):
+        target = f'{obj.user_id}:{obj.department}'
+        super().delete_model(request, obj)
+        audit(request.user, 'businessledgergrant_delete', target, changes=['grant'])
 
 
 @admin.register(AuditEvent, site=site)
