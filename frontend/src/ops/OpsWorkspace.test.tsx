@@ -235,6 +235,8 @@ describe("ops workspace", () => {
     expect(await within(moduleSelect).findByRole("option", { name: "产品方案中心" })).toBeTruthy();
     expect(within(moduleSelect).getByRole("option", { name: "项目经营中心" })).toBeTruthy();
     expect(screen.getAllByText("登录活跃人数")).toHaveLength(2);
+    expect(screen.getByText("当前范围无员工成功活动记录。")).toBeTruthy();
+    expect(screen.getByText("当前范围暂无业务模型调用统计。")).toBeTruthy();
 
     const point = screen.getByRole("link", { name: /2026-09-21/ });
     const hitTarget = point.querySelector(".trend-hit-target");
@@ -254,6 +256,54 @@ describe("ops workspace", () => {
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("date")).toBe("2026-09-21"));
     expect(new URLSearchParams(window.location.search).get("module")).toBe("business");
     expect(await screen.findByRole("dialog", { name: "2026-09-21 使用明细" })).toBeTruthy();
+  });
+
+  it("使用分析展示员工活动与业务模型调用，不外露配置或提示词", async () => {
+    window.history.replaceState({}, "", "/ops/usage?days=7&module=product");
+    const usage = {
+      updated_at: "2026-09-28T08:00:00Z",
+      range: { days: 7, start: "2026-09-22", end: "2026-09-28", timezone: "Asia/Shanghai" },
+      summary: { enabled_accounts: 4, login_users: 2, login_count: 8, module_launches: 5 },
+      trend: [{ date: "2026-09-28", login_users: 2, login_count: 8, module_launches: 5 }],
+      ranking: [{ code: "product", name: "产品方案中心", launches: 5 }],
+      employees: [
+        { id: 2, username: "staff", display_name: "普通用户", login_count: 6, module_launches: 4 },
+        { id: 3, username: "analyst", display_name: "", login_count: 2, module_launches: 1 },
+      ],
+      model_usage: {
+        enabled_routes: 2,
+        calls: 12,
+        successes: 10,
+        failures: 2,
+        prompt_tokens: null,
+        completion_tokens: null,
+        routes: [{ code: "business-primary", name: "业务主模型", calls: 12, successes: 10, failures: 2 }],
+      },
+      definitions: { model_usage: "仅统计业务模型调用。" },
+    };
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/me/") return Promise.resolve(json(admin));
+      if (path === "/api/ops/usage/?days=7&module=product") return Promise.resolve(json(usage));
+      if (path === "/api/ops/modules/") return Promise.resolve(json({ updated_at: usage.updated_at, items: [moduleRow] }));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    }));
+
+    render(<App />);
+
+    const employeeTable = await screen.findByRole("region", { name: "员工活动表格，可横向滚动" });
+    expect(within(employeeTable).getByText("普通用户")).toBeTruthy();
+    expect(within(employeeTable).getByText("@analyst")).toBeTruthy();
+    expect(within(employeeTable).getByText("6 次")).toBeTruthy();
+
+    const modelSection = screen.getByRole("heading", { name: "业务模型调用统计" }).closest("section");
+    expect(modelSection).toBeTruthy();
+    expect(within(modelSection!).getAllByText("未采集")).toHaveLength(2);
+    expect(within(modelSection!).getByText("业务主模型")).toBeTruthy();
+    expect(within(modelSection!).getByRole("link", { name: "模型后台维护" }).getAttribute("href")).toBe("/admin/portal/modelroute/");
+    expect(within(modelSection!).getByRole("link", { name: "调用日志审查" }).getAttribute("href")).toBe("/admin/portal/modelcalllog/");
+    expect(modelSection!.textContent).not.toContain("prompt");
+    expect(modelSection!.textContent).not.toContain("配置");
   });
 
   it("将错误率、历史记录、失败与统计字段显示为简明中文", () => {

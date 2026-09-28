@@ -14,6 +14,7 @@ from portal.models import GatewayModel, ModelRoute, Module, Provider
 from .base import PortalTestCase
 
 URL = "https://knowledge.example.test/api/v1/retrieval"
+LOCAL_URL = "http://127.0.0.1:19880/api/v1/retrieval"
 TOKEN = "test-only-knowledge-token-1234567890"
 CONFIG = (URL, TOKEN, "product_knowledge")
 SCOPE = {"datasets": {"dataset-1": ["document-1"]}}
@@ -51,6 +52,27 @@ class ProductKnowledgeServiceTests(SimpleTestCase):
         if status is not None:
             self.assertEqual(caught.exception.status, status)
 
+    def test_dataset_listing_filters_by_grant_and_uses_granted_document_count(self):
+        scope = {"datasets": {"dataset-1": ["document-1", "document-2"]}}
+        response = {"code": 0, "data": [{"id": "dataset-1", "name": "产品资料", "document_count": 48}]}
+        with patch.object(service, "_open", return_value=Response(json.dumps(response).encode())) as outbound:
+            self.assertEqual(service.list_datasets(scope, CONFIG), [
+                {"id": "dataset-1", "name": "产品资料", "document_count": 2}])
+        request, timeout = outbound.call_args.args
+        self.assertEqual(request.full_url, "https://knowledge.example.test/api/v1/datasets?id=dataset-1")
+        self.assertEqual(request.get_method(), "GET")
+        self.assertEqual(request.get_header("Authorization"), "Bearer " + TOKEN)
+        self.assertLessEqual(timeout, 10)
+
+    def test_dataset_listing_rejects_wrong_id_and_oversized_response(self):
+        for payload in ({"code": 0, "data": [{"id": "other", "name": "hidden"}]},
+                        {"code": 0, "data": [{"id": "dataset-1", "name": "ok"},
+                                              {"id": "other", "name": "hidden"}]}):
+            with self.subTest(payload=payload), patch.object(service, "_open", return_value=Response(json.dumps(payload).encode())):
+                self.assert_error("invalid_response", service.list_datasets, SCOPE, CONFIG, status=502)
+        with patch.object(service, "_open", return_value=Response(b" " * 65537)):
+            self.assert_error("invalid_response", service.list_datasets, SCOPE, CONFIG, status=502)
+
     def test_official_payload_uses_only_authorized_dataset_document_pairs(self):
         scope = {"datasets": {"dataset-1": ["document-1"], "dataset-2": ["document-2"]}}
         history = [{"question": "discard"}, {"question": "设备型号"}, {"question": "端口数量"}]
@@ -68,7 +90,7 @@ class ProductKnowledgeServiceTests(SimpleTestCase):
             self.assertLessEqual(timeout, 10)
             self.assertEqual(json.loads(request.data), {
                 "question": "设备型号\n端口数量\n它支持什么？", "dataset_ids": [dataset],
-                "document_ids": scope["datasets"][dataset], "page": 1, "page_size": 6,
+                "document_ids": scope["datasets"][dataset], "page": 1, "page_size": 12,
                 "similarity_threshold": 0.2, "vector_similarity_weight": 0.3,
                 "highlight": False, "keyword": False, "use_kg": False, "toc_enhance": False,
                 "cross_languages": [], "include_knowledge_compilation": False})
@@ -103,7 +125,7 @@ class ProductKnowledgeServiceTests(SimpleTestCase):
                    json.dumps({"code": False, "data": {"chunks": []}}).encode(),
                    b'{"code":1,"data":{"chunks":[]}}', b'{"code":0,"data":{}}',
                    wire([chunk(dataset_id="other")]), wire([chunk(document_id="other")]),
-                   wire([chunk(), chunk()]), wire([chunk(id=str(i)) for i in range(7)]),
+                   wire([chunk(), chunk()]), wire([chunk(id=str(i)) for i in range(13)]),
                    wire([chunk(content="")]), wire([chunk(content="x" * 16001)]),
                    wire([chunk(document_keyword="x" * 301)]), wire([chunk(id="bad\x00id")]),
                    wire([None]), wire([chunk(content=chr(0xD800))])]
@@ -141,9 +163,35 @@ class ProductKnowledgeServiceTests(SimpleTestCase):
                                     for i in range(6)]))]
         with patch.object(service, "_open", side_effect=responses):
             sources = service.retrieve("中" * 2000, [{"question": "文" * 2000}] * 3, scope, CONFIG)
-        self.assertEqual([s["dataset_id"] for s in sources], ["dataset-1", "dataset-2"] * 3)
-        self.assertEqual([s["id"] for s in sources], [f"S{i}" for i in range(1, 7)])
+        self.assertEqual([s["dataset_id"] for s in sources], ["dataset-1", "dataset-2"])
+        self.assertEqual([s["id"] for s in sources], ["S1", "S2"])
         self.assertEqual(len(sources[0]["content"]), 1200)
+
+    def test_retrieval_prefers_distinct_documents_for_project_search(self):
+        scope = {"datasets": {"dataset-1": ["document-1", "document-2", "document-3"]}}
+        response = wire([chunk(id="a"), chunk(id="b"), chunk(id="c"),
+                         chunk(id="d", document_id="document-2"),
+                         chunk(id="e", document_id="document-3")])
+        with patch.object(service, "_open", return_value=Response(response)):
+            sources = service.retrieve("有哪些相关项目？", [], scope, CONFIG)
+        self.assertEqual([item["document_id"] for item in sources],
+                         ["document-1", "document-2", "document-3"])
+
+    def test_project_listing_groups_reports_about_the_same_project(self):
+        scope = {"datasets": {"dataset-1": ["document-1", "document-2", "document-3"]}}
+        response = wire([chunk(id="a", document_keyword="甲建设项目初步设计"),
+                         chunk(id="b", document_id="document-2", document_keyword="甲建设项目实施方案"),
+                         chunk(id="c", document_id="document-3", document_keyword="乙建设项目可研")])
+        with patch.object(service, "_open", return_value=Response(response)):
+            sources = service.retrieve("有哪些相关项目？", [], scope, CONFIG)
+        self.assertEqual([item["document_id"] for item in sources], ["document-1", "document-3"])
+
+    def test_stream_preview_decodes_only_answer_text_without_json_or_citations(self):
+        self.assertEqual(service.preview_answer('{"answer":"项目甲\\n项目'), "项目甲\n项目")
+        self.assertEqual(service.preview_answer('{"answer":"项目甲\\u4e'), "项目甲")
+        self.assertEqual(service.preview_answer('{"answer":"项目甲","source_ids":["S1"]}'), "项目甲")
+        self.assertEqual(service.preview_answer('{"source_ids":["S1"],"answer":"项目甲"}'), "")
+        self.assertEqual(service.preview_answer('{"answer":"项目甲\\'), "项目甲")
 
     def test_answer_uses_bounded_history_and_only_current_evidence(self):
         sources = [{"id": "S1", **chunk()}, {"id": "S2", **chunk(id="chunk-2")}]
@@ -198,6 +246,30 @@ class ProductKnowledgeServiceTests(SimpleTestCase):
                 self.assert_error("unconfigured", service.configuration)
             with override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="bad route"):
                 self.assert_error("unconfigured", service.configuration)
+
+    def test_configuration_allows_explicit_local_http_only_in_debug(self):
+        config = dict(DEBUG=True, PRODUCT_KNOWLEDGE_ENABLED=True, PRODUCT_KNOWLEDGE_AI_CALLS_ALLOWED=True,
+                      PRODUCT_KNOWLEDGE_LOCAL_HTTP=True, PRODUCT_KNOWLEDGE_URL=LOCAL_URL,
+                      PRODUCT_KNOWLEDGE_ALLOWED_URLS=(LOCAL_URL,), PRODUCT_KNOWLEDGE_TOKEN_ENV="TEST_KNOWLEDGE_TOKEN",
+                      PRODUCT_KNOWLEDGE_MODEL_ROUTE=CONFIG[2])
+        with override_settings(**config), patch.object(service.os, "environ", {"TEST_KNOWLEDGE_TOKEN": TOKEN}):
+            self.assertEqual(service.configuration(), (LOCAL_URL, TOKEN, CONFIG[2]))
+            localhost = LOCAL_URL.replace("127.0.0.1", "localhost")
+            with override_settings(PRODUCT_KNOWLEDGE_URL=localhost, PRODUCT_KNOWLEDGE_ALLOWED_URLS=(localhost,)):
+                self.assertEqual(service.configuration(), (localhost, TOKEN, CONFIG[2]))
+
+    def test_configuration_rejects_local_http_without_every_guard(self):
+        config = dict(DEBUG=True, PRODUCT_KNOWLEDGE_ENABLED=True, PRODUCT_KNOWLEDGE_AI_CALLS_ALLOWED=True,
+                      PRODUCT_KNOWLEDGE_LOCAL_HTTP=True, PRODUCT_KNOWLEDGE_URL=LOCAL_URL,
+                      PRODUCT_KNOWLEDGE_ALLOWED_URLS=(LOCAL_URL,), PRODUCT_KNOWLEDGE_TOKEN_ENV="TEST_KNOWLEDGE_TOKEN",
+                      PRODUCT_KNOWLEDGE_MODEL_ROUTE=CONFIG[2])
+        rejected = ({"DEBUG": False}, {"PRODUCT_KNOWLEDGE_LOCAL_HTTP": False},
+                    {"PRODUCT_KNOWLEDGE_URL": LOCAL_URL.replace("127.0.0.1", "ragflow.local"),
+                     "PRODUCT_KNOWLEDGE_ALLOWED_URLS": (LOCAL_URL.replace("127.0.0.1", "ragflow.local"),)})
+        with override_settings(**config), patch.object(service.os, "environ", {"TEST_KNOWLEDGE_TOKEN": TOKEN}):
+            for changes in rejected:
+                with self.subTest(changes=changes), override_settings(**changes):
+                    self.assert_error("unconfigured", service.configuration)
 
     def test_ready_rejects_wrong_module_long_timeout_and_missing_gateway(self):
         route = SimpleNamespace(module=SimpleNamespace(code="product"), model=object())

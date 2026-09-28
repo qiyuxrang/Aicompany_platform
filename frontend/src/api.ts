@@ -232,6 +232,62 @@ export async function apiRequest<T>(
   return body as T;
 }
 
+export async function apiEventStream<T>(path: string, body: unknown, signal: AbortSignal, onDelta: (delta: string) => void): Promise<T> {
+  let token: string;
+  try { token = await ensureCsrf(); }
+  catch (error) {
+    if (error instanceof ApiError && error.status === 401) window.dispatchEvent(new Event(unauthorizedEvent));
+    throw error;
+  }
+  const response = await fetch(path, {
+    method: "POST", body: JSON.stringify(body), signal, credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": token },
+  });
+  if (!response.ok) {
+    const error = errorFrom(response, await parseBody(response));
+    if (error.status === 401) window.dispatchEvent(new Event(unauthorizedEvent));
+    if (error.status === 403 && error.code === "password_change_required") window.dispatchEvent(new Event(passwordChangeRequiredEvent));
+    throw error;
+  }
+  const reader = response.body?.getReader();
+  if (!reader || !response.headers.get("Content-Type")?.startsWith("text/event-stream")) {
+    throw new ApiError(502, "回答流格式无效，请重试。", "invalid_response");
+  }
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let pending = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      pending += decoder.decode(value, { stream: true });
+      if (pending.length > 65536) throw new ApiError(502, "回答流过长，请重试。", "invalid_response");
+      let boundary = pending.indexOf("\n\n");
+      while (boundary !== -1) {
+        const frame = pending.slice(0, boundary);
+        pending = pending.slice(boundary + 2);
+        if (!frame.startsWith("data: ")) throw new ApiError(502, "回答流格式无效，请重试。", "invalid_response");
+        let event: unknown;
+        try { event = JSON.parse(frame.slice(6)); } catch { throw new ApiError(502, "回答流格式无效，请重试。", "invalid_response"); }
+        if (!event || typeof event !== "object") throw new ApiError(502, "回答流格式无效，请重试。", "invalid_response");
+        const value = event as Record<string, unknown>;
+        if (value.error && typeof value.error === "object") {
+          const error = value.error as Record<string, unknown>;
+          const code = typeof error.code === "string" ? error.code : "invalid_response";
+          const status = code === "scope_revoked" || code === "forbidden" ? 403 : code === "conflict" ? 409 : 502;
+          throw new ApiError(status, typeof error.detail === "string" ? error.detail : "回答未完成，请重试。", code);
+        }
+        if (typeof value.delta === "string" && value.delta.length <= 4000) onDelta(value.delta);
+        else if (value.done && typeof value.done === "object") return value.done as T;
+        else throw new ApiError(502, "回答流格式无效，请重试。", "invalid_response");
+        boundary = pending.indexOf("\n\n");
+      }
+    }
+    throw new ApiError(502, "回答连接中断，请重试原问题。", "incomplete_stream");
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+}
+
 export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }

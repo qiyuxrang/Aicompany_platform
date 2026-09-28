@@ -9,6 +9,10 @@ VALUES = {'MATCH': 1, 'PARTIAL': .5, 'NOT_MATCH': 0, 'UNKNOWN': None}
 
 
 def _object(text):
+    if isinstance(text, str):
+        fenced = re.fullmatch(r'```(?:json)?\r?\n(.*?)\r?\n```', text.strip(), re.S)
+        if fenced:
+            text = fenced.group(1)
     try:
         value = json.loads(text)
     except (ValueError, TypeError):
@@ -23,14 +27,22 @@ def is_age_requirement(text):
     return bool(re.search(r'年龄|周岁|[零〇一二三四五六七八九十百\d]+\s*岁|\bage\b|years?\s*old|year[- ]olds?|[0-9]{2}后|出生|birth', text, re.I))
 
 
+def _without_age_clauses(text):
+    clauses = [clause.strip() for clause in re.split(r'[，,；;]+', text) if clause.strip()]
+    if not any(is_age_requirement(clause) for clause in clauses):
+        return text.strip()
+    return '；'.join(clause for clause in clauses if not is_age_requirement(clause))
+
+
 def requirements_for(data):
     result = []
     for field in ('education_requirement', 'experience_requirement', 'skill_requirements',
                   'required_requirements', 'work_location', 'preferred_requirements'):
         value = data.get(field, []) if field == 'skill_requirements' else data.get(field, '').splitlines()
         for index, text in enumerate(value):
-            if text.strip() and not is_age_requirement(text):
-                result.append({'id': f'{field}#{index}', 'text': text.strip(),
+            screening_text = _without_age_clauses(text)
+            if screening_text:
+                result.append({'id': f'{field}#{index}', 'text': screening_text,
                                'category': 'bonus' if field == 'preferred_requirements' else 'hard'})
     return result
 
@@ -56,7 +68,10 @@ def parse_profile(output, text):
         entry = data.get(field)
         if not isinstance(entry, dict):
             entry = {}
-        evidence = _evidence([entry.get('source_ref')], text)
+        source_ref = entry.get('source_ref')
+        if isinstance(source_ref, str):
+            source_ref = {'quote': source_ref}
+        evidence = _evidence([source_ref], text)
         value = entry.get('value')
         valid = isinstance(value, str) or (isinstance(value, list) and all(isinstance(v, str) for v in value))
         if entry.get('status') == 'extracted' and valid and evidence:

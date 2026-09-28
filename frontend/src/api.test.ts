@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  apiEventStream,
   apiRequest,
   clearApiSession,
   changePassword,
@@ -21,6 +22,29 @@ function json(body: unknown, status = 200): Response {
 }
 
 describe("API client", () => {
+  it("incrementally parses fragmented answer frames and requires a done event", async () => {
+    const encoder = new TextEncoder();
+    const chunks = ['data: {"delta":"网', '络"}\n\ndata: {"delta":"安全"}\n\n', 'data: {"done":{"id":"verified"}}\n\n'];
+    const stream = new ReadableStream({ start(controller) {
+      for (const part of chunks) controller.enqueue(encoder.encode(part));
+      controller.close();
+    } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(json({ csrfToken: "token" }))
+      .mockResolvedValueOnce(new Response(stream, { headers: { "Content-Type": "text/event-stream" } })));
+    const deltas: string[] = [];
+    const result = await apiEventStream<{ id: string }>("/api/product/knowledge/conversations/id/", { stream: true },
+      new AbortController().signal, delta => deltas.push(delta));
+    expect(deltas).toEqual(["网络", "安全"]);
+    expect(result).toEqual({ id: "verified" });
+    expect(new Headers(vi.mocked(fetch).mock.calls[1][1]?.headers).get("X-CSRFToken")).toBe("token");
+  });
+
+  it("rejects truncated streaming responses instead of treating drafts as saved", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(json({ csrfToken: "token" }))
+      .mockResolvedValueOnce(new Response('data: {"delta":"未完成"}\n\n', { headers: { "Content-Type": "text/event-stream" } })));
+    await expect(apiEventStream("/api/product/knowledge/conversations/id/", { stream: true },
+      new AbortController().signal, () => undefined)).rejects.toMatchObject({ code: "incomplete_stream" });
+  });
   it("上传资料使用浏览器的 multipart 边界并保留 CSRF", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ csrfToken: "upload-token" }))

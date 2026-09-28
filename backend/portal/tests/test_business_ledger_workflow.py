@@ -131,6 +131,43 @@ class BusinessLedgerWorkflowTests(PortalTestCase):
         self.assertEqual(BusinessLedgerRevision.objects.count(), 6)
         self.assertEqual(AuditEvent.objects.filter(action__startswith='business_ledger_').count(), 6)
 
+    def test_product_presales_edits_are_visible_to_manager_without_publishing(self):
+        product_user = self.create_user('presales-editor', 'product')
+        BusinessLedgerGrant.objects.create(user=product_user, department='presales', can_edit=True)
+        product_client = Client()
+        self.login(product_client, product_user)
+        record = {
+            'project_id': 'OP-001', 'project_name': '能源项目', 'status': '方案编制',
+            'owner': '产品人员', 'amount': '100000.00', 'follow_up_date': '2026-09-28',
+            'project_type': '技改', 'project_progress': '方案已沟通', 'description': '客户需求待核实',
+            'client_contact': '甲方代表', 'maturity': '重点',
+        }
+        created = self.post_json(product_client, '/api/business/ledgers/presales/records/',
+                                 expected_revision=0, record=record)
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertEqual(created.json()['state'], 'draft')
+        self.assertEqual(product_client.get('/api/business/boards/presales/').status_code, 403)
+
+        board = self.manager_client.get('/api/business/boards/presales/').json()
+        self.assertTrue(board['available'])
+        self.assertEqual(board['records'][0]['description'], '客户需求待核实')
+        self.assertEqual(board['source']['kind'], 'department_live')
+        self.assertEqual(board['source']['state'], 'draft')
+        self.assertEqual(board['metrics'][2]['value'], '100000.00')
+        self.assertFalse(self.manager_client.get('/api/business/boards/engineering/').json()['available'])
+
+        updated = product_client.put('/api/business/ledgers/presales/records/OP-001/',
+                                     json.dumps({'expected_revision': 1, 'record': {
+                                         **record, 'project_progress': '已更新方案', 'maturity': '方案确认',
+                                     }}), content_type='application/json')
+        self.assertEqual(updated.status_code, 200, updated.content)
+        latest = self.manager_client.get('/api/business/boards/presales/').json()
+        self.assertEqual(latest['records'][0]['project_progress'], '已更新方案')
+        self.assertEqual(latest['source']['revision'], 2)
+
+        BusinessLedgerGrant.objects.filter(user=product_user, department='presales').delete()
+        self.assertEqual(product_client.get('/api/business/ledgers/presales/').status_code, 403)
+
     def test_optimistic_concurrency_duplicate_validation_and_version_visibility(self):
         first = self.post_json(
             self.editor_client, '/api/business/ledgers/engineering/records/',

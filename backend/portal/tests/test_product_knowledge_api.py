@@ -75,7 +75,8 @@ class ProductKnowledgeApiTests(PortalTestCase):
 
     def test_permissions_and_non_owner_never_call_external_services(self):
         item = self.create()
-        for view, conversation in ((api.status, None), (api.conversations, None), (api.conversation, item)):
+        for view, conversation in ((api.status, None), (api.datasets, None),
+                                   (api.conversations, None), (api.conversation, item)):
             with self.subTest(view=view.__name__):
                 denied = self.request(view, user=self.denied, conversation=conversation)
                 self.assertEqual(denied.status_code, 403)
@@ -87,6 +88,69 @@ class ProductKnowledgeApiTests(PortalTestCase):
         self.assertEqual(self.request(api.conversations, user=self.other).data["conversations"], [])
         self.outbound.assert_not_called()
         self.gateway.assert_not_called()
+
+    def test_dataset_listing_is_owner_scoped_and_uncached(self):
+        self.outbound.side_effect = lambda *args: Response(json.dumps({
+            "code": 0, "data": [{"id": "dataset-1", "name": "产品资料", "document_count": 48}]}).encode())
+        response = self.request(api.datasets)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"datasets": [{"id": "dataset-1", "name": "产品资料", "document_count": 1}]})
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertEqual(self.request(api.datasets, user=self.denied).status_code, 403)
+        self.assertEqual(self.outbound.call_count, 1)
+
+    def test_streaming_question_emits_incremental_answer_and_commits_only_on_completion(self):
+        item = self.create()
+        raw = json.dumps({"answer": "项目甲与网络安全有关。", "source_ids": ["S1"]}, ensure_ascii=False)
+        with patch("portal.model_gateway.stream_for_use", return_value=iter([
+                {"delta": raw[:20]}, {"delta": raw[20:]},
+                {"done": True, "prompt_tokens": 10, "completion_tokens": 20}])):
+            request = self.factory.post("/api/product/knowledge/", {
+                "question": "项目有哪些？", "version": 0, "request_id": str(uuid.uuid4()), "stream": True}, format="json")
+            force_authenticate(request, user=self.owner)
+            response = api.conversation(request, conversation_id=item.pk)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Cache-Control"], "private, no-store")
+            events = [json.loads(line[6:]) for chunk in response.streaming_content
+                      for line in chunk.decode().splitlines() if line.startswith("data: ")]
+        self.assertTrue(any("delta" in event for event in events))
+        self.assertIn("项目甲", "".join(event.get("delta", "") for event in events))
+        self.assertIn("done", events[-1])
+        self.assertEqual(len(events[-1]["done"]["turns"]), 1)
+        item.refresh_from_db()
+        self.assertEqual(item.version, 1)
+        self.assertIsNone(item.pending_id)
+
+    def test_closed_stream_releases_lease_without_saving_partial_answer(self):
+        item = self.create()
+        closed = []
+        def events():
+            try:
+                yield {"delta": '{"answer":"草稿'}
+                yield {"done": True, "prompt_tokens": 1, "completion_tokens": 1}
+            finally:
+                closed.append(True)
+        with patch("portal.model_gateway.stream_for_use", return_value=events()):
+            request = self.factory.post("/api/product/knowledge/", {
+                "question": "问题", "version": 0, "request_id": str(uuid.uuid4()), "stream": True}, format="json")
+            force_authenticate(request, user=self.owner)
+            response = api.conversation(request, conversation_id=item.pk)
+            self.assertIn(b'data: {"delta":', next(iter(response.streaming_content)))
+            response.close()
+        self.assertEqual(closed, [True])
+        self.assert_unchanged(item)
+
+    def test_streaming_question_without_done_does_not_persist_answer(self):
+        item = self.create()
+        with patch("portal.model_gateway.stream_for_use", return_value=iter([{"delta": '{"answer":"未完成"'}])):
+            request = self.factory.post("/api/product/knowledge/", {
+                "question": "问题", "version": 0, "request_id": str(uuid.uuid4()), "stream": True}, format="json")
+            force_authenticate(request, user=self.owner)
+            response = api.conversation(request, conversation_id=item.pk)
+            events = [json.loads(line[6:]) for chunk in response.streaming_content
+                      for line in chunk.decode().splitlines() if line.startswith("data: ")]
+        self.assertEqual(events[-1]["error"]["code"], "invalid_response")
+        self.assert_unchanged(item)
 
     def test_product_disabled_or_user_stale_denied(self):
         for field in ("session_version", "grant_version"):

@@ -209,3 +209,4 @@ from .hr_screening_models import ResumeArtifact, ResumeScreeningBatch
 from .business_models import (BusinessLedgerGrant, BusinessLedgerRevision,
                               BusinessLedgerSnapshot, BusinessLedgerWorkbook)
 from .product_knowledge_models import ProductKnowledgeConversation
+from .engineering_models import EngineeringJob

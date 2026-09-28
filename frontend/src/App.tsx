@@ -854,6 +854,7 @@ export default function App() {
     if (user?.must_change_password && pathname !== "/password") requiredPath = "/password";
     if (user && !user.must_change_password && pathname === "/login") requiredPath = departmentHome(user);
     if (user?.is_platform_admin && !user.must_change_password && pathname === "/") requiredPath = "/ops";
+    if (user && !user.must_change_password && pathname === "/" && departmentHome(user) === "/centers/business") requiredPath = "/centers/business";
     if (user && ["/centers/product/solution", "/centers/product/feasibility", "/centers/product/slides"].includes(pathname)) requiredPath = "/centers/product/documents";
     if (user?.is_platform_admin && ["/preview/product/solution", "/preview/product/feasibility", "/preview/product/slides"].includes(pathname)) requiredPath = "/preview/product/documents";
   }

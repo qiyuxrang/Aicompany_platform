@@ -5,7 +5,7 @@ import { ApiError, PortalModule } from "../api";
 import ManagerWorkspace from "./ManagerWorkspace";
 
 // BI data flow has its own contract tests; these cases isolate legacy navigation.
-vi.mock('./BusinessBoards', () => ({ default: () => <div>企业台账看板</div> }));
+vi.mock('./BusinessBoards', () => ({ default: () => <div>部门完整看板</div>, BusinessOverview: () => <div>三部门经营速览</div> }));
 vi.mock('./BusinessLedgerWorkspace', () => ({ default: () => <div>部门台账录入</div> }));
 
 const apiMocks = vi.hoisted(() => ({
@@ -59,6 +59,16 @@ afterEach(() => {
 });
 
 describe("ManagerWorkspace boundaries", () => {
+  it("总览只展示紧凑的三部门 BI 看板", () => {
+    render(<ManagerWorkspace section="overview" preview={false} module={businessModule()} businessPanel={null} />);
+
+    expect(screen.getByText("三部门经营速览")).toBeTruthy();
+    expect(screen.queryByText("经营智能分析")).toBeNull();
+    expect(screen.queryByText("部门录入，总经理统一查看")).toBeNull();
+    expect(screen.queryByText("台账与经营视图")).toBeNull();
+    expect(screen.queryByRole("button", { name: "进入原台账看板" })).toBeNull();
+  });
+
   it.each(["overview", "projects", "ledgers"])("%s 预览不挂载业务面板或调用旧系统入口", async (section) => {
     const BusinessPanel = vi.fn(() => <div>受保护的经营数据</div>);
 
@@ -105,7 +115,7 @@ describe("ManagerWorkspace boundaries", () => {
 
   it("当前页面的有效启动响应仍正常跳转", async () => {
     const request = pendingLaunch();
-    render(<ManagerWorkspace section="overview" preview={false} module={businessModule()} businessPanel={null} />);
+    render(<ManagerWorkspace section="ledgers" preview={false} module={businessModule()} businessPanel={null} />);
     await userEvent.click(screen.getByRole("button", { name: "进入原台账看板" }));
     expect((screen.getByRole("button", { name: "正在核验入口…" }) as HTMLButtonElement).disabled).toBe(true);
 
@@ -116,7 +126,7 @@ describe("ManagerWorkspace boundaries", () => {
 
   it.each(["resolve", "reject"] as const)("卸载后忽略迟到的 %s 结果", async (outcome) => {
     const request = pendingLaunch();
-    const view = render(<ManagerWorkspace section="overview" preview={false} module={businessModule()} businessPanel={null} />);
+    const view = render(<ManagerWorkspace section="ledgers" preview={false} module={businessModule()} businessPanel={null} />);
     await userEvent.click(screen.getByRole("button", { name: "进入原台账看板" }));
     view.unmount();
 
@@ -131,8 +141,9 @@ describe("ManagerWorkspace boundaries", () => {
 
   it.each(["resolve", "reject"] as const)("section变化使旧 %s 结果失效且不干扰新启动请求", async (outcome) => {
     const previous = pendingLaunch();
-    const view = render(<ManagerWorkspace section="overview" preview={false} module={businessModule()} businessPanel={null} />);
+    const view = render(<ManagerWorkspace section="ledgers" preview={false} module={businessModule()} businessPanel={null} />);
     await userEvent.click(screen.getByRole("button", { name: "进入原台账看板" }));
+    view.rerender(<ManagerWorkspace section="projects" preview={false} module={businessModule()} businessPanel={null} />);
     view.rerender(<ManagerWorkspace section="ledgers" preview={false} module={businessModule()} businessPanel={null} />);
     expect((screen.getByRole("button", { name: "进入原台账看板" }) as HTMLButtonElement).disabled).toBe(false);
     const current = pendingLaunch();
@@ -152,10 +163,10 @@ describe("ManagerWorkspace boundaries", () => {
 
   it("离开section再返回也不会重新接受旧响应", async () => {
     const request = pendingLaunch();
-    const view = render(<ManagerWorkspace section="overview" preview={false} module={businessModule()} businessPanel={null} />);
+    const view = render(<ManagerWorkspace section="ledgers" preview={false} module={businessModule()} businessPanel={null} />);
     await userEvent.click(screen.getByRole("button", { name: "进入原台账看板" }));
     view.rerender(<ManagerWorkspace section="projects" preview={false} module={businessModule()} businessPanel={null} />);
-    view.rerender(<ManagerWorkspace section="overview" preview={false} module={businessModule()} businessPanel={null} />);
+    view.rerender(<ManagerWorkspace section="ledgers" preview={false} module={businessModule()} businessPanel={null} />);
 
     await act(async () => request.resolve("https://legacy.example.test/stale"));
 
@@ -165,9 +176,9 @@ describe("ManagerWorkspace boundaries", () => {
 
   it.each(["preview", "disabled"] as const)("进入%s状态使正在等待的启动响应失效", async (mode) => {
     const request = pendingLaunch();
-    const view = render(<ManagerWorkspace section="overview" preview={false} module={businessModule()} businessPanel={null} />);
+    const view = render(<ManagerWorkspace section="ledgers" preview={false} module={businessModule()} businessPanel={null} />);
     await userEvent.click(screen.getByRole("button", { name: "进入原台账看板" }));
-    view.rerender(<ManagerWorkspace section="overview" preview={mode === "preview"} module={businessModule(mode === "disabled" ? "disabled" : "verified")} businessPanel={null} />);
+    view.rerender(<ManagerWorkspace section="ledgers" preview={mode === "preview"} module={businessModule(mode === "disabled" ? "disabled" : "verified")} businessPanel={null} />);
 
     await act(async () => request.resolve("https://legacy.example.test/stale"));
 

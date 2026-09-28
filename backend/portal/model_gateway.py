@@ -1,5 +1,7 @@
 import json
+import re
 import uuid
+from contextlib import closing
 from datetime import timedelta
 from http.client import HTTPException
 from time import monotonic
@@ -53,11 +55,13 @@ class GatewayError(Exception):
 def validate_provider_url(value):
     try:
         parsed = urlsplit(value)
-        if (value != value.strip() or parsed.scheme != "https" or not parsed.hostname
+        local_http = (settings.DEBUG and settings.MODEL_PROVIDER_LOCAL_HTTP
+                      and re.fullmatch(r"http://127\.0\.0\.1:19880/api/v1/openai/[0-9a-f]{32}", value))
+        if (not local_http and (value != value.strip() or parsed.scheme != "https" or not parsed.hostname
                 or parsed.username or parsed.password or parsed.query or parsed.fragment
                 or "?" in value or "#" in value or "\\" in value or "%" in value
                 or any(ord(character) < 33 or ord(character) > 126 for character in value)
-                or parsed.port not in (None, 443) or any(part in (".", "..") for part in parsed.path.split("/"))):
+                or parsed.port not in (None, 443) or any(part in (".", "..") for part in parsed.path.split("/")))):
             raise ValueError
     except (ValueError, TypeError):
         raise ValidationError("请填写不含凭据、查询参数或片段的标准 HTTPS 服务根地址，仅支持443端口。") from None
@@ -99,7 +103,7 @@ def _model_config(model):
                       "max_output_tokens": model.max_output_tokens, "timeout_seconds": model.timeout_seconds}}
 
 
-def _request_gateway(payload):
+def _gateway_request(payload, endpoint=None):
     url = settings.MODEL_GATEWAY_URL
     token = settings.MODEL_GATEWAY_TOKEN
     try:
@@ -113,12 +117,50 @@ def _request_gateway(payload):
             raise ValueError
     except (TypeError, ValueError):
         raise GatewayError("unconfigured", status=503) from None
-    vision = any(isinstance(item['content'], list) for item in payload['messages'])
-    endpoint = '/v1/generate-vision' if vision else '/v1/generate'
+    if endpoint is None:
+        vision = any(isinstance(item['content'], list) for item in payload['messages'])
+        endpoint = '/v1/generate-vision' if vision else '/v1/generate'
     request = Request(url.rstrip("/") + endpoint, data=json.dumps(payload, ensure_ascii=False).encode(),
                       headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"}, method="POST")
+    return request, payload.get("model", {}).get("timeout_seconds", 15) + 5
+
+
+def fetch_model_catalog(provider):
+    provider.full_clean()
+    request, timeout = _gateway_request({"provider": {
+        "protocol": provider.protocol, "base_url": provider.base_url,
+        "api_key_env": provider.api_key_env,
+    }}, "/v1/models")
     try:
-        with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=payload["model"]["timeout_seconds"] + 5) as response:
+        with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=timeout) as response:
+            body = response.read(262145)
+        if len(body) > 262144:
+            raise GatewayError("response_too_large")
+        data = json.loads(body)
+        identifiers = data.get("models") if isinstance(data, dict) else None
+        if (not isinstance(identifiers, list) or len(identifiers) > 500
+                or any(not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}", name)
+                       for name in identifiers) or len(identifiers) != len(set(identifiers))):
+            raise ValueError
+        return identifiers
+    except HTTPError as error:
+        try:
+            code = json.loads(error.read(8192)).get("code", "upstream_error")
+        except (ValueError, AttributeError):
+            code = "upstream_error"
+        finally:
+            error.close()
+        raise GatewayError(code if isinstance(code, str) and code in ERROR_MESSAGES else "upstream_error") from None
+    except (URLError, TimeoutError, OSError, HTTPException):
+        raise GatewayError("gateway_unavailable", status=503) from None
+    except (ValueError, TypeError, KeyError, UnicodeError):
+        raise GatewayError("invalid_response") from None
+
+
+def _request_gateway(payload):
+    request, timeout = _gateway_request(payload)
+    try:
+        with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=timeout) as response:
             raw = response.read(1048577)
             if len(raw) > 1048576:
                 raise GatewayError("response_too_large")
@@ -150,6 +192,84 @@ def _request_gateway(payload):
         raise GatewayError("gateway_unavailable", status=503) from None
     except (ValueError, TypeError, KeyError):
         raise GatewayError("invalid_response") from None
+
+
+def _stream_events(response, deadline):
+    buffer = bytearray()
+    total = 0
+    done = False
+    while True:
+        if monotonic() >= deadline:
+            raise GatewayError("timeout", status=504)
+        chunk = response.readline(65537)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > 1048576:
+            raise GatewayError("response_too_large")
+        buffer.extend(chunk)
+        buffer = bytearray(buffer.replace(b"\r\n", b"\n"))
+        while b"\n\n" in buffer:
+            frame, _, remainder = buffer.partition(b"\n\n")
+            buffer = bytearray(remainder)
+            lines = frame.replace(b"\r\n", b"\n").split(b"\n")
+            data = [line[5:].lstrip(b" ") for line in lines if line.startswith(b"data:")]
+            if len(data) != 1 or any(line and not line.startswith((b"data:", b":")) for line in lines):
+                raise GatewayError("invalid_response")
+            try:
+                event = json.loads(data[0].decode("utf-8"))
+            except (ValueError, UnicodeError):
+                raise GatewayError("invalid_response") from None
+            if not isinstance(event, dict) or done:
+                raise GatewayError("invalid_response")
+            if set(event) == {"delta"} and isinstance(event["delta"], str) and event["delta"]:
+                yield event
+            elif set(event) == {"done", "prompt_tokens", "completion_tokens"} and event["done"] is True:
+                if any(event[key] is not None and (type(event[key]) is not int or not 0 <= event[key] <= 2147483647)
+                       for key in ("prompt_tokens", "completion_tokens")):
+                    raise GatewayError("invalid_response")
+                done = True
+                terminal = event
+            elif (set(event) == {"error"} and isinstance(event["error"], dict)
+                  and isinstance(event["error"].get("code"), str)
+                  and set(event["error"]) == {"code", "detail"}
+                  and isinstance(event["error"]["detail"], str)):
+                raise GatewayError(event["error"]["code"])
+            else:
+                raise GatewayError("invalid_response")
+        if len(buffer) > 65536:
+            raise GatewayError("response_too_large")
+    if buffer or not done or monotonic() >= deadline:
+        raise GatewayError("invalid_response" if buffer or not done else "timeout")
+    yield terminal
+
+
+def _request_gateway_stream(payload):
+    request, timeout = _gateway_request(payload, "/v1/generate-stream")
+    response = None
+    try:
+        response = build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=timeout)
+        if response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "text/event-stream":
+            raise GatewayError("invalid_response")
+        if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+            raise GatewayError("invalid_response")
+        yield from _stream_events(response, monotonic() + timeout)
+    except HTTPError as error:
+        try:
+            code = json.loads(error.read(8192)).get("code", "upstream_error")
+        except (ValueError, AttributeError):
+            code = "upstream_error"
+        finally:
+            error.close()
+        statuses = {"unconfigured": 503, "unauthorized": 503, "missing_key": 503,
+                    "busy": 429, "rate_limited": 429, "timeout": 504, "target_not_allowed": 403,
+                    "invalid_request": 400, "request_too_large": 413, "unsupported_protocol": 400}
+        raise GatewayError(code, status=statuses.get(code, 502) if isinstance(code, str) else 502) from None
+    except (URLError, TimeoutError, OSError, HTTPException):
+        raise GatewayError("gateway_unavailable", status=503) from None
+    finally:
+        if response is not None:
+            response.close()
 
 
 def _fresh_user(user):
@@ -369,6 +489,64 @@ def generate_for_use(user, purpose_code, messages, model_selection=None):
     model, option, config_version = _select_route_model(user, route, model_selection)
     return _invoke(user, model, messages, "business", route, config_version,
                    selection_pinned=model_selection is not None)
+
+
+def stream_for_use(user, purpose_code, messages):
+    if purpose_code != getattr(settings, "PRODUCT_KNOWLEDGE_MODEL_ROUTE", None):
+        raise GatewayError("forbidden", status=403)
+    user, route = _route_for(user, purpose_code)
+    if route.module.code != "product":
+        raise GatewayError("forbidden", status=403)
+    model, option, config_version = _select_route_model(user, route)
+    config = _model_config(model)
+    revisions = (model.provider.updated_at, model.updated_at, route.updated_at)
+    payload = {**config, "messages": _messages(messages), "purpose": "business"}
+    record = _reserve(user, model, "business", route, config_version)
+    started = monotonic()
+    try:
+        completed = False
+        with closing(_request_gateway_stream(payload)) as stream:
+            for event in stream:
+                if "done" not in event:
+                    yield event
+                    continue
+                fresh = _fresh_user(user)
+                if fresh.grant_version != user.grant_version:
+                    raise GatewayError("forbidden", status=403)
+                fresh, current = _route_for(fresh, route.code)
+                try:
+                    current_model, current_option, current_version = _select_route_model(fresh, current, {
+                        "model_id": str(model.public_id), "config_version": config_version,
+                    })
+                except GatewayError as error:
+                    if error.code == "model_configuration_changed":
+                        raise GatewayError("disabled", status=409) from None
+                    raise
+                if (_model_config(current_model) != config or current_version != config_version
+                        or (current_model.provider.updated_at, current_model.updated_at, current.updated_at) != revisions):
+                    raise GatewayError("disabled", status=409)
+                record.status = "success"
+                record.prompt_tokens = event["prompt_tokens"]
+                record.completion_tokens = event["completion_tokens"]
+                completed = True
+                yield event
+        if not completed:
+            raise GatewayError("invalid_response")
+    except GatewayError as error:
+        record.status = error.code
+        raise
+    except GeneratorExit:
+        record.status = "cancelled"
+        raise
+    except Exception:
+        record.status = "internal_error"
+        raise GatewayError("internal_error") from None
+    finally:
+        if record.status == "pending":
+            record.status = "invalid_response"
+        record.duration_ms = max(0, int((monotonic() - started) * 1000))
+        record.save(update_fields=["status", "duration_ms", "prompt_tokens", "completion_tokens"])
+        audit(user, "model_call", record.pk, result=record.status)
 
 
 def test_connection(user, model_id):

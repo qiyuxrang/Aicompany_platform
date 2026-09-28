@@ -3,6 +3,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import RecruitmentScreening from './RecruitmentScreening';
 const api = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 vi.mock('../api', () => api);
+const models = { route: { code: 'hr_match_summary', name: '筛选', module: 'hr' }, default_model_id: 'model-1', models: [
+  { id: 'model-1', name: '默认模型', config_version: 'v1', capabilities: { text: true, vision: false }, max_output_tokens: 1000, is_default: true },
+  { id: 'model-2', name: '备选模型', config_version: 'v2', capabilities: { text: true, vision: false }, max_output_tokens: 1000, is_default: false },
+] };
 const batch = { id: 'batch-1', jd_version_id: 'jd-1', jd_version: 1, position_name: '交付经理', version: 2, status: 'pending', stale: false, total: 1, completed: 0, failed: 0, progress: 0, updated_at: '2026-09-26T01:00:00Z', artifacts: [] };
 beforeEach(() => {
   window.history.replaceState({}, '', '/centers/hr/resumes?batch=batch-1');
@@ -65,7 +69,7 @@ it('上传 JD 先展示正文与快照，保存修改后确认该版本才可创
   const request = { id: 'r1', input_version: 4 };
   const draft = { id: 'jd-import', request_id: 'r1', version: 1, body: '原始JD', state: 'draft', channel: 'general', requirements: { skill_requirements: ['SQL'] } };
   api.apiRequest.mockImplementation((path: string, options?: RequestInit) => Promise.resolve(
-    path.endsWith('upload-jd/') ? { request, jd: draft } : path.endsWith('jd-versions/') ? { ...draft, id: 'jd-edited', version: 2, body: '已修改JD' } : path.endsWith('/confirm/') ? { ...draft, id: 'jd-edited', version: 2, body: '已修改JD', state: 'confirmed' } : path.endsWith('batches/') && options?.method === 'POST' ? { ...batch, total: 0 } : path.endsWith('/resumes/') ? { batch } : path.endsWith('batches/') || path.endsWith('confirmed-jds/') ? [] : batch));
+    path.includes('/api/models/routes/') ? models : path.endsWith('upload-jd/') ? { request, jd: draft } : path.endsWith('jd-versions/') ? { ...draft, id: 'jd-edited', version: 2, body: '已修改JD' } : path.endsWith('/confirm/') ? { ...draft, id: 'jd-edited', version: 2, body: '已修改JD', state: 'confirmed' } : path.endsWith('batches/') && options?.method === 'POST' ? { ...batch, total: 0 } : path.endsWith('/resumes/') ? { batch } : path.endsWith('batches/') || path.endsWith('confirmed-jds/') ? [] : batch));
   render(<RecruitmentScreening />);
   fireEvent.change(screen.getByLabelText('上传 JD 文件（TXT、DOCX、PDF）'), { target: { files: [new File(['原始JD'], 'jd.docx')] } });
   await screen.findByDisplayValue('原始JD'); expect(screen.getByText('SQL')).toBeTruthy();
@@ -77,9 +81,11 @@ it('上传 JD 先展示正文与快照，保存修改后确认该版本才可创
   fireEvent.click(screen.getByRole('button', { name: '确认上传 JD' }));
   await screen.findByText('JD 已确认，可选择简历并进行筛选。');
   expect(api.apiRequest).toHaveBeenCalledWith('/api/hr/recruitment/requests/r1/jd-versions/jd-edited/confirm/', expect.objectContaining({ body: JSON.stringify({ expected_version: 4 }) }));
+  await screen.findByRole('option', { name: '备选模型' });
+  fireEvent.change(screen.getByLabelText('简历筛选模型'), { target: { value: 'model-2' } });
   fireEvent.change(screen.getByLabelText('选择简历'), { target: { files: [new File(['resume'], 'resume.txt')] } });
   fireEvent.click(screen.getByRole('button', { name: '进行筛选' }));
-  await waitFor(() => expect(api.apiRequest).toHaveBeenCalledWith('/api/hr/recruitment/batches/', expect.objectContaining({ body: JSON.stringify({ jd_version_id: 'jd-edited' }) })));
+  await waitFor(() => expect(api.apiRequest).toHaveBeenCalledWith('/api/hr/recruitment/batches/', expect.objectContaining({ body: JSON.stringify({ jd_version_id: 'jd-edited', model_selection: { model_id: 'model-2', config_version: 'v2' } }) })));
 });
 it('分组上传失败保留剩余文件且不运行模型批次', async () => {
   let calls = 0;
@@ -102,4 +108,21 @@ it('查看结果详情不会被刷新立即清除', async () => {
   fireEvent.click(await screen.findByRole('button', { name: '查看证据' }));
   await screen.findByText('使用SQL三年');
   await waitFor(() => expect(screen.getByText('SQL能力')).toBeTruthy());
+});
+
+it('模型列表失败时不能创建筛选批次', async () => {
+  window.history.replaceState({}, '', '/centers/hr/resumes');
+  api.apiRequest.mockImplementation((path: string) => path.includes('/api/models/routes/') ? Promise.reject(new Error('模型列表不可用')) : Promise.resolve(path.endsWith('confirmed-jds/') ? [{ id: 'jd-1', body: '正文', version: 1 }] : []));
+  render(<RecruitmentScreening />);
+  await screen.findByText('模型列表不可用');
+  fireEvent.change(screen.getByLabelText('正式 JD'), { target: { value: 'jd-1' } });
+  fireEvent.change(screen.getByLabelText('选择简历'), { target: { files: [new File(['resume'], 'resume.txt')] } });
+  expect((screen.getByRole('button', { name: '进行筛选' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(api.apiRequest.mock.calls.some(([path, options]) => path.endsWith('/batches/') && options?.method === 'POST')).toBe(false);
+});
+it('历史批次不展示新建模型选择，显示批次绑定模型', async () => {
+  api.apiRequest.mockImplementation((path: string) => Promise.resolve(path.endsWith('batches/') ? [batch] : path.endsWith('confirmed-jds/') ? [] : { ...batch, model_selection: { model_id: 'model-2', config_version: 'v2', model_name: '历史模型' } }));
+  render(<RecruitmentScreening />);
+  expect(await screen.findByText('历史模型')).toBeTruthy();
+  expect(screen.queryByLabelText('简历筛选模型')).toBeNull();
 });

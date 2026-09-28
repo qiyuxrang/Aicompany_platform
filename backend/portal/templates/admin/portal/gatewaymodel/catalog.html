@@ -1,0 +1,44 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">首页</a>
+  &rsaquo; <a href="{{ changelist_url }}">网关模型</a>
+  &rsaquo; 获取模型
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <section class="module">
+    <h2>获取服务商模型目录</h2>
+    <p>只读取已配置服务商的模型 ID；目录可能包含图片、语音、向量等非聊天模型，不代表每个模型都能用于部门助手。密钥不会显示在页面上。</p>
+    <p>选择导入后默认停用，管理员应核对模型能力并测试连接，再决定是否启用及授权业务路由。</p>
+  </section>
+  <form method="post">
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      <div class="form-row">
+        <label for="provider_id">模型服务商：</label>
+        <select id="provider_id" name="provider_id" required>
+          {% for item in providers %}
+            <option value="{{ item.pk }}" {% if provider.pk == item.pk %}selected{% endif %}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" name="action" value="fetch">获取模型</button>
+      </div>
+    </fieldset>
+    {% if provider and total %}
+      <p>目录共 {{ total }} 个模型，尚未导入 {{ available|length }} 个。按住 Ctrl 可多选，单次最多导入 100 个。</p>
+      {% if available %}
+        <label for="model_ids">选择要导入的模型 ID：</label><br>
+        <select id="model_ids" name="model_ids" multiple size="16" style="min-width: 32em; max-width: 100%;">
+          {% for name in available %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+        <div class="submit-row"><button type="submit" name="action" value="import" class="default">导入所选模型（默认停用）</button></div>
+      {% endif %}
+    {% endif %}
+  </form>
+  <p><a href="{{ changelist_url }}">返回模型列表</a></p>
+</div>
+{% endblock %}

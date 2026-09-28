@@ -1,5 +1,6 @@
 import asyncio
 import hmac
+import json
 import os
 from threading import BoundedSemaphore
 from time import monotonic
@@ -7,11 +8,11 @@ from typing import Literal
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import GatewayError
-from .transport import chat_completion
+from .transport import chat_completion, list_models, stream_completion
 from backend.portal.model_messages import VISION_REQUEST_LIMIT, validate_messages
 
 
@@ -66,6 +67,10 @@ class ProviderConfig(StrictModel):
     protocol: Literal["openai_chat"]
     base_url: str = Field(min_length=8, max_length=500)
     api_key_env: str = Field(pattern=r"^PORTAL_MODEL_KEY_[A-Z0-9_]+$", max_length=100)
+
+
+class CatalogRequest(StrictModel):
+    provider: ProviderConfig
 
 
 class ModelConfig(StrictModel):
@@ -136,6 +141,20 @@ def health():
     return {"status": "ok", "service": "model-gateway"}
 
 
+@app.post("/v1/models")
+def model_catalog(payload: CatalogRequest):
+    if not slots.acquire(blocking=False):
+        raise GatewayError("busy", "模型网关繁忙，请稍后重试。", 429)
+    try:
+        return {"models": list_models(payload.provider.model_dump())}
+    except GatewayError:
+        raise
+    except Exception:
+        raise GatewayError("internal_error", "获取模型列表失败。") from None
+    finally:
+        slots.release()
+
+
 @app.post('/v1/generate-vision', response_model=GenerateResponse)
 def generate_vision(payload: VisionRequest):
     try:
@@ -163,3 +182,36 @@ def generate(payload: GenerateRequest):
         raise GatewayError("internal_error", "模型调用失败，请检查服务配置。") from None
     finally:
         slots.release()
+
+
+@app.post("/v1/generate-stream")
+def generate_stream(payload: GenerateRequest):
+    if not slots.acquire(blocking=False):
+        raise GatewayError("busy", "模型网关繁忙，请稍后重试。", 429)
+
+    async def events():
+        stream = None
+        try:
+            messages = ([{"role": "user", "content": "Reply with OK."}] if payload.purpose == "test"
+                        else [message.model_dump() for message in payload.messages])
+            stream = stream_completion(payload.provider.model_dump(), payload.model.model_dump(), messages,
+                                       max_output_tokens=min(16, payload.model.max_output_tokens) if payload.purpose == "test" else None)
+            while True:
+                event = await asyncio.to_thread(next, stream, None)
+                if event is None:
+                    break
+                if payload.purpose == "test" and "delta" in event:
+                    continue
+                yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+        except GatewayError as error:
+            yield "data: " + json.dumps({"error": {"code": error.code, "detail": error.message}}, ensure_ascii=False) + "\n\n"
+        except Exception:
+            yield 'data: {"error":{"code":"internal_error","detail":"模型调用失败，请检查服务配置。"}}\n\n'
+        finally:
+            try:
+                if stream is not None:
+                    await asyncio.to_thread(stream.close)
+            finally:
+                slots.release()
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

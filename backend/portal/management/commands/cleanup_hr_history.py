@@ -18,4 +18,4 @@ class Command(BaseCommand):
             raise CommandError(str(error)) from error
         self.stdout.write(json.dumps(report, ensure_ascii=False))
         if report['failures']:
-            raise CommandError('部分文件未删除，关联记录保留；修复存储后重试。')
+            raise CommandError('数据库记录已清理；部分私有文件删除失败，删除标记待重试。')

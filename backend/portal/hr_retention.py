@@ -4,7 +4,7 @@ A request owns its conversation/JD lifecycle. Batches and all resume derivatives
 expire at the earlier of batch and request deadlines; uploads/edits never renew.
 Read checks do not depend on cleanup. Cleanup removes at most `limit` roots of
 each kind per pass (including batches nested in requests), under database locks;
-file failures retain rows for retry. Large requests drain across repeated passes.
+durable markers retry file deletion after database commit. Large requests drain across repeated passes.
 Personnel/probation and security audit events are deliberately not selected.
 """
 from datetime import timedelta
@@ -47,11 +47,24 @@ def batch_expired(batch, now=None):
 
 
 def _delete_batch(batch):
-    from .hr_resume_storage import remove_file
-    # Serialize with upload/finish; keep artifact rows until physical deletion succeeds.
-    for item in batch.artifacts.select_for_update().all():
-        remove_file(item.file_id)
+    from .hr_resume_storage import defer_file_removal
+    # Mark first so a crash after commit leaves a durable orphan-cleanup retry.
+    file_ids = list(batch.artifacts.select_for_update().order_by('created_at', 'pk')
+                    .values_list('file_id', flat=True))
+    for file_id in file_ids:
+        defer_file_removal(file_id)
     batch.delete()
+    return file_ids
+
+
+def _remove_files(file_ids, report):
+    from .hr_resume_storage import remove_file
+    from .product_storage import StorageError
+    for file_id in file_ids:
+        try:
+            remove_file(file_id)
+        except StorageError as error:
+            report['failures'].append({'kind': 'resume_file', 'id': file_id, 'code': error.code})
 
 
 def cleanup_history(*, limit=100, now=None):
@@ -67,6 +80,7 @@ def cleanup_history(*, limit=100, now=None):
     failed_requests = []
     # Snapshot IDs only; recheck cutoff under lock, never update creation timestamps.
     for pk in list(RecruitmentRequest.objects.filter(created_at__lte=edge).order_by('created_at').values_list('pk', flat=True)[:limit]):
+        file_ids = []
         try:
             with transaction.atomic():
                 row = RecruitmentRequest.objects.select_for_update().filter(pk=pk, created_at__lte=edge).first()
@@ -75,27 +89,33 @@ def cleanup_history(*, limit=100, now=None):
                 children = ResumeScreeningBatch.objects.filter(jd_version__request=row)
                 removed_batches = 0
                 for batch in children.select_for_update(of=('self',)).order_by('pk')[:limit - report['batches']]:
-                    _delete_batch(batch)
+                    file_ids.extend(_delete_batch(batch))
                     removed_batches += 1
-                report['batches'] += removed_batches
-                if children.exists():
-                    report['deferred'] += 1
-                    continue
-                row.current_jd = row.official_jd = None
-                row.save(update_fields=['current_jd', 'official_jd'])
-                JDVersion.objects.filter(request=row).update(parent=None, source_jd=None)
-                row.delete()
-                report['requests'] += 1
+                deferred = children.exists()
+                if not deferred:
+                    row.current_jd = row.official_jd = None
+                    row.save(update_fields=['current_jd', 'official_jd'])
+                    JDVersion.objects.filter(request=row).update(parent=None, source_jd=None)
+                    row.delete()
+            report['batches'] += removed_batches
+            report['deferred'] += int(deferred)
+            report['requests'] += int(not deferred)
+            _remove_files(file_ids, report)
         except StorageError as error:
             failed_requests.append(pk)
             report['failures'].append({'kind': 'request', 'id': str(pk), 'code': error.code})
     for pk in list(ResumeScreeningBatch.objects.filter(Q(created_at__lte=edge) | Q(jd_version__request__created_at__lte=edge)).exclude(jd_version__request_id__in=failed_requests).order_by('created_at').values_list('pk', flat=True)[:limit - report['batches']]):
+        file_ids = []
+        removed = False
         try:
             with transaction.atomic():
                 batch = ResumeScreeningBatch.objects.select_for_update().filter(pk=pk).first()
                 if batch is not None:
-                    _delete_batch(batch)
-                    report['batches'] += 1
+                    file_ids = _delete_batch(batch)
+                    removed = True
+            if removed:
+                report['batches'] += 1
+                _remove_files(file_ids, report)
         except StorageError as error:
             report['failures'].append({'kind': 'batch', 'id': str(pk), 'code': error.code})
     for pk in list(HrJobTask.objects.filter(created_at__lte=edge).order_by('created_at').values_list('pk', flat=True)[:limit]):

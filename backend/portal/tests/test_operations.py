@@ -6,7 +6,8 @@ from django.conf import settings
 from django.test import Client
 from django.utils import timezone
 
-from portal.models import AuditEvent, Module, Role, User
+from portal.models import (AuditEvent, GatewayModel, ModelCallLog, ModelRoute, Module, Provider,
+                           Role, User)
 
 from .base import ADMIN_PASSWORD, PASSWORD, PortalTestCase, json_body
 
@@ -172,6 +173,10 @@ class OperationsUsageTests(PortalTestCase):
         self.assertEqual(data["summary"]["login_users"], 0)
         self.assertEqual(data["summary"]["login_count"], 0)
         self.assertEqual(data["summary"]["module_launches"], 0)
+        self.assertEqual(data["employees"], [])
+        self.assertEqual(data["model_usage"]["calls"], 0)
+        self.assertEqual(data["model_usage"]["prompt_tokens"], 0)
+        self.assertEqual(data["model_usage"]["completion_tokens"], 0)
         self.assertEqual(len(data["trend"]), 7)
         self.assertIn("definitions", data)
 
@@ -184,13 +189,67 @@ class OperationsUsageTests(PortalTestCase):
         self.event(self.first, action="module_launch", target="product")
         self.event(self.first, action="module_launch", target="cost")
         self.event(self.first, action="module_launch", target="product", result="unavailable")
+        self.event(self.admin)
         data = self.client.get("/api/ops/usage/?days=7&module=product").json()
-        self.assertEqual(data["summary"]["login_users"], 2)
-        self.assertEqual(data["summary"]["login_count"], 3)
+        self.assertEqual(data["summary"]["login_users"], 3)
+        self.assertEqual(data["summary"]["login_count"], 4)
         self.assertEqual(data["summary"]["module_launches"], 1)
         self.assertEqual(data["summary"]["enabled_accounts"], 3)
+        self.assertEqual(data["employees"], [
+            {"id": self.first.pk, "username": self.first.username, "display_name": "",
+             "login_count": 2, "module_launches": 1},
+            {"id": self.second.pk, "username": self.second.username, "display_name": "",
+             "login_count": 1, "module_launches": 0},
+        ])
         total = self.client.get("/api/ops/usage/?days=7").json()
         self.assertEqual(total["summary"]["module_launches"], 2)
+        self.assertEqual(total["employees"][0]["module_launches"], 2)
+
+    def test_model_usage_counts_business_results_without_leaking_configuration(self):
+        provider = Provider.objects.create(code="ops-usage", name="Ops Usage",
+            base_url="https://models.example.com/v1", api_key_env="PORTAL_MODEL_KEY_OPS_USAGE")
+        model = GatewayModel.objects.create(name="Private Model", provider=provider,
+                                            model_name="secret-model-id")
+        route = ModelRoute.objects.create(code="ops-route", name="Ops Route",
+            module=Module.objects.get(code="product"), model=model, enabled=True)
+        empty_route = ModelRoute.objects.create(code="empty-route", name="Empty Route",
+            module=Module.objects.get(code="hr"), model=model)
+
+        def model_call(purpose, status, prompt_tokens=None, completion_tokens=None, at=None):
+            row = ModelCallLog.objects.create(actor=self.first, route=route, model=model,
+                purpose=purpose, status=status, duration_ms=1,
+                prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+            if at:
+                ModelCallLog.objects.filter(pk=row.pk).update(created_at=at)
+
+        model_call("business", "success", 3, 4)
+        model_call("business", "timeout", 2, None)
+        model_call("business", "pending")
+        model_call("test", "success", 100, 100)
+        model_call("business", "success", 100, 100, timezone.now() - timedelta(days=8))
+
+        data = self.client.get("/api/ops/usage/?days=7&module=product").json()
+        usage = data["model_usage"]
+        self.assertEqual(set(usage), {"enabled_routes", "calls", "successes", "failures",
+                                     "prompt_tokens", "completion_tokens", "routes"})
+        self.assertEqual((usage["calls"], usage["successes"], usage["failures"]), (3, 1, 1))
+        self.assertEqual((usage["prompt_tokens"], usage["completion_tokens"]), (5, 4))
+        self.assertEqual(usage["enabled_routes"], 1)
+        self.assertLessEqual(len(usage["routes"]), 20)
+        routes = {item["code"]: item for item in usage["routes"]}
+        self.assertEqual(routes[route.code], {"code": route.code, "name": route.name,
+            "calls": 3, "successes": 1, "failures": 1})
+        self.assertEqual(routes[empty_route.code], {"code": empty_route.code, "name": empty_route.name,
+            "calls": 0, "successes": 0, "failures": 0})
+        self.assertNotIn("secret-model-id", json.dumps(data))
+        self.assertIn("模型统计始终为全平台口径", data["definitions"]["module_filter"])
+
+    def test_model_usage_returns_null_when_calls_have_no_token_metrics(self):
+        ModelCallLog.objects.create(actor=self.first, purpose="business", status="pending", duration_ms=1)
+        usage = self.client.get("/api/ops/usage/?days=7").json()["model_usage"]
+        self.assertEqual(usage["calls"], 1)
+        self.assertIsNone(usage["prompt_tokens"])
+        self.assertIsNone(usage["completion_tokens"])
 
     def test_local_day_boundary_old_and_future_events_are_excluded(self):
         zone = ZoneInfo("Asia/Shanghai")

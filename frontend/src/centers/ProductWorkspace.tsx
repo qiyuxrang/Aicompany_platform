@@ -5,6 +5,7 @@ import ProductProjects from "../product/ProductProjects";
 import ProductProjectDetail from "../product/ProductProjectDetail";
 import ProductTemplates from "../product/ProductTemplates";
 import ProductKnowledge from "../product/ProductKnowledge";
+import BusinessLedgerWorkspace from "./BusinessLedgerWorkspace";
 import "../product/product-division.css";
 import { CenterLink, SectionHeader, WorkspaceProps } from "./shared";
 
@@ -19,6 +20,7 @@ export default function ProductWorkspace({ section }: WorkspaceProps) {
   if (section === "projects" || section === "sources" || section === "outputs" || section === "history") return <ProductProjects key={`${section}-${window.location.search}`} view={section}/>;
   if (section === "templates") return <ProductTemplates/>;
   if (section === "knowledge") return <ProductKnowledge/>;
+  if (section === "presales") return <BusinessLedgerWorkspace onlyDepartment="presales"/>;
 
   return <>
     <SectionHeader eyebrow="产品事业部" title="产品工作台" description="设备清单和项目背景只提交一次，三个成果在同一任务内持续复用。" />

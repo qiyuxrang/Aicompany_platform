@@ -1,6 +1,6 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, SimpleTestCase
-from portal.business_boards import BoardError, calculate, parse_csv
+from portal.business_boards import BoardError, calculate, parse_csv, validate_record
 from portal.business_models import BusinessLedgerSnapshot
 from .base import PortalTestCase
 
@@ -10,6 +10,19 @@ PRESALES = '项目编号,项目名称,状态,负责人,预计金额\nP1,园区�
 
 
 class LedgerParsingTests(SimpleTestCase):
+    def test_presales_optional_follow_up_fields_and_legacy_csv(self):
+        legacy = parse_csv(PRESALES.encode(), 'presales')
+        self.assertEqual(legacy[0]['follow_up_date'], '')
+        self.assertEqual(legacy[0]['description'], '')
+        self.assertEqual(validate_record(legacy[0], 'presales')['amount'], '3000.10')
+        current = validate_record({
+            **legacy[0], 'follow_up_date': '2026-09-28', 'description': '现场沟通',
+            'project_progress': '方案编制', 'maturity': '重点',
+        }, 'presales')
+        self.assertEqual(current['description'], '现场沟通')
+        with self.assertRaises(BoardError):
+            validate_record({**current, 'follow_up_date': '2026-02-30'}, 'presales')
+
     def test_chinese_and_english_headers_accept_unicode_and_quoted_commas(self):
         text = 'project_id,project_name,status,owner,planned_end,progress\nP1,"甲,乙项目",实施中,李工,,0\n'
         self.assertEqual(parse_csv(text.encode(), 'engineering')[0]['project_name'], '甲,乙项目')

@@ -24,6 +24,15 @@ class GatewayAppTests(unittest.TestCase):
     def post(self, payload=None):
         return self.client.post("/v1/generate", json=self.payload if payload is None else payload, headers=self.headers)
 
+    @patch("model_gateway.app.list_models", return_value=["qwen-plus", "qwen-flash"])
+    def test_catalog_requires_service_token_and_provider_only(self, listing):
+        body = {"provider": self.payload["provider"]}
+        self.assertEqual(self.client.post("/v1/models", json=body).status_code, 401)
+        self.assertEqual(self.client.post("/v1/models", json={**body, "key": "private"}, headers=self.headers).status_code, 422)
+        self.assertEqual(self.client.post("/v1/models", json=body, headers=self.headers).json(),
+                         {"models": ["qwen-plus", "qwen-flash"]})
+        listing.assert_called_once_with(body["provider"])
+
     @patch("model_gateway.app.chat_completion")
     def test_authentication_precedes_payload_and_outbound(self, call):
         for headers in ({}, {"Authorization": "Bearer invalid"}):

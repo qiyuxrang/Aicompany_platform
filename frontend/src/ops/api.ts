@@ -141,12 +141,40 @@ export interface OpsUsersPage extends OpsPage<OpsUser> {
   roles: { code: string; name: string }[];
 }
 
+export interface OpsEmployeeUsage {
+  id: number | string;
+  username: string;
+  display_name: string;
+  login_count: number;
+  module_launches: number;
+}
+
+export interface OpsModelUsageRoute {
+  code: string;
+  name: string;
+  calls: number;
+  successes: number;
+  failures: number;
+}
+
+export interface OpsModelUsage {
+  enabled_routes: number;
+  calls: number;
+  successes: number;
+  failures: number;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  routes: OpsModelUsageRoute[];
+}
+
 export interface OpsUsage {
   updated_at: string;
   range: OpsRange;
   summary: { enabled_accounts: number; login_users: number; login_count: number; module_launches: number };
   trend: TrendPoint[];
   ranking: { code: string; name: string; launches: number }[];
+  employees?: OpsEmployeeUsage[];
+  model_usage?: OpsModelUsage | null;
   definitions: Record<string, string>;
 }
 

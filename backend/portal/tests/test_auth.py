@@ -1,4 +1,8 @@
+from unittest.mock import patch
+
 from django.conf import settings
+from django.contrib.auth.hashers import make_password
+from django.db.models import F
 from django.test import Client, override_settings
 from django.utils.crypto import salted_hmac
 
@@ -184,6 +188,61 @@ class AuthenticationTests(PortalTestCase):
         self.assertEqual(changed.status_code, 200)
         self.assertEqual(first.get("/api/me/").status_code, 401)
         self.assertEqual(second.get("/api/me/").status_code, 401)
+
+    def test_password_change_rejects_stale_password_or_version_without_logout(self):
+        for change in ("password", "session_version"):
+            with self.subTest(change=change):
+                user = self.create_user("stale-" + change)
+                client = Client()
+                self.login(client, user)
+                original_password = user.password
+                original_version = user.session_version
+                competing_password = make_password("Other!Pass8305-Zy")
+
+                def concurrent_change(new_password):
+                    updates = ({"password": competing_password} if change == "password"
+                               else {"session_version": F("session_version") + 1})
+                    type(user).objects.filter(pk=user.pk).update(**updates)
+                    return make_password(new_password)
+
+                with patch("portal.views.make_password", side_effect=concurrent_change):
+                    response = client.post(
+                        "/api/password/",
+                        json_body(old_password=PASSWORD, new_password=NEW_PASSWORD),
+                        content_type="application/json",
+                    )
+
+                self.assertEqual(response.status_code, 409)
+                self.assertEqual(response.json()["code"], "stale_session")
+                self.assertIn("_auth_user_id", client.session)
+                self.assertFalse(AuditEvent.objects.filter(actor=user, action="password_change").exists())
+                user.refresh_from_db()
+                self.assertEqual(user.password, competing_password if change == "password" else original_password)
+                self.assertEqual(user.session_version, original_version + (change == "session_version"))
+
+    def test_first_login_password_change_rejects_stale_required_flag(self):
+        user = self.create_user("stale-first-login", must_change_password=True)
+        self.login(self.client, user)
+
+        def concurrent_change(new_password):
+            type(user).objects.filter(pk=user.pk).update(must_change_password=False)
+            return make_password(new_password)
+
+        with patch("portal.views.make_password", side_effect=concurrent_change):
+            response = self.client.post(
+                "/api/password/",
+                json_body(new_password=NEW_PASSWORD, confirm_password=NEW_PASSWORD),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["code"], "stale_session")
+        self.assertIn("_auth_user_id", self.client.session)
+        self.assertFalse(AuditEvent.objects.filter(actor=user, action="password_change").exists())
+        user.refresh_from_db()
+        self.assertFalse(user.must_change_password)
+        self.assertEqual(user.session_version, 1)
+        self.assertTrue(user.check_password(PASSWORD))
 
     def test_dedicated_cookie_names_are_issued(self):
         user = self.create_user("cookie-names")
