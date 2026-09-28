@@ -9,7 +9,7 @@ import HrWorkspace from "./HrWorkspace";
 import ManagerWorkspace from "./ManagerWorkspace";
 import "./centers.css";
 import { CompanyMark, ProductIcon, type ProductIconName } from "../product/workbench-shared";
-const productNavIcons: Record<string, ProductIconName> = { overview: "home", projects: "folder", sources: "upload", outputs: "file", history: "clock", templates: "layers", new: "plus", documents: "settings" };
+const productNavIcons: Record<string, ProductIconName> = { overview: "home", opportunities: "search", projects: "folder", sources: "upload", outputs: "file", history: "clock", templates: "layers", new: "plus", documents: "settings" };
 
 type AccessState = { kind: "loading" } | { kind: "ready"; module: PortalModule; choices: PortalModule[] } | { kind: "error"; message: string };
 

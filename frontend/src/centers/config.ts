@@ -3,7 +3,7 @@ import { IconName } from "../Icon";
 export const centers = {
   product: {
     name: "产品事业部", icon: "modules" as IconName, description: "一份项目资料贯穿分析、编制、审校与成果复用。",
-    sections: [{ code: "overview", title: "工作台" }, { code: "projects", title: "项目" }, { code: "sources", title: "资料" }, { code: "outputs", title: "文档成果" }, { code: "history", title: "版本记录" }, { code: "templates", title: "模板" }, { code: "knowledge", title: "知识库问答" }, { code: "new", title: "新建项目" }, { code: "documents", title: "专业工作台" }],
+    sections: [{ code: "overview", title: "工作台" }, { code: "opportunities", title: "商机获取" }, { code: "projects", title: "项目" }, { code: "sources", title: "资料" }, { code: "outputs", title: "文档成果" }, { code: "history", title: "版本记录" }, { code: "templates", title: "模板" }, { code: "knowledge", title: "知识库问答" }, { code: "new", title: "新建项目" }, { code: "documents", title: "专业工作台" }],
   },
   cost: {
     name: "工程部", icon: "maintenance" as IconName, description: "工程部业务仍在开发，本平台当前只保留隔离入口。",

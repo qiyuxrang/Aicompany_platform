@@ -48,7 +48,7 @@ def list_window_candidates(adapter, *, max_pages, max_candidates):
             if ref.source_notice_id in seen:
                 continue
             seen.add(ref.source_notice_id)
-            if classify_window_date(ref.published_at) == 'inside':
+            if classify_window_date(ref.published_at) in ('inside', 'unknown'):
                 refs.append(ref)
             if len(seen) >= max_candidates:
                 return WindowCandidates(refs, False, 'candidate_limit')
