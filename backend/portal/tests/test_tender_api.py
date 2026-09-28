@@ -179,6 +179,18 @@ class TenderApiTests(PortalTestCase):
         self.assertTrue(overview.json()["available"])
         self.assertEqual(overview.json()["batch"]["id"], batch_id)
 
+    @override_settings(PORTAL_TENDER_INGESTION_ENABLED=True,
+                       PORTAL_TENDER_MANUAL_REFRESH_ENABLED=True)
+    def test_refresh_queues_only_explicitly_enabled_source(self):
+        self.source('ccgp_national')
+        TenderSource.objects.create(code='sx_jk_ecai', name='disabled',
+                                    adapter_code='sx_jk_ecai', enabled=False)
+        TenderConsumerHeartbeat.objects.create(slot=1, updated_at=self.now)
+        response = self.client.post('/api/product/refresh/', data='{}',
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 202, response.content)
+        self.assertEqual(TenderManualRefresh.objects.get().source_codes, ['ccgp_national'])
+
     def test_existing_active_refresh_wins_even_when_switches_are_disabled(self):
         batch = TenderManualRefresh.objects.create(requested_by=self.user,
                                                    source_plan={"test": {"mode": "INITIAL_WINDOW"}})

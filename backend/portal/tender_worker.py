@@ -290,7 +290,8 @@ def run_source(
         max_pages = max(1, min(int(source.fetch_policy.get('max_pages', 3)), 10))
         max_candidates = max(1, min(int(source.fetch_policy.get('max_candidates', 100)), 500))
         if not source.initial_coverage_complete:
-            listing = list_window_candidates(source_adapter, max_pages=max_pages,
+            pages = max_pages if source.code == 'ccgp_national' else 1
+            listing = list_window_candidates(source_adapter, max_pages=pages,
                                              max_candidates=max_candidates)
             refs = listing.refs
         elif source.code == 'ccgp_national' and hasattr(source_adapter, 'list_incremental'):

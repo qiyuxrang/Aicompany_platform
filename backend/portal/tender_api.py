@@ -360,7 +360,7 @@ def _refresh_availability():
         slot=1, updated_at__gt=timezone.now() - timedelta(seconds=15)).exists()
     enabled_sources = set(TenderSource.objects.filter(
         code__in=SOURCE_CODES, enabled=True).values_list("code", flat=True))
-    sources_ready = enabled_sources == set(SOURCE_CODES)
+    sources_ready = bool(enabled_sources)
     return {
         "enabled": enabled,
         "consumer_online": consumer_online,
@@ -464,8 +464,10 @@ def refresh(request):
                          "batch": payload}, status=409)
     if not _refresh_availability()["available"]:
         raise TenderApiError("refresh_unavailable", "刷新未启用、消费者离线或来源未就绪。", 503)
+    approved_sources = list(TenderSource.objects.filter(
+        code__in=SOURCE_CODES, enabled=True).order_by("code").values_list("code", flat=True))
     try:
-        batch = enqueue(request.user, list(SOURCE_CODES))
+        batch = enqueue(request.user, approved_sources)
     except ActiveRefresh as error:
         return Response({"code": "refresh_running", "detail": "已有刷新正在等待或运行。",
                          "batch_id": str(error.batch_id), "request_id": request.tender_request_id}, status=409)
