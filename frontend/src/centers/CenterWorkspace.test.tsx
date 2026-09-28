@@ -54,6 +54,7 @@ describe("CenterWorkspace", () => {
     const navigation = screen.getByRole("navigation", { name: "产品事业部菜单" });
     expect(navigation.textContent).not.toContain("模板");
     expect(navigation.textContent).not.toContain("需求准备稿");
+    expect(screen.getByRole("link", { name: "商机获取" }).getAttribute("href")).toBe("/centers/product/opportunities");
     expect(screen.getByRole("link", { name: "售前数据录入" }).getAttribute("href")).toBe("/centers/product/presales");
     expect(screen.getByRole("link", { name: "专业工作台" })).toBeTruthy();
   });

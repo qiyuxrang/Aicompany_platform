@@ -209,4 +209,7 @@ from .hr_screening_models import ResumeArtifact, ResumeScreeningBatch
 from .business_models import (BusinessLedgerGrant, BusinessLedgerRevision,
                               BusinessLedgerSnapshot, BusinessLedgerWorkbook)
 from .product_knowledge_models import ProductKnowledgeConversation
+from .tender_models import (TenderSource, TenderFetchRun, TenderManualRefresh, TenderConsumerHeartbeat,
+                            TenderRecoveryAudit, TenderSnapshot, TenderNotice, TenderNoticeVersion,
+                            TenderOpportunity, TenderOpportunityEvent, TenderSourceHealthEvent)
 from .engineering_models import EngineeringJob

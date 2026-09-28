@@ -84,6 +84,10 @@ PRODUCT_MODEL_CALLS_ALLOWED = os.environ.get("PORTAL_PRODUCT_MODEL_CALLS_ALLOWED
 PRODUCT_FORMAL_RELEASE_ENABLED = os.environ.get("PORTAL_PRODUCT_FORMAL_RELEASE_ENABLED") == "1"
 PRODUCT_REVIEWER_IDS = tuple(int(value) for value in os.environ.get("PORTAL_PRODUCT_REVIEWER_IDS", "").split(",") if value.isdigit())
 PRODUCT_STORAGE_ROOT = Path(os.environ.get("PORTAL_PRODUCT_STORAGE_ROOT", BASE_DIR / ".runtime" / "product-private"))
+TENDER_STORAGE_ROOT = Path(os.environ.get("PORTAL_TENDER_STORAGE_ROOT", BASE_DIR / ".runtime" / "tender-private"))
+PORTAL_TENDER_INGESTION_ENABLED = os.environ.get("PORTAL_TENDER_INGESTION_ENABLED") == "1"
+PORTAL_TENDER_MANUAL_REFRESH_ENABLED = os.environ.get("PORTAL_TENDER_MANUAL_REFRESH_ENABLED") == "1"
+TENDER_RECOVERY_OPERATOR_IDS = tuple(int(value) for value in os.environ.get("PORTAL_TENDER_RECOVERY_OPERATOR_IDS", "").split(",") if value.isdigit())
 PRODUCT_IMPORT_ROOTS = tuple(Path(value) for value in os.environ.get("PORTAL_PRODUCT_IMPORT_ROOTS", "").split(os.pathsep) if value)
 PRODUCT_UPLOAD_MAX_BYTES = 20 * 1024 * 1024
 PRODUCT_PARSER_PYTHON = Path(os.environ.get("PORTAL_PRODUCT_PARSER_PYTHON", BASE_DIR / ".runtime" / "product-parser-python" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")))

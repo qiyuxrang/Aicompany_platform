@@ -5,6 +5,7 @@ import ProductProjects from "../product/ProductProjects";
 import ProductProjectDetail from "../product/ProductProjectDetail";
 import ProductTemplates from "../product/ProductTemplates";
 import ProductKnowledge from "../product/ProductKnowledge";
+import TenderOpportunities from "../product/TenderOpportunities";
 import BusinessLedgerWorkspace from "./BusinessLedgerWorkspace";
 import "../product/product-division.css";
 import { CenterLink, SectionHeader, WorkspaceProps } from "./shared";
@@ -14,6 +15,7 @@ export default function ProductWorkspace({ section }: WorkspaceProps) {
   const preview = window.location.pathname.startsWith("/preview/");
   if (section === "overview") return <ProductDashboard preview={preview}/>;
   if (preview) return <section className="pd-panel"><h2>产品事业部页面预览</h2><p>此页面不读取业务数据。平台管理员不会自动获得业务权限。</p><CenterLink href="/centers/product" className="button secondary">返回工作台预览</CenterLink></section>;
+  if (section === "opportunities") return <TenderOpportunities/>;
   if (section === "new") return <NewProductProject/>;
   const task = new URLSearchParams(window.location.search).get("task");
   if (section === "projects" && task) return <ProductProjectDetail key={task} id={task}/>;
