@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import BusinessBoards from './BusinessBoards';
+import BusinessBoards, { BusinessOverview } from './BusinessBoards';
 const api = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 vi.mock('../api', async original => ({ ...await original<typeof import('../api')>(), ...api }));
 function fixture(department = 'engineering', available = true) {
@@ -18,6 +18,42 @@ function fixture(department = 'engineering', available = true) {
 }
 beforeEach(() => { api.apiRequest.mockReset(); });
 afterEach(cleanup);
+it('overview shows compact metrics and distributions from all three real board endpoints', async () => {
+  api.apiRequest.mockImplementation((url: string) => Promise.resolve(fixture(url.includes('/finance/') ? 'finance' : url.includes('/presales/') ? 'presales' : 'engineering')));
+  render(<BusinessOverview />);
+  await waitFor(() => expect(screen.getAllByRole('meter', { name: '实施中 1 项' })).toHaveLength(3));
+  expect(api.apiRequest.mock.calls.map(([url]) => url)).toEqual([
+    '/api/business/boards/engineering/', '/api/business/boards/finance/', '/api/business/boards/presales/',
+  ]);
+  expect(screen.getAllByRole('meter', { name: '实施中 1 项' })).toHaveLength(3);
+  expect(screen.getAllByRole('link', { name: /查看完整看板/ })[0].getAttribute('href')).toBe('/centers/business/engineering');
+});
+it('overview keeps unavailable and failed departments separate without invented totals', async () => {
+  api.apiRequest.mockImplementation((url: string) => {
+    if (url.includes('/finance/')) return Promise.reject(new Error('财务读取失败'));
+    return Promise.resolve(fixture(url.includes('/presales/') ? 'presales' : 'engineering', url.includes('/presales/')));
+  });
+  render(<BusinessOverview />);
+  expect(await screen.findByText('财务读取失败')).toBeTruthy();
+  expect(screen.getByText('暂无已发布台账，未提供的数据以“—”展示。')).toBeTruthy();
+  expect(screen.getByRole('article', { name: '工程部看板' }).textContent).toContain('—');
+  expect(screen.queryByText('一期项目')).toBeNull();
+  expect(screen.getByRole('article', { name: '售前部门看板' }).textContent).toContain('未发布工作数据');
+});
+it('overview preview never fetches or displays real business numbers', () => {
+  render(<BusinessOverview preview />);
+  expect(screen.getAllByText('预览不读取业务数据。')).toHaveLength(3);
+  expect(api.apiRequest).not.toHaveBeenCalled();
+});
+it('overview clears prior values after a refresh fails', async () => {
+  api.apiRequest.mockImplementation((url: string) => Promise.resolve(fixture(url.includes('/finance/') ? 'finance' : url.includes('/presales/') ? 'presales' : 'engineering')));
+  render(<BusinessOverview />);
+  await waitFor(() => expect(screen.getAllByRole('meter', { name: '实施中 1 项' })).toHaveLength(3));
+  api.apiRequest.mockRejectedValue(new Error('访问已撤销'));
+  await userEvent.click(screen.getByRole('button', { name: '刷新数据' }));
+  expect(await screen.findAllByText('访问已撤销')).toHaveLength(3);
+  expect(screen.queryAllByText('1')).toHaveLength(0);
+});
 it('three department tabs show actual source, state distribution and project details', async () => {
   api.apiRequest.mockImplementation((url: string) => Promise.resolve(fixture(url.includes('/finance/') ? 'finance' : url.includes('/presales/') ? 'presales' : 'engineering')));
   render(<BusinessBoards />);
@@ -29,6 +65,15 @@ it('three department tabs show actual source, state distribution and project det
   expect(screen.getByText(/不等同于会计确认/)).toBeTruthy();
   await userEvent.click(screen.getByRole('tab', { name: '售前部门看板' }));
   expect(await screen.findByRole('tabpanel', { name: '售前部门看板' })).toBeTruthy();
+});
+it('presales shows unsent working revisions explicitly, without changing other board labels', async () => {
+  api.apiRequest.mockResolvedValue({ ...fixture('presales'), source: {
+    name: '手工录入', as_of: '2026-09-28', imported_at: '2026-09-28T08:00:00Z',
+    kind: 'department_live', state: 'draft', revision: 2,
+  } });
+  render(<BusinessBoards initial="presales" />);
+  expect(await screen.findByText(/工作数据（草稿）· 版本 2/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: '刷新看板' })).toBeTruthy();
 });
 it('preview never reads or imports business data', async () => {
   render(<BusinessBoards preview />);

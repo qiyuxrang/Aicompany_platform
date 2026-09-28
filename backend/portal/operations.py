@@ -16,7 +16,7 @@ import django
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncDate
 from django.http import Http404
 from django.utils import timezone
@@ -27,7 +27,8 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from .integration import open_fixed
-from .models import AuditEvent, Module, ModuleCheck, OperationalIssue, Role, User, validate_module_url
+from .models import (AuditEvent, ModelCallLog, ModelRoute, Module, ModuleCheck, OperationalIssue,
+                     Role, User, validate_module_url)
 from .ops_metrics import get_performance
 from .security import audit, authorized_modules
 
@@ -295,6 +296,58 @@ def _usage(start, end, module_code=None):
                 "launches": launch_counts.get(module.code, 0)} for module in modules]
     ranking.sort(key=lambda item: (-item["launches"], item["code"]))
     return totals, trend, ranking
+
+
+def _employee_usage(start, end, module_code=None):
+    events = AuditEvent.objects.filter(created_at__gte=start, created_at__lte=end)
+    login_filter = Q(action="login", result="success", actor__isnull=False)
+    launch_filter = Q(action="module_launch", result="success")
+    if module_code:
+        launch_filter &= Q(target=module_code)
+    employee_rows = events.filter(actor__isnull=False).values("actor_id").annotate(
+        login_count=Count("id", filter=login_filter),
+        module_launches=Count("id", filter=launch_filter),
+    ).filter(Q(login_count__gt=0) | Q(module_launches__gt=0))
+    employee_counts = {row["actor_id"]: row for row in employee_rows}
+    employees = [{"id": user.pk, "username": _safe_text(user.username, 150),
+                  "display_name": _safe_text(user.display_name, 80),
+                  "login_count": employee_counts[user.pk]["login_count"],
+                  "module_launches": employee_counts[user.pk]["module_launches"]}
+                 for user in User.objects.filter(pk__in=employee_counts).exclude(roles__code="platform_admin")]
+    employees.sort(key=lambda item: (-(item["login_count"] + item["module_launches"]),
+                                     item["username"], item["id"]))
+    return employees[:20]
+
+
+def _model_usage(start, end):
+    calls = ModelCallLog.objects.filter(purpose="business", created_at__gte=start, created_at__lte=end)
+    call_totals = calls.aggregate(
+        calls=Count("id"),
+        successes=Count("id", filter=Q(status="success")),
+        failures=Count("id", filter=~Q(status__in=("success", "pending"))),
+        prompt_tokens=Sum("prompt_tokens"),
+        completion_tokens=Sum("completion_tokens"),
+    )
+    route_counts = {row["route_id"]: row for row in calls.values("route_id").annotate(
+        calls=Count("id"),
+        successes=Count("id", filter=Q(status="success")),
+        failures=Count("id", filter=~Q(status__in=("success", "pending"))),
+    )}
+    routes = [{"code": route.code, "name": _safe_text(route.name, 100),
+               "calls": route_counts.get(route.pk, {}).get("calls", 0),
+               "successes": route_counts.get(route.pk, {}).get("successes", 0),
+               "failures": route_counts.get(route.pk, {}).get("failures", 0)}
+              for route in ModelRoute.objects.all()]
+    routes.sort(key=lambda item: (-item["calls"], item["code"]))
+    return {
+        "enabled_routes": ModelRoute.objects.filter(enabled=True).count(),
+        "calls": call_totals["calls"],
+        "successes": call_totals["successes"],
+        "failures": call_totals["failures"],
+        "prompt_tokens": call_totals["prompt_tokens"] if call_totals["calls"] else 0,
+        "completion_tokens": call_totals["completion_tokens"] if call_totals["calls"] else 0,
+        "routes": routes[:20],
+    }
 
 
 def _database_health():
@@ -596,10 +649,13 @@ def ops_usage(request):
                     "module_launches": totals["module_launches"]},
         "trend": trend,
         "ranking": ranking,
+        "employees": _employee_usage(start, end, module_code or None),
+        "model_usage": _model_usage(start, end),
         "definitions": {"login_users": "期间成功登录事件的去重账号数。",
                         "login_count": "期间成功登录事件次数。",
                         "module_launches": "期间模块启动成功事件次数。",
-                        "module_filter": "模块筛选仅作用于启动数，登录指标始终为全平台口径。"},
+                        "module_filter": "模块筛选仅作用于启动数，登录与模型统计始终为全平台口径。",
+                        "model_usage": "期间全平台业务模型调用统计，不含连接测试；pending计入调用但不计失败。"},
     })
 
 

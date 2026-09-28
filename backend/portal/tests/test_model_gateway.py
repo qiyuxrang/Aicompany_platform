@@ -1,12 +1,48 @@
 import json
+from io import BytesIO
 from unittest.mock import patch
 
-from django.test import override_settings
+from django.core.exceptions import ValidationError
+from django.test import SimpleTestCase, override_settings
 
 from portal import model_gateway
 from portal.models import AuditEvent, GatewayModel, ModelCallLog, ModelRoute, Module, Provider, Role
 
 from .base import PortalTestCase
+
+
+LOCAL_PROVIDER_URL = "http://127.0.0.1:19880/api/v1/openai/0123456789abcdef0123456789abcdef"
+
+
+class ProviderUrlValidationTests(SimpleTestCase):
+    @override_settings(DEBUG=True, MODEL_PROVIDER_LOCAL_HTTP=True)
+    def test_exact_local_provider_url_allowed_for_opted_in_development(self):
+        model_gateway.validate_provider_url(LOCAL_PROVIDER_URL)
+
+    @override_settings(DEBUG=False, MODEL_PROVIDER_LOCAL_HTTP=True)
+    def test_local_provider_url_rejected_in_production(self):
+        with self.assertRaises(ValidationError):
+            model_gateway.validate_provider_url(LOCAL_PROVIDER_URL)
+
+    @override_settings(DEBUG=True, MODEL_PROVIDER_LOCAL_HTTP=False)
+    def test_local_provider_url_rejected_without_opt_in(self):
+        with self.assertRaises(ValidationError):
+            model_gateway.validate_provider_url(LOCAL_PROVIDER_URL)
+
+    @override_settings(DEBUG=True, MODEL_PROVIDER_LOCAL_HTTP=True)
+    def test_local_provider_url_rejects_nonloopback_credentials_queries_and_fragments(self):
+        identifier = "0123456789abcdef0123456789abcdef"
+        for invalid in (
+            f"http://localhost:19880/api/v1/openai/{identifier}",
+            f"http://192.168.1.10:19880/api/v1/openai/{identifier}",
+            f"http://user@127.0.0.1:19880/api/v1/openai/{identifier}",
+            f"{LOCAL_PROVIDER_URL}?model=test",
+            f"{LOCAL_PROVIDER_URL}#fragment",
+            f"http://127.0.0.1:19880/api/v1/openai/{identifier.upper()}",
+            f"{LOCAL_PROVIDER_URL}/",
+        ):
+            with self.subTest(url=invalid), self.assertRaises(ValidationError):
+                model_gateway.validate_provider_url(invalid)
 
 
 class ModelGatewayTests(PortalTestCase):
@@ -185,3 +221,129 @@ class ModelGatewayTests(PortalTestCase):
     def test_internal_http_only_loopback(self, opener):
         self.assert_error("unconfigured", model_gateway._request_gateway, {})
         opener.assert_not_called()
+
+    def knowledge_route(self):
+        self.route.code = "product_knowledge"
+        self.route.save()
+
+    @override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="product_knowledge")
+    @patch("portal.model_gateway._request_gateway_stream")
+    def test_stream_success_logs_metadata_and_rechecks(self, request):
+        self.knowledge_route()
+        def source(payload):
+            yield {"delta": "private-model-output"}
+            yield {"done": True, "prompt_tokens": 3, "completion_tokens": 4}
+        request.side_effect = source
+        self.assertEqual(list(model_gateway.stream_for_use(self.user, self.route.code, self.messages)),
+                         [{"delta": "private-model-output"},
+                          {"done": True, "prompt_tokens": 3, "completion_tokens": 4}])
+        self.assertEqual(ModelCallLog.objects.get().status, "success")
+        self.assertEqual(ModelCallLog.objects.get().prompt_tokens, 3)
+        self.assertNotIn("private-model-output", json.dumps(list(ModelCallLog.objects.values()), default=str))
+        self.assertEqual(request.call_args.args[0]["purpose"], "business")
+
+    @override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="product_knowledge")
+    @patch("portal.model_gateway._request_gateway_stream")
+    def test_stream_revoked_before_done_is_not_success(self, request):
+        self.knowledge_route()
+        def revoke(payload):
+            yield {"delta": "partial"}
+            self.user.roles.clear()
+            yield {"done": True, "prompt_tokens": 1, "completion_tokens": 1}
+        request.side_effect = revoke
+        stream = model_gateway.stream_for_use(self.user, self.route.code, self.messages)
+        self.assertEqual(next(stream), {"delta": "partial"})
+        self.assert_error("forbidden", list, stream)
+        self.assertEqual(ModelCallLog.objects.get().status, "forbidden")
+
+    @override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="product_knowledge")
+    @patch("portal.model_gateway._request_gateway_stream")
+    def test_stream_config_change_before_done_is_rejected(self, request):
+        self.knowledge_route()
+        def change(payload):
+            yield {"delta": "partial"}
+            self.model.model_name = "changed-model"
+            self.model.save()
+            yield {"done": True, "prompt_tokens": 1, "completion_tokens": 1}
+        request.side_effect = change
+        self.assert_error("disabled", list, model_gateway.stream_for_use(self.user, self.route.code, self.messages))
+        self.assertEqual(ModelCallLog.objects.get().status, "disabled")
+
+    @override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="product_knowledge")
+    @patch("portal.model_gateway._request_gateway_stream")
+    def test_stream_is_only_for_knowledge_route(self, request):
+        self.assert_error("forbidden", list, model_gateway.stream_for_use(self.user, "solution", self.messages))
+        request.assert_not_called()
+        self.assertFalse(ModelCallLog.objects.exists())
+
+    @override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="product_knowledge")
+    @patch("portal.model_gateway._request_gateway_stream")
+    def test_stream_cancel_closes_source_and_audits(self, request):
+        self.knowledge_route()
+        def source(payload):
+            try:
+                yield {"delta": "partial"}
+                yield {"done": True, "prompt_tokens": 1, "completion_tokens": 1}
+            finally:
+                source.closed = True
+        source.closed = False
+        request.side_effect = source
+        stream = model_gateway.stream_for_use(self.user, self.route.code, self.messages)
+        next(stream)
+        stream.close()
+        self.assertTrue(source.closed)
+        self.assertEqual(ModelCallLog.objects.get().status, "cancelled")
+        self.assertEqual(AuditEvent.objects.filter(action="model_call").count(), 1)
+
+    @override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="product_knowledge")
+    @patch("portal.model_gateway._request_gateway_stream")
+    def test_stream_failure_and_truncation_logged(self, request):
+        self.knowledge_route()
+        def partial(payload):
+            yield {"delta": "fragment"}
+        request.side_effect = partial
+        self.assert_error("invalid_response", list, model_gateway.stream_for_use(self.user, self.route.code, self.messages))
+        self.assertEqual(ModelCallLog.objects.latest("pk").status, "invalid_response")
+        def failure(payload):
+            yield {"delta": "fragment"}
+            raise model_gateway.GatewayError("output_truncated")
+        request.side_effect = failure
+        self.assert_error("output_truncated", list, model_gateway.stream_for_use(self.user, self.route.code, self.messages))
+
+    @override_settings(MODEL_GATEWAY_URL="http://127.0.0.1:18410", MODEL_GATEWAY_TOKEN="x" * 48)
+    @patch("portal.model_gateway.build_opener")
+    def test_stream_wire_success_invalid_incomplete_oversized_and_error(self, opener):
+        payload = {"model": {"timeout_seconds": 2}, "messages": self.messages}
+        class LineOnlyResponse(BytesIO):
+            def read(self, size=-1):
+                raise AssertionError("streaming must not wait for a fixed-size read")
+        def send(body, content_type="text/event-stream"):
+            response = LineOnlyResponse(body)
+            response.headers = {"Content-Type": content_type}
+            opener.return_value.open.return_value = response
+            return response
+        done = b'data: {"done":true,"prompt_tokens":1,"completion_tokens":2}\n\n'
+        response = send(b'data: {"delta":"ok"}\r\n\r\n' + done)
+        self.assertEqual(list(model_gateway._request_gateway_stream(payload)),
+                         [{"delta": "ok"}, {"done": True, "prompt_tokens": 1, "completion_tokens": 2}])
+        self.assertTrue(response.closed)
+        request = opener.return_value.open.call_args.args[0]
+        self.assertEqual(request.full_url, "http://127.0.0.1:18410/v1/generate-stream")
+        self.assertEqual(opener.return_value.open.call_args.kwargs["timeout"], 7)
+        for body, code in ((b'data: {"delta":"partial"}\n\n', "invalid_response"),
+                           (b'data: {"delta":"broken"}', "invalid_response"),
+                           (b'data: {"delta":"' + b'x' * 1048576 + b'"}\n\n', "response_too_large"),
+                           (b'data: {"error":{"code":"rate_limited","detail":"secret"}}\n\n', "rate_limited")):
+            with self.subTest(code=code, body=body[:30]):
+                response = send(body)
+                self.assert_error(code, list, model_gateway._request_gateway_stream(payload))
+                self.assertTrue(response.closed)
+
+    @override_settings(PRODUCT_KNOWLEDGE_MODEL_ROUTE="product_knowledge")
+    @patch("portal.model_gateway.build_opener")
+    def test_stream_rejects_disallowed_internal_url(self, opener):
+        self.knowledge_route()
+        with override_settings(MODEL_GATEWAY_URL="http://169.254.169.254", MODEL_GATEWAY_TOKEN="x" * 48):
+            self.assert_error("unconfigured", list, model_gateway.stream_for_use(self.user, self.route.code, self.messages))
+        opener.assert_not_called()
+        self.assertEqual(ModelCallLog.objects.get().status, "unconfigured")

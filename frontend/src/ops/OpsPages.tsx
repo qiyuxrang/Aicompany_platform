@@ -270,7 +270,7 @@ export function UsagePage() {
       <PageHeader
         eyebrow="使用统计"
         title="业务与使用分析"
-        description="登录指标始终按全平台统计；模块筛选只影响模块启动次数，不代表业务使用、产出或绩效。"
+        description="登录与业务模型指标始终按全平台统计；模块筛选只影响模块启动次数，不代表业务使用、产出或绩效。"
         updatedAt={data?.usage.updated_at}
         onRefresh={refresh}
       >
@@ -281,30 +281,87 @@ export function UsagePage() {
           <option value="">全部模块</option>
           {data?.modules.items.map((item) => <option value={item.code} key={item.code}>{item.name}</option>)}
         </select></label>
-        <span className="ops-filter-note">当前筛选只作用于“模块启动次数”。</span>
+        <span className="ops-filter-note">当前筛选只作用于“模块启动次数”，不影响模型统计。</span>
       </div>
       <StatePanel state={state} onRetry={refresh}>
-        {({ usage }) => (
-          <div className="ops-page-stack">
-            <section className="ops-metric-grid four">
-              <MetricCard label="启用账号" value={formatMetric(usage.summary.enabled_accounts)} note="当前账号快照" href="/ops/people?status=active" />
-              <MetricCard label="登录活跃人数" value={formatMetric(usage.summary.login_users)} note="全平台成功登录去重" href={`/ops/usage?days=${days}`} />
-              <MetricCard label="成功登录次数" value={formatMetric(usage.summary.login_count)} note="全平台登录指标" href={`/ops/usage?days=${days}`} />
-              <MetricCard label="模块启动次数" value={formatMetric(usage.summary.module_launches)} note={module ? `仅 ${module}` : "全部模块"} href={`/ops/usage?days=${days}${module ? `&module=${module}` : ""}`} />
-            </section>
-            <Section title="每日趋势"><TrendChart points={usage.trend} days={days} module={module} /></Section>
-            <div className="ops-two-column">
-              <Section title="模块启动排行">
-                {usage.ranking.length === 0 ? <p className="ops-inline-empty">当前范围无模块启动记录。</p> : (
-                  <ol className="ops-ranking">
-                    {usage.ranking.map((item, index) => <li key={item.code}><span><b>{index + 1}</b>{item.name}</span><strong>{item.launches} 次</strong></li>)}
-                  </ol>
+        {({ usage }) => {
+          const employees = usage.employees ?? [];
+          const modelUsage = usage.model_usage;
+          return (
+            <div className="ops-page-stack">
+              <section className="ops-metric-grid four">
+                <MetricCard label="启用账号" value={formatMetric(usage.summary.enabled_accounts)} note="当前账号快照" href="/ops/people?status=active" />
+                <MetricCard label="登录活跃人数" value={formatMetric(usage.summary.login_users)} note="全平台成功登录去重" href={`/ops/usage?days=${days}`} />
+                <MetricCard label="成功登录次数" value={formatMetric(usage.summary.login_count)} note="全平台登录指标" href={`/ops/usage?days=${days}`} />
+                <MetricCard label="模块启动次数" value={formatMetric(usage.summary.module_launches)} note={module ? `仅 ${module}` : "全部模块"} href={`/ops/usage?days=${days}${module ? `&module=${module}` : ""}`} />
+              </section>
+              <Section title="每日趋势"><TrendChart points={usage.trend} days={days} module={module} /></Section>
+              <Section title="员工活动榜">
+                <div className="ops-callout compact">仅统计非平台管理员的成功登录与模块启动事件，最多展示20人；模块筛选只影响启动次数。</div>
+                {employees.length === 0 ? <p className="ops-inline-empty" role="status">当前范围无员工成功活动记录。</p> : (
+                  <div className="ops-table-wrap" role="region" aria-label="员工活动表格，可横向滚动" tabIndex={0}>
+                    <table className="ops-table">
+                      <thead><tr><th scope="col">排名</th><th scope="col">员工</th><th scope="col">成功登录</th><th scope="col">模块启动</th></tr></thead>
+                      <tbody>
+                        {employees.map((employee, index) => (
+                          <tr key={employee.id}>
+                            <td>{index + 1}</td>
+                            <td><strong>{employee.display_name || employee.username}</strong><small>@{employee.username}</small></td>
+                            <td>{formatMetric(employee.login_count, " 次")}</td>
+                            <td>{formatMetric(employee.module_launches, " 次")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </Section>
-              <Section title="统计口径"><DefinitionList values={usage.definitions} /></Section>
+              <Section
+                title="业务模型调用统计"
+                action={<span><a className="ops-inline-link" href="/admin/portal/modelroute/">模型后台维护</a>{" · "}<a className="ops-inline-link" href="/admin/portal/modelcalllog/">调用日志审查</a></span>}
+              >
+                <div className="ops-callout compact">仅统计业务调用，处理中调用不计为失败；全部数据均为全平台口径，不受模块筛选影响。</div>
+                {!modelUsage ? <p className="ops-inline-empty" role="status">当前范围暂无业务模型调用统计。</p> : <>
+                  <div className="ops-metric-grid four flat" aria-label="业务模型调用汇总">
+                    <div><span>启用路由</span><strong>{formatMetric(modelUsage.enabled_routes)}</strong></div>
+                    <div><span>调用次数</span><strong>{formatMetric(modelUsage.calls)}</strong></div>
+                    <div><span>成功次数</span><strong>{formatMetric(modelUsage.successes)}</strong></div>
+                    <div><span>失败次数</span><strong>{formatMetric(modelUsage.failures)}</strong></div>
+                    <div><span>输入 Token</span><strong>{formatMetric(modelUsage.prompt_tokens)}</strong></div>
+                    <div><span>输出 Token</span><strong>{formatMetric(modelUsage.completion_tokens)}</strong></div>
+                  </div>
+                  {modelUsage.routes.length === 0 ? <p className="ops-inline-empty" role="status">当前范围无业务模型调用记录。</p> : (
+                    <div className="ops-table-wrap" role="region" aria-label="业务模型路由调用表格，可横向滚动" tabIndex={0}>
+                      <table className="ops-table">
+                        <thead><tr><th scope="col">路由</th><th scope="col">调用</th><th scope="col">成功</th><th scope="col">失败</th></tr></thead>
+                        <tbody>
+                          {modelUsage.routes.map((route) => (
+                            <tr key={route.code}>
+                              <td><strong>{route.name || route.code}</strong><small>{route.code}</small></td>
+                              <td>{formatMetric(route.calls)}</td>
+                              <td>{formatMetric(route.successes)}</td>
+                              <td>{formatMetric(route.failures)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>}
+              </Section>
+              <div className="ops-two-column">
+                <Section title="模块启动排行">
+                  {usage.ranking.length === 0 ? <p className="ops-inline-empty">当前范围无模块启动记录。</p> : (
+                    <ol className="ops-ranking">
+                      {usage.ranking.map((item, index) => <li key={item.code}><span><b>{index + 1}</b>{item.name}</span><strong>{item.launches} 次</strong></li>)}
+                    </ol>
+                  )}
+                </Section>
+                <Section title="统计口径"><DefinitionList values={usage.definitions} /></Section>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        }}
       </StatePanel>
       <Drawer title={`${selectedDate || "当日"} 使用明细`} open={Boolean(selectedDate && day)} opener={null} onClose={closeDrawer}>
         {day && <div className="ops-drawer-stack">

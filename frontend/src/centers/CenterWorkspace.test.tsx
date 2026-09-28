@@ -2,8 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, CurrentUser, PortalModule } from "../api";
 import CenterWorkspace from "./CenterWorkspace";
+import type { CenterCode } from "./config";
 
 vi.mock("./ManagerWorkspace", () => ({ default: ({ section }: { section: string }) => <div>经营页面：{section}</div> }));
+vi.mock("../ModelSelector", () => ({ default: ({ route }: { route: string }) => <div data-testid="department-model-selector">{route}</div> }));
 
 const apiMocks = vi.hoisted(() => ({
   getMe: vi.fn(),
@@ -40,12 +42,20 @@ beforeEach(() => {
 });
 
 describe("CenterWorkspace", () => {
-  it("产品导航不再包含需求准备稿", async () => {
-    render(<CenterWorkspace code="product" section="overview" user={staff} businessPanel={null} />);
+  it("只在产品知识库页面启用铺满布局", async () => {
+    const { container } = render(<CenterWorkspace code="product" section="knowledge" user={staff} businessPanel={null} />);
+    await waitFor(() => expect(container.querySelector(".center-main-knowledge")).not.toBeNull());
+  });
+
+  it("产品导航不显示模板和需求准备稿", async () => {
+    const { container } = render(<CenterWorkspace code="product" section="overview" user={staff} businessPanel={null} />);
     await screen.findByRole("heading", { name: "产品事业部工作台" });
+    expect(container.querySelector(".center-main-knowledge")).toBeNull();
     const navigation = screen.getByRole("navigation", { name: "产品事业部菜单" });
+    expect(navigation.textContent).not.toContain("模板");
     expect(navigation.textContent).not.toContain("需求准备稿");
     expect(screen.getByRole("link", { name: "商机获取" }).getAttribute("href")).toBe("/centers/product/opportunities");
+    expect(screen.getByRole("link", { name: "售前数据录入" }).getAttribute("href")).toBe("/centers/product/presales");
     expect(screen.getByRole("link", { name: "专业工作台" })).toBeTruthy();
   });
 
@@ -94,4 +104,34 @@ describe("CenterWorkspace", () => {
     expect(navigation.textContent).not.toContain("台账录入");
   });
 
+  it.each<{ code: Exclude<CenterCode, "business">; role: string; menu: string; overview: string }>([
+    { code: "product", role: "product", menu: "产品事业部菜单", overview: "工作台" },
+    { code: "hr", role: "hr", menu: "人事部门菜单", overview: "工作台" },
+    { code: "cost", role: "engineering", menu: "工程部菜单", overview: "工作概览" },
+  ])("$code 旧模型助手地址回到概览且菜单不再显示入口", async ({ code, role, menu, overview }) => {
+    const module = { code, name: code, description: "部门工作台", status: "verified", enabled: true } as PortalModule;
+    apiMocks.getModule.mockResolvedValue(module);
+    apiMocks.getModules.mockResolvedValue([module]);
+    const departmentUser: CurrentUser = { ...staff, roles: [{ code: role, name: role }] };
+    window.history.replaceState({}, "", `/centers/${code}/assistant`);
+    render(<CenterWorkspace code={code} section="assistant" user={departmentUser} businessPanel={null} />);
+
+    expect(await screen.findByRole("heading", { name: overview, level: 1 })).toBeTruthy();
+    expect(window.location.pathname).toBe(`/centers/${code}`);
+    expect(screen.getByRole("navigation", { name: menu }).textContent).not.toContain("模型助手");
+    expect(screen.queryByTestId("department-model-selector")).toBeNull();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("旧模型助手管理预览回到概览且不读取模块或模型选项", async () => {
+    window.history.replaceState({}, "", "/preview/cost/assistant");
+    render(<CenterWorkspace code="cost" section="assistant" user={admin} preview businessPanel={null} />);
+    expect(await screen.findByRole("heading", { name: "工作概览", level: 1 })).toBeTruthy();
+    expect(window.location.pathname).toBe("/preview/cost");
+    expect(screen.getByRole("navigation", { name: "工程部菜单" }).textContent).not.toContain("模型助手");
+    expect(screen.queryByTestId("department-model-selector")).toBeNull();
+    expect(apiMocks.getModule).not.toHaveBeenCalled();
+    expect(apiMocks.getModules).not.toHaveBeenCalled();
+    window.history.replaceState({}, "", "/");
+  });
 });

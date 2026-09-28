@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.admin.models import LogEntry
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models.deletion import ProtectedError
 from django.test import RequestFactory
 from django.urls import reverse
@@ -50,12 +51,24 @@ class ModelAdminTests(PortalTestCase):
         self.route = ModelRoute.objects.create(code="summary", name="业务摘要", module=self.module, model=self.model)
         self.test_url = reverse("admin:portal_gatewaymodel_test_connection", args=[self.model.pk])
         self.change_url = reverse("admin:portal_gatewaymodel_change", args=[self.model.pk])
+        self.import_url = reverse("admin:portal_gatewaymodel_import")
+        self.catalog_url = reverse("admin:portal_gatewaymodel_catalog")
+        self.import_template_url = reverse("admin:portal_gatewaymodel_import_template")
         self.gateway = self.enterContext(patch("portal.model_gateway.test_connection", return_value={"duration_ms": 12}))
 
     def model_data(self, **changes):
         return {"name": "新增模型", "provider": self.provider.pk, "model_name": "remote-model",
             "supports_text": "on", "timeout_seconds": 20, "max_output_tokens": 1024,
             "token_parameter": "max_tokens", **changes}
+
+    def import_model_data(self, **changes):
+        return {"name": "导入模型", "provider_code": self.provider.code, "model_name": "imported-model",
+            "capabilities": ["text"], "timeout_seconds": 20, "max_output_tokens": 1024,
+            "token_parameter": "max_tokens", **changes}
+
+    def import_file(self, payload, name="models.json"):
+        content = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode()
+        return SimpleUploadedFile(name, content, content_type="application/json")
 
     def test_config_defaults_are_disabled_and_constraints_are_validated(self):
         self.assertFalse(self.provider.enabled)
@@ -273,6 +286,164 @@ class ModelAdminTests(PortalTestCase):
         response = self.client.post(reverse("admin:portal_gatewaymodel_test_connection", args=[999999]), {"confirm_cost": "on"})
         self.assertEqual(response.status_code, 404)
         self.gateway.assert_not_called()
+
+    def test_model_import_is_discoverable_and_template_contains_no_credentials(self):
+        response = self.client.get(reverse("admin:portal_gatewaymodel_changelist"))
+        self.assertContains(response, self.import_url)
+        self.assertContains(response, self.catalog_url)
+        self.assertContains(response, "导入 JSON 配置")
+        response = self.client.get(self.import_url)
+        self.assertContains(response, self.import_template_url)
+        self.assertContains(response, "Provider.code")
+        self.assertContains(response, "整批不写入")
+        response = self.client.get(self.import_template_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment", response.headers["Content-Disposition"])
+        template = json.loads(response.content)
+        self.assertEqual(set(template), {"models"})
+        self.assertEqual(set(template["models"][0]), {
+            "name", "provider_code", "model_name", "capabilities", "timeout_seconds",
+            "max_output_tokens", "token_parameter",
+        })
+        serialized = json.dumps(template).lower()
+        for forbidden in ("base_url", "api_key", "api_key_env", "secret", "sk-"):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_non_admin_cannot_access_or_submit_model_import(self):
+        user = self.create_user("model-import-user", "general_manager")
+        self.login(self.client, user)
+        for url in (self.import_url, self.import_template_url, self.catalog_url):
+            self.assertEqual(self.client.get(url, follow=True).status_code, 403)
+        self.assertEqual(self.client.post(self.catalog_url, {"provider_id": self.provider.pk, "action": "fetch"}, follow=True).status_code, 403)
+        response = self.client.post(self.import_url,
+            {"config_file": self.import_file({"models": [self.import_model_data()]})}, follow=True)
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(GatewayModel.objects.filter(model_name="imported-model").exists())
+
+    @patch("portal.model_gateway.fetch_model_catalog", return_value=["test-model", "qwen-plus", "qwen-image"])
+    def test_catalog_fetch_and_selected_import_stays_disabled(self, listing):
+        self.provider.enabled = True
+        self.provider.save(update_fields=["enabled"])
+        response = self.client.post(self.catalog_url, {"provider_id": self.provider.pk, "action": "fetch"})
+        self.assertContains(response, "qwen-plus")
+        self.assertNotContains(response, 'value="test-model"')
+        self.assertEqual(GatewayModel.objects.count(), 1)
+        response = self.client.post(self.catalog_url, {"provider_id": self.provider.pk, "action": "import", "model_ids": ["qwen-plus"]})
+        self.assertEqual(response.status_code, 302)
+        imported = GatewayModel.objects.get(model_name="qwen-plus")
+        self.assertFalse(imported.enabled)
+        self.assertEqual(imported.provider, self.provider)
+        self.assertEqual(AuditEvent.objects.filter(action="gatewaymodel_import", target=str(imported.pk)).count(), 1)
+        listing.assert_called_with(self.provider)
+
+    @patch("portal.model_gateway.fetch_model_catalog", return_value=["qwen-plus"])
+    def test_catalog_rejects_forged_or_duplicate_selection(self, listing):
+        self.provider.enabled = True
+        self.provider.save(update_fields=["enabled"])
+        for selected in (["private-model"], ["qwen-plus", "qwen-plus"], []):
+            response = self.client.post(self.catalog_url, {"provider_id": self.provider.pk,
+                "action": "import", "model_ids": selected})
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(GatewayModel.objects.filter(model_name="qwen-plus").exists())
+        listing.assert_called()
+
+    def test_model_import_requires_csrf(self):
+        client = csrf_client()
+        client.force_login(self.admin_user)
+        session = client.session
+        session["version"] = self.admin_user.session_version
+        session.save()
+        response = client.post(self.import_url,
+            {"config_file": self.import_file({"models": [self.import_model_data()]})})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(GatewayModel.objects.filter(model_name="imported-model").exists())
+
+    def test_model_import_rejects_malicious_or_unknown_fields_without_leaking_values(self):
+        secret = "sk-NEVER-ECHO-THIS-IMPORT-SECRET"
+        payloads = [
+            {"models": [{**self.import_model_data(), "api_key": secret}]},
+            {"models": [{**self.import_model_data(), "base_url": "https://attacker.example/v1"}]},
+            {"models": [{**self.import_model_data(), "enabled": True}]},
+            {"models": [self.import_model_data(capabilities=["text", "shell"])]},
+            {"models": [self.import_model_data(model_name=secret)]},
+        ]
+        for payload in payloads:
+            with self.subTest(payload_keys=set(payload["models"][0])):
+                response = self.client.post(self.import_url, {"config_file": self.import_file(payload)})
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "未导入任何模型")
+                self.assertNotContains(response, secret)
+                self.assertEqual(GatewayModel.objects.count(), 1)
+        stored_audit = json.dumps(list(AuditEvent.objects.values("target", "changes")), ensure_ascii=False)
+        stored_admin_log = json.dumps(list(LogEntry.objects.values("object_id", "object_repr", "change_message")),
+                                      ensure_ascii=False)
+        self.assertNotIn(secret, stored_audit)
+        self.assertNotIn(secret, stored_admin_log)
+
+    def test_model_import_rejects_duplicate_models_and_existing_configuration_atomically(self):
+        duplicate = self.import_model_data(model_name="batch-duplicate")
+        response = self.client.post(self.import_url, {"config_file": self.import_file({
+            "models": [duplicate, {**duplicate, "name": "重复模型"}],
+        })})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(GatewayModel.objects.filter(model_name="batch-duplicate").exists())
+        response = self.client.post(self.import_url, {"config_file": self.import_file({
+            "models": [self.import_model_data(name="重复已有模型", model_name=self.model.model_name)],
+        })})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(GatewayModel.objects.count(), 1)
+        self.assertFalse(AuditEvent.objects.filter(action="gatewaymodel_import").exists())
+
+    def test_model_import_limits_and_invalid_item_leave_no_partial_writes(self):
+        too_many = [self.import_model_data(name=f"模型 {index}", model_name=f"model-{index}")
+                    for index in range(101)]
+        response = self.client.post(self.import_url,
+            {"config_file": self.import_file({"models": too_many})})
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(self.import_url,
+            {"config_file": self.import_file(b"{" + b" " * (64 * 1024))})
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(self.import_url, {"config_file": self.import_file({"models": [
+            self.import_model_data(name="本应回滚", model_name="would-rollback"),
+            self.import_model_data(name="非法模型", model_name="invalid-timeout", timeout_seconds=0),
+        ]})})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(GatewayModel.objects.count(), 1)
+        self.assertFalse(AuditEvent.objects.filter(action="gatewaymodel_import").exists())
+
+    def test_model_import_creates_disabled_models_and_field_only_audit(self):
+        payload = {"models": [
+            self.import_model_data(name="导入文本模型", model_name="imported-text"),
+            self.import_model_data(name="导入视觉模型", model_name="imported-vision",
+                capabilities=["text", "vision"], timeout_seconds=60, max_output_tokens=8192,
+                token_parameter="max_completion_tokens"),
+        ]}
+        response = self.client.post(self.import_url, {"config_file": self.import_file(payload)})
+        self.assertRedirects(response, reverse("admin:portal_gatewaymodel_changelist"))
+        imported = list(GatewayModel.objects.filter(model_name__startswith="imported-").order_by("model_name"))
+        self.assertEqual(len(imported), 2)
+        self.assertTrue(all(model.provider_id == self.provider.pk and not model.enabled for model in imported))
+        self.assertFalse(imported[0].supports_vision)
+        self.assertTrue(imported[1].supports_vision)
+        self.assertEqual(imported[1].timeout_seconds, 60)
+        self.assertEqual(imported[1].max_output_tokens, 8192)
+        self.assertEqual(imported[1].token_parameter, "max_completion_tokens")
+        events = list(AuditEvent.objects.filter(action="gatewaymodel_import").order_by("target"))
+        self.assertEqual({event.target for event in events}, {str(model.pk) for model in imported})
+        expected_fields = {"name", "provider", "model_name", "supports_text", "supports_vision", "enabled",
+                           "timeout_seconds", "max_output_tokens", "token_parameter"}
+        self.assertTrue(all(set(event.changes) == expected_fields for event in events))
+        entries = list(LogEntry.objects.filter(content_type__model="gatewaymodel",
+                                               object_id__in=[model.pk for model in imported]))
+        self.assertEqual({entry.object_repr for entry in entries}, {f"模型 #{model.pk}" for model in imported})
+        recorded = json.dumps([
+            {"target": event.target, "changes": event.changes} for event in events
+        ] + [
+            {"target": entry.object_id, "object": entry.object_repr, "changes": entry.change_message}
+            for entry in entries
+        ], ensure_ascii=False)
+        for value in ("导入文本模型", "导入视觉模型", "imported-text", "imported-vision", self.provider.code):
+            self.assertNotIn(value, recorded)
 
     def test_home_has_configuration_descriptions_and_readonly_log(self):
         response = self.client.get("/admin/")

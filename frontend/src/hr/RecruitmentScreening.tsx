@@ -50,7 +50,8 @@ export default function RecruitmentScreening({ results = false }: { results?: bo
   async function runScreening() {
     let current = batch;
     if (!current) {
-      current = await mutate<Batch>('batches/', { jd_version_id: jd, ...(screeningModel ? { model_selection: screeningModel } : {}) }, 'POST', { 'Idempotency-Key': createKey.current });
+      if (!screeningModel) throw new Error('请先选择模型。');
+      current = await mutate<Batch>('batches/', { jd_version_id: jd, model_selection: screeningModel }, 'POST', { 'Idempotency-Key': createKey.current });
       setBatch(current); const created = current; setBatches(items => [created, ...items.filter(item => item.id !== created.id)]); setSelected(current.id); createKey.current = crypto.randomUUID();
     }
     if (files.length) {
@@ -72,7 +73,7 @@ export default function RecruitmentScreening({ results = false }: { results?: bo
     <p className="hr-muted">{retentionNotice}</p>
     {!results && <section className="hr-card" aria-busy={busy}><div className="hr-screening-layout">
       <div><h2>筛选依据 · JD</h2><label>正式 JD<select value={batch?.jd_version_id || jd} disabled={busy || !!selected || !!imported} onChange={e => { setJd(e.target.value); setImported(null); createKey.current = crypto.randomUUID(); }}><option value="">请选择当前有效 JD</option>{jds.map(item => <option key={item.id} value={item.id}>JD v{item.version} · {item.body.slice(0, 50)}</option>)}</select></label>
-      <ModelSelector route="hr_match_summary" value={screeningModel} onChange={setScreeningModel} label="简历筛选模型" disabled={busy || !!selected} />
+      {!selected && <ModelSelector route="hr_match_summary" value={screeningModel} onChange={setScreeningModel} label="简历筛选模型" disabled={busy} />}
       <label>上传 JD 文件（TXT、DOCX、PDF）<input type="file" accept=".txt,.docx,.pdf" disabled={busy || !!selected} onChange={e => {
         if (imported && importBody !== imported.jd.body && !window.confirm('放弃未保存的 JD 修改并重新上传？')) { e.target.value = ''; return; }
         const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
@@ -97,12 +98,12 @@ export default function RecruitmentScreening({ results = false }: { results?: bo
       <p className="hr-muted">文件夹包含浏览器递归返回的子目录文件。支持 TXT、DOCX、PDF，单份最大2MiB；每批最多200份不同内容，每组最多20份顺序上传，服务端按内容去重并校验批次上限。图片型 PDF 需平台视觉模型。</p>
       <ul className="hr-file-list">{files.map((file, i) => <li key={`${file.webkitRelativePath || file.name}-${i}`}>{file.webkitRelativePath || file.name}</li>)}</ul>
       <button disabled={busy || !files.length} onClick={() => { setFiles([]); setNotice(''); }}>清空待上传文件</button></div>
-    </div><div className="hr-screening-run"><button className="hr-primary" disabled={busy || (!!selected && !batch) || (!batch && (!jd || !files.length)) || (!!batch && (batch.status !== 'pending' || batch.stale || (!batch.total && !files.length)))} onClick={() => void work(runScreening)}>{busy ? '正在提交…' : '进行筛选'}</button></div>
+    </div><div className="hr-screening-run"><button className="hr-primary" disabled={busy || (!!selected && !batch) || (!batch && (!jd || !files.length || !screeningModel)) || (!!batch && (batch.status !== 'pending' || batch.stale || (!batch.total && !files.length)))} onClick={() => void work(runScreening)}>{busy ? '正在提交…' : '进行筛选'}</button></div>
     {notice && <p role="status">{notice}</p>}</section>}
     <section className="hr-card"><div className="hr-card-head"><h2>{results ? '历史筛选记录' : '筛选批次'}</h2><button disabled={busy} onClick={() => void work(reload)}>刷新</button></div>
-      <label>选择批次<select value={selected} disabled={busy} onChange={e => { setSelected(e.target.value); setBatch(null); setImported(null); setFiles([]); setError(''); setNotice(''); }}><option value="">新建筛选批次</option>{batches.map(item => <option key={item.id} value={item.id}>{item.position_name} · JD v{item.jd_version} · {new Date(item.updated_at).toLocaleString()} · {statusText(item.status)}</option>)}</select></label>
+      <label>选择批次<select value={selected} disabled={busy} onChange={e => { setSelected(e.target.value); setScreeningModel(null); setBatch(null); setImported(null); setFiles([]); setError(''); setNotice(''); }}><option value="">新建筛选批次</option>{batches.map(item => <option key={item.id} value={item.id}>{item.position_name} · JD v{item.jd_version} · {new Date(item.updated_at).toLocaleString()} · {statusText(item.status)}</option>)}</select></label>
       {!batches.length && <p className="hr-muted">暂无筛选记录，请先创建批次。</p>}
-      {batch && <><div className="hr-metrics"><span>总数 <b>{batch.total}</b></span><span>已筛选 <b>{counts?.screened}</b></span><span>待筛选 <b>{counts?.pending ?? '未记录'}</b></span><span>预筛选 <b>{counts?.prescreened ?? '未记录'}</b></span><span>失败 <b>{batch.failed}</b></span><span>{statusText(batch.status)}</span>{batch.model_selection?.model_name && <span>模型 <b>{batch.model_selection.model_name}</b></span>}</div>
+      {batch && <><div className="hr-metrics"><span>总数 <b>{batch.total}</b></span><span>已筛选 <b>{counts?.screened}</b></span><span>待筛选 <b>{counts?.pending ?? '未记录'}</b></span><span>预筛选 <b>{counts?.prescreened ?? '未记录'}</b></span><span>失败 <b>{batch.failed}</b></span><span>{statusText(batch.status)}</span>{batch.model_selection && <span>模型 <b>{batch.model_selection.model_name || batch.model_selection.model_id}</b></span>}</div>
         <progress value={batch.progress} max={100} aria-label="批次处理进度" /><span> {batch.progress}%</span>
         {batch.stale && <p className="hr-warning">关联岗位需求已变化：本批次为历史结果，不代表当前要求。</p>}
         <p className="hr-muted">已筛选：模型处理完成；待筛选：已排队或处理中；预筛选：文件接收校验通过、尚未启动模型。失败单独统计，重试排队后计入待筛选。{batch.expires_at && ` 保留至 ${new Date(batch.expires_at).toLocaleString()}。`}</p>

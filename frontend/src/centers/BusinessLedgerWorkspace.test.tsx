@@ -69,3 +69,20 @@ it('preview and accounts without grants cannot mutate business data', async () =
   expect(await screen.findByRole('heading', { name: '没有台账录入权限' })).toBeTruthy();
   expect(ledgerApi.getLedger).not.toHaveBeenCalled();
 });
+
+it('product workspace limits record entry to presales even when other ledgers are granted', async () => {
+  ledgerApi.listLedgerPermissions.mockResolvedValue({ departments: [
+    { department: 'engineering', title: '工程部看板', can_edit: true },
+    { department: 'presales', title: '售前部门看板', can_edit: true },
+  ] });
+  ledgerApi.getLedger.mockResolvedValue({ ...fixture(), department: 'presales', title: '售前部门看板',
+    fields: { project_id: '项目编号', project_name: '项目名称', status: '状态', owner: '负责人', amount: '预计金额',
+      follow_up_date: '跟进时间', project_progress: '项目进展', description: '项目概况' },
+    records: [], statuses: ['方案编制'] });
+  render(<BusinessLedgerWorkspace onlyDepartment="presales" />);
+  expect(await screen.findByRole('heading', { name: '售前项目跟进' })).toBeTruthy();
+  expect(screen.queryByRole('tab', { name: '工程部看板' })).toBeNull();
+  await waitFor(() => expect(ledgerApi.getLedger).toHaveBeenCalledWith('presales', expect.anything()));
+  expect(await screen.findByLabelText('跟进时间')).toBeTruthy();
+  expect(screen.getByLabelText('项目概况').tagName).toBe('TEXTAREA');
+});

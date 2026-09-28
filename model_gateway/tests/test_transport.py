@@ -16,6 +16,7 @@ from model_gateway.errors import GatewayError
 
 PUBLIC = (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", 443))
 BASE = "https://api.example/v1"
+LOCAL_BASE = "http://127.0.0.1:19880/api/v1/openai/0123456789abcdef0123456789abcdef"
 SECRET = "test-only-key-not-a-real-credential"
 
 
@@ -32,6 +33,8 @@ class TransportProtocolSimulationTests(unittest.TestCase):
             "MODEL_GATEWAY_ALLOWED_BASE_URLS": BASE,
             "PORTAL_MODEL_KEY_TEST": SECRET,
             "HTTPS_PROXY": "http://127.0.0.1:1",
+            "MODEL_GATEWAY_LOCAL_HTTP": "0",
+            "PORTAL_DEBUG": "0",
         }, clear=False)
         self.environment.start()
         self.addCleanup(self.environment.stop)
@@ -62,6 +65,26 @@ class TransportProtocolSimulationTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, code)
         return caught.exception
 
+    def test_catalog_lists_bounded_model_ids_without_secret(self):
+        response = self.response({"data": [{"id": "qwen-plus"}, {"id": "qwen3.8-flash"}]})
+        response.read.side_effect = io.BytesIO(json.dumps({"data": [
+            {"id": "qwen-plus"}, {"id": "qwen3.8-flash"},
+        ]}).encode()).read
+        connection = self.exchange(response)
+        self.assertEqual(transport.list_models(self.provider), ["qwen-plus", "qwen3.8-flash"])
+        self.assertEqual(connection.request.call_args.args[:2], ("GET", "/v1/models"))
+        self.assertNotIn(SECRET, str(response.read.call_args))
+        response.read.side_effect = io.BytesIO(b'{"data":[{"id":"bad key"}]}').read
+        self.assert_code("invalid_response", lambda: transport.list_models(self.provider))
+        response.status = 401
+        self.assert_code("upstream_auth", lambda: transport.list_models(self.provider))
+
+    def test_catalog_rejects_missing_key_and_unlisted_target(self):
+        with patch.dict(transport.os.environ, {"PORTAL_MODEL_KEY_TEST": ""}):
+            self.assert_code("missing_key", lambda: transport.list_models(self.provider))
+        with patch.dict(transport.os.environ, {"MODEL_GATEWAY_ALLOWED_BASE_URLS": ""}):
+            self.assert_code("target_not_allowed", lambda: transport.list_models(self.provider))
+
     def test_canonical_exact_allowlist(self):
         for value in (BASE, BASE + "/", "https://api.example", "https://api.example/",
                       "https://api.example:443/v1", "https://api.example:443/v1/",
@@ -80,6 +103,87 @@ class TransportProtocolSimulationTests(unittest.TestCase):
                 allowed = (value,) if value != "https://api.example.evil/v1" else (BASE,)
                 self.assert_code("target_not_allowed", lambda: transport.validate_base_url(value, allowed))
         self.assert_code("target_not_allowed", lambda: transport.validate_base_url(BASE, ()))
+
+    def test_local_http_requires_both_flags_exact_allowlist_and_exact_url(self):
+        for local_flag, debug_flag, allowed in (
+            ("0", "1", (LOCAL_BASE,)),
+            ("1", "0", (LOCAL_BASE,)),
+            ("true", "1", (LOCAL_BASE,)),
+            ("1", "true", (LOCAL_BASE,)),
+            ("1", "1", ()),
+            ("1", "1", (LOCAL_BASE + "/",)),
+        ):
+            with self.subTest(local_flag=local_flag, debug_flag=debug_flag, allowed=allowed), patch.dict(
+                transport.os.environ,
+                {"MODEL_GATEWAY_LOCAL_HTTP": local_flag, "PORTAL_DEBUG": debug_flag},
+            ):
+                self.assert_code(
+                    "target_not_allowed",
+                    lambda: transport.validate_base_url(LOCAL_BASE, allowed),
+                )
+
+        bad = (
+            LOCAL_BASE + "/",
+            LOCAL_BASE + "?x=1",
+            LOCAL_BASE.replace("http://", "https://"),
+            LOCAL_BASE.replace("127.0.0.1", "localhost"),
+            LOCAL_BASE.replace(":19880", ":19881"),
+            LOCAL_BASE.replace("0123456789abcdef0123456789abcdef", "0123456789abcdef0123456789abcde"),
+            LOCAL_BASE.replace("abcdef", "ABCDEF"),
+        )
+        with patch.dict(transport.os.environ, {"MODEL_GATEWAY_LOCAL_HTTP": "1", "PORTAL_DEBUG": "1"}):
+            self.assertEqual(transport.validate_base_url(LOCAL_BASE, (LOCAL_BASE,)), LOCAL_BASE)
+            for value in bad:
+                with self.subTest(value=value):
+                    self.assert_code(
+                        "target_not_allowed",
+                        lambda value=value: transport.validate_base_url(value, (value,)),
+                    )
+
+    def test_local_http_is_direct_bounded_and_ignores_proxy(self):
+        body = json.dumps({"choices": [{"finish_reason": "stop", "message": {"content": "hello"}}]}).encode()
+        wire = b"HTTP/1.1 200 OK\r\nContent-Length: " + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body
+        raw = MagicMock()
+        raw.makefile.return_value = io.BytesIO(wire)
+        self.provider["base_url"] = LOCAL_BASE
+        self.dns.reset_mock()
+        with patch.dict(transport.os.environ, {
+            "MODEL_GATEWAY_ALLOWED_BASE_URLS": LOCAL_BASE,
+            "MODEL_GATEWAY_LOCAL_HTTP": "1",
+            "PORTAL_DEBUG": "1",
+        }), patch.object(transport.socket, "socket", return_value=raw), patch.object(
+            transport.threading, "Timer",
+        ) as timer:
+            self.assertEqual(self.call()["content"], "hello")
+        self.dns.assert_not_called()
+        raw.connect.assert_called_once_with(("127.0.0.1", 19880))
+        self.assertTrue(raw.settimeout.called)
+        self.assertGreater(timer.call_args.args[0], 0)
+        self.assertLessEqual(timer.call_args.args[0], self.model["timeout_seconds"])
+        self.assertIsInstance(timer.call_args.args[1].__self__, transport._PinnedHTTPConnection)
+        timer.return_value.start.assert_called_once()
+        timer.return_value.cancel.assert_called_once()
+        sent = b"".join(call.args[0] for call in raw.sendall.call_args_list)
+        self.assertIn(b"Host: 127.0.0.1:19880\r\n", sent)
+        self.assertIn(b"POST /api/v1/openai/0123456789abcdef0123456789abcdef/chat/completions HTTP/1.1", sent)
+        self.assertNotIn(b"CONNECT ", sent)
+
+    def test_local_http_does_not_follow_redirects(self):
+        self.provider["base_url"] = LOCAL_BASE
+        response = self.response(SECRET.encode(), 302, {"Location": BASE})
+        self.dns.reset_mock()
+        with patch.dict(transport.os.environ, {
+            "MODEL_GATEWAY_ALLOWED_BASE_URLS": LOCAL_BASE,
+            "MODEL_GATEWAY_LOCAL_HTTP": "1",
+            "PORTAL_DEBUG": "1",
+        }), patch.object(transport, "_PinnedHTTPConnection") as factory:
+            connection = factory.return_value
+            connection.getresponse.return_value = response
+            self.assert_code("upstream_error")
+        self.dns.assert_not_called()
+        connection.request.assert_called_once()
+        connection.getresponse.assert_called_once()
+        response.read1.assert_not_called()
 
     def test_token_parameters_and_missing_usage(self):
         connection = self.exchange(self.response())

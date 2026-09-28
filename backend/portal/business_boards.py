@@ -34,10 +34,13 @@ BOARDS = {
     },
     'presales': {
         'title': '售前部门看板',
-        'fields': {'project_id': '项目编号', 'project_name': '项目名称', 'status': '状态', 'owner': '负责人', 'amount': '预计金额'},
+        'fields': {'project_id': '项目编号', 'project_name': '项目名称', 'status': '状态', 'owner': '负责人', 'amount': '预计金额',
+                   'follow_up_date': '跟进时间', 'project_type': '项目定型', 'project_progress': '项目进展',
+                   'description': '项目概况', 'client_contact': '甲方对接人', 'maturity': '成熟度'},
         'statuses': ['线索', '需求沟通', '方案编制', '报价', '商务谈判', '已赢单', '已丢单'],
     },
 }
+PRESALES_OPTIONAL_FIELDS = {'follow_up_date', 'project_type', 'project_progress', 'description', 'client_contact', 'maturity'}
 ACTIVE_ENGINEERING = {'待开工', '实施中', '待验收', '整改中'}
 MAX_CSV_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 2000
@@ -90,7 +93,8 @@ def parse_csv(raw, code):
         reader = csv.reader(io.StringIO(text, newline=''), strict=True)
         header = next(reader)
         keys = [aliases.get(item.strip()) for item in header]
-        if len(keys) != len(fields) or set(keys) != set(fields):
+        required = set(fields) - (PRESALES_OPTIONAL_FIELDS if code == 'presales' else set())
+        if len(keys) != len(set(keys)) or not required.issubset(keys) or not set(keys).issubset(fields):
             raise BoardError('列名不匹配，请下载该看板的 CSV 模板；每列只出现一次。')
         records, seen = [], set()
         for line, values in enumerate(reader, 2):
@@ -101,8 +105,11 @@ def parse_csv(raw, code):
             if len(values) != len(keys):
                 raise BoardError(f'第 {line} 行列数不正确。')
             row = dict(zip(keys, (value.strip() for value in values)))
-            if any(len(value) > 200 or any(ord(c) < 32 for c in value) for value in row.values()):
+            if any(len(value) > (2000 if code == 'presales' and key in {'project_progress', 'description'} else 200)
+                   or any(ord(c) < 32 for c in value) for key, value in row.items()):
                 raise BoardError(f'第 {line} 行字段过长或包含控制字符。')
+            if code == 'presales':
+                row.update({key: row.get(key, '') for key in PRESALES_OPTIONAL_FIELDS})
             if not row['project_id'] or not row['project_name'] or row['project_id'] in seen:
                 raise BoardError(f'第 {line} 行项目编号/名称不能为空，编号不能重复。')
             seen.add(row['project_id'])
@@ -121,6 +128,8 @@ def parse_csv(raw, code):
                 if row['due_date']:
                     date_value(row['due_date'], f'第 {line} 行应收日期')
             else:
+                if row['follow_up_date']:
+                    date_value(row['follow_up_date'], f'第 {line} 行跟进时间')
                 row['amount'] = f"{number(row['amount'], f'第 {line} 行预计金额'):.2f}"
             records.append(row)
     except (csv.Error, StopIteration):
@@ -135,17 +144,18 @@ def validate_record(value, code, *, label='记录'):
     if code not in BOARDS or not isinstance(value, dict):
         raise BoardError(f'{label}格式无效。')
     expected = set(BOARDS[code]['fields'])
-    if set(value) != expected:
+    optional = PRESALES_OPTIONAL_FIELDS if code == 'presales' else set()
+    if not expected.difference(optional).issubset(value) or not set(value).issubset(expected):
         raise BoardError(f'{label}字段不完整，请使用当前台账模板。')
     row = {}
     for key in BOARDS[code]['fields']:
-        raw = value[key]
+        raw = value.get(key, '')
         if raw is None:
             raw = ''
         if isinstance(raw, bool) or not isinstance(raw, (str, int, float, Decimal)):
             raise BoardError(f'{label}字段类型无效。')
         text = str(raw).strip()
-        if len(text) > 200 or any(ord(char) < 32 for char in text):
+        if len(text) > (2000 if code == 'presales' and key in {'project_progress', 'description'} else 200) or any(ord(char) < 32 for char in text):
             raise BoardError(f'{label}字段过长或包含控制字符。')
         row[key] = text
     if not row['project_id'] or not row['project_name']:
@@ -167,6 +177,8 @@ def validate_record(value, code, *, label='记录'):
         if row['due_date']:
             date_value(row['due_date'], f'{label}应收日期')
     else:
+        if row['follow_up_date']:
+            date_value(row['follow_up_date'], f'{label}跟进时间')
         row['amount'] = f"{number(row['amount'], f'{label}预计金额'):.2f}"
     return row
 
@@ -225,15 +237,18 @@ def payload(code, snapshot, query='', status=''):
                   ('未结清', sum(Decimal(r['contract_amount']) > Decimal(r['received_amount']) for r in rows))]
     else:
         groups = [(label, sum(row['status'] == label for row in rows)) for label in config['statuses']]
+    live_presales = code == 'presales' and isinstance(snapshot, BusinessLedgerWorkbook)
     return {'department': code, 'title': config['title'], 'available': snapshot is not None,
             'snapshot_id': str(snapshot.pk) if snapshot else '', 'fields': config['fields'], 'statuses': config['statuses'],
             'metrics': metrics, 'distribution': [{'label': label, 'count': count} for label, count in groups],
             'records': rows, 'total': len(snapshot.records) if snapshot else 0, 'filtered_count': len(rows),
-            'currency': 'CNY', 'source': {'name': snapshot.source_name, 'as_of': snapshot.as_of.isoformat(),
-                'imported_at': snapshot.created_at.isoformat(),
-                'kind': 'department_published', 'revision': snapshot.revision,
+            'currency': 'CNY', 'source': {'name': snapshot.source_name, 'as_of': snapshot.as_of.isoformat() if snapshot.as_of else '',
+                'imported_at': (snapshot.updated_at if live_presales else snapshot.created_at).isoformat(),
+                'kind': 'department_live' if live_presales else 'department_published', 'revision': snapshot.revision,
+                'state': snapshot.state if live_presales else 'published',
             } if snapshot else None,
-            'scope': '部门最新已发布台账；未发布草稿不会进入总经理看板。'}
+            'scope': '售前部门最新保存的工作数据（含草稿）；按版本留痕，尚未审核发布的数据请谨慎使用。' if code == 'presales'
+                     else '部门最新已发布台账；未发布草稿不会进入总经理看板。'}
 
 
 def _grant(user, code, capability=None):
@@ -378,10 +393,11 @@ def board(request, code):
     search, status = request.GET.get('q', '').strip(), request.GET.get('status', '')
     if len(search) > 100 or status and status not in BOARDS[code]['statuses']:
         return Response({'detail': '筛选条件无效。'}, status=400)
-    published = (BusinessLedgerRevision.objects.filter(
-        workbook__department=code, state=BusinessLedgerWorkbook.State.PUBLISHED,
-    ).select_related('workbook').first())
-    return Response(payload(code, published, search, status))
+    snapshot = (BusinessLedgerWorkbook.objects.filter(department=code).first() if code == 'presales' else
+                BusinessLedgerRevision.objects.filter(
+                    workbook__department=code, state=BusinessLedgerWorkbook.State.PUBLISHED,
+                ).select_related('workbook').first())
+    return Response(payload(code, snapshot, search, status))
 
 
 @never_cache

@@ -69,6 +69,22 @@ describe("portal routing", () => {
     vi.unstubAllGlobals();
   });
 
+  it("总经理从个人工作台入口直接进入企业台账首页", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/me/") return Promise.resolve(json({ ...baseUser, roles: [{ code: "general_manager", name: "总经理" }] }));
+      if (url === "/api/modules/business/") return Promise.resolve(json({ code: "business", name: "总经理工作台", description: "", status: "verified", enabled: true }));
+      if (url === "/api/modules/") return Promise.resolve(json([{ code: "business", name: "总经理工作台", description: "", status: "verified", enabled: true }]));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    }));
+
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe("/centers/business"));
+    expect(await screen.findByRole("link", { name: /企业台账/ })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "工作摘要" })).toBeNull();
+  });
+
   it("待接入模块禁止启动并保留返回工作台", async () => {
     window.history.replaceState({}, "", "/modules/product");
     const fetchMock = vi.fn((input: RequestInfo | URL) => {

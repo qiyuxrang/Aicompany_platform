@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiRequest } from "../api";
+import { ApiError, apiEventStream, apiRequest } from "../api";
 import ProductKnowledge from "./ProductKnowledge";
 import ProductWorkspace from "../centers/ProductWorkspace";
 
-vi.mock("../api", async original => ({ ...await original<typeof import("../api")>(), apiRequest: vi.fn() }));
+vi.mock("../api", async original => ({ ...await original<typeof import("../api")>(), apiRequest: vi.fn(), apiEventStream: vi.fn() }));
 const request = vi.mocked(apiRequest);
+const stream = vi.mocked(apiEventStream);
 const root = "/api/product/knowledge/";
 const a = "11111111-1111-4111-8111-111111111111";
 const b = "22222222-2222-4222-8222-222222222222";
@@ -19,6 +20,7 @@ function deferred<T>() { let resolve!: (value: T) => void; let reject!: (reason:
 function mockApi() {
   request.mockImplementation(async (path, init) => {
     if (path === `${root}status/`) return { available: true, code: "ready", help: "" };
+    if (path === `${root}datasets/`) return { datasets: [{ id: "ds1", name: "设备知识库", document_count: 12 }] };
     if (path === `${root}conversations/`) return init?.method === "POST" ? { id: b, title: "新会话", version: 0, turns: [] } : { conversations: [summary, other] };
     if (path === `${root}conversations/${a}/`) return detail;
     if (path === `${root}conversations/${b}/`) return { ...other, turns: [] };
@@ -32,9 +34,147 @@ async function open() {
   return user;
 }
 function posts() { return request.mock.calls.filter(([, init]) => init?.method === "POST"); }
-beforeEach(() => { vi.resetAllMocks(); window.history.replaceState({}, "", "/centers/product/knowledge"); mockApi(); });
+beforeEach(() => {
+  vi.resetAllMocks(); window.history.replaceState({}, "", "/centers/product/knowledge"); mockApi();
+  stream.mockImplementation(async (path, payload, signal) => request(path, { method: "POST", body: JSON.stringify(payload), signal }) as Promise<never>);
+});
 
 describe("ProductKnowledge", () => {
+  it("shows arriving answer fragments provisionally and replaces them with verified citations", async () => {
+    const user = await open();
+    const pending = deferred<void>();
+    stream.mockImplementationOnce(async (_path, _payload, _signal, onDelta) => {
+      onDelta("逐步");
+      await pending.promise;
+      onDelta("回答");
+      return { ...detail, version: 2, turns: [...detail.turns, { ...turn, answer: "逐步回答 [S1]", request_id: "streamed" }] };
+    });
+    await user.type(screen.getByLabelText("你的问题"), "项目有哪些？");
+    await user.click(screen.getByRole("button", { name: "发送问题" }));
+    expect(await screen.findByText("逐步")).toBeTruthy();
+    expect(screen.getByText(/引用正在核验/)).toBeTruthy();
+    await act(async () => { pending.resolve(); });
+    await screen.findByText("逐步回答 [S1]");
+    expect(screen.queryByText("引用正在核验，完成后才会保存。")).toBeNull();
+  });
+  it("removes unverified partial text when the stream fails", async () => {
+    const user = await open();
+    const pending = deferred<void>();
+    stream.mockImplementationOnce(async (_path, _payload, _signal, onDelta) => {
+      onDelta("未核验内容");
+      await pending.promise;
+      throw new ApiError(502, "回答连接中断", "incomplete_stream");
+    });
+    await user.type(screen.getByLabelText("你的问题"), "项目有哪些？");
+    await user.click(screen.getByRole("button", { name: "发送问题" }));
+    await screen.findByText("未核验内容");
+    await act(async () => { pending.resolve(); });
+    await screen.findByText(/回答连接中断/);
+    expect(screen.queryByText("未核验内容")).toBeNull();
+    expect(screen.getByRole("button", { name: "重试本次问题" })).toBeTruthy();
+  });
+  it("accepts a first question without a session and creates the session before sending", async () => {
+    const user = userEvent.setup(); render(<ProductKnowledge/>);
+    await screen.findByText("直接提问，或打开历史会话");
+    const input = screen.getByLabelText("你的问题") as HTMLTextAreaElement;
+    expect(input.disabled).toBe(false);
+    request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ id: b, title: "新会话", version: 0, turns: [] })
+      .mockResolvedValueOnce({ ...other, version: 1, turns: [{ ...turn, question: "首次问题" }] });
+    await user.type(input, "首次问题");
+    await user.click(screen.getByRole("button", { name: "发送问题" }));
+    await screen.findByText(turn.answer);
+    expect(posts().map(([path]) => path)).toEqual([`${root}conversations/`, `${root}conversations/${b}/`]);
+    expect(posts()[0][1]?.body).toBe("{}");
+    expect(JSON.parse(posts()[1][1]?.body as string)).toEqual({ question: "首次问题", version: 0, request_id: expect.any(String), stream: true });
+    expect(input.value).toBe("");
+  });
+  it("keeps the first question editable if session creation fails", async () => {
+    const user = userEvent.setup(); render(<ProductKnowledge/>);
+    await screen.findByText("直接提问，或打开历史会话");
+    request.mockResolvedValueOnce({ available: true }).mockRejectedValueOnce(new Error("新建失败"));
+    const input = screen.getByLabelText("你的问题") as HTMLTextAreaElement;
+    await user.type(input, "不要丢掉的问题");
+    await user.click(screen.getByRole("button", { name: "发送问题" }));
+    await screen.findByText("新建失败");
+    expect(input.value).toBe("不要丢掉的问题");
+    expect(input.disabled).toBe(false);
+    expect(posts()).toHaveLength(1);
+  });
+  it("shows authorized datasets and counts above conversations without changing the session", async () => {
+    const user = await open();
+    const sidebar = screen.getByRole("complementary", { name: "知识库会话" });
+    expect(await screen.findByText("设备知识库")).toBeTruthy();
+    expect(screen.getByText("12 篇文档")).toBeTruthy();
+    expect(sidebar.textContent!.indexOf("已授权知识库")).toBeLessThan(sidebar.textContent!.indexOf("历史会话"));
+    await user.click(screen.getByText("设备知识库"));
+    expect(screen.getByText(turn.answer)).toBeTruthy();
+    expect(posts()).toHaveLength(0);
+    expect(request.mock.calls.some(([path]) => path === `${root}datasets/`)).toBe(true);
+  });
+  it("filters history locally and focuses the composer after opening a session", async () => {
+    const user = await open();
+    const calls = request.mock.calls.length;
+    const search = screen.getByRole("searchbox", { name: "搜索历史会话" }) as HTMLInputElement;
+    await user.type(search, "不存在");
+    expect(screen.getByText("没有匹配的会话，请换个关键词。")).toBeTruthy();
+    await user.clear(search); await user.type(search, "另一");
+    expect(screen.queryByRole("button", { name: /设备资料/ })).toBeNull();
+    expect(request.mock.calls).toHaveLength(calls);
+    await user.click(screen.getByRole("button", { name: /另一会话/ }));
+    await screen.findByText("这个会话还没有问题");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("你的问题")));
+    expect(search.value).toBe("");
+  });
+  it("toggles the compact history control without sending a request", async () => {
+    const user = await open();
+    const toggle = screen.getByRole("button", { name: /查看历史会话/ });
+    const calls = request.mock.calls.length;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await user.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(request.mock.calls).toHaveLength(calls);
+  });
+  it("follows streaming text unless the reader scrolls back", async () => {
+    const user = await open();
+    const history = screen.getByLabelText("问答历史");
+    Object.defineProperties(history, { scrollHeight: { configurable: true, value: 800 }, clientHeight: { configurable: true, value: 200 } });
+    const next = deferred<void>(); const finish = deferred<void>();
+    stream.mockImplementationOnce(async (_path, _payload, _signal, onDelta) => {
+      onDelta("前半段"); await next.promise;
+      onDelta("后半段"); await finish.promise;
+      return detail;
+    });
+    await user.type(screen.getByLabelText("你的问题"), "新问题");
+    await user.click(screen.getByRole("button", { name: "发送问题" }));
+    await screen.findByText("前半段");
+    await waitFor(() => expect(history.scrollTop).toBe(800));
+    history.scrollTop = 0; fireEvent.scroll(history);
+    await act(async () => { next.resolve(); });
+    await screen.findByText("前半段后半段");
+    expect(history.scrollTop).toBe(0);
+    await act(async () => { finish.resolve(); });
+  });
+  it("keeps Q&A usable while the dataset list loads, then shows the empty state", async () => {
+    const pending = deferred<unknown>();
+    request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ conversations: [summary] }).mockImplementationOnce(() => pending.promise);
+    const user = userEvent.setup(); render(<ProductKnowledge/>);
+    await screen.findByText("正在加载知识库列表…");
+    await user.click(await screen.findByRole("button", { name: /设备资料/ }));
+    await screen.findByText(turn.answer);
+    await act(async () => { pending.resolve({ datasets: [] }); });
+    expect(screen.getByText("暂无已授权知识库。")).toBeTruthy();
+  });
+  it("isolates dataset errors from Q&A and retries the list with the existing refresh action", async () => {
+    request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ conversations: [summary] }).mockRejectedValueOnce(new Error("列表暂不可用"));
+    const user = userEvent.setup(); render(<ProductKnowledge/>);
+    await screen.findByText(/知识库列表读取失败：列表暂不可用/);
+    expect(screen.queryByText("列表暂不可用", { exact: true })).toBeNull();
+    await user.click(await screen.findByRole("button", { name: /设备资料/ }));
+    await screen.findByText(turn.answer);
+    await user.click(screen.getByRole("button", { name: "重新检查服务" }));
+    await screen.findByText("设备知识库");
+    expect(screen.queryByText(/知识库列表读取失败/)).toBeNull();
+  });
   it("mounts the dedicated workspace branch and renders cited excerpts as text", async () => {
     const user = userEvent.setup(); const view = render(<ProductWorkspace section="knowledge"/>);
     await user.click(await screen.findByRole("button", { name: /设备资料/ }));
@@ -46,7 +186,7 @@ describe("ProductKnowledge", () => {
     expect(request.mock.calls[0][0]).toBe(`${root}status/`);
   });
   it("uses the backend citation ID for an arbitrary source subset", async () => {
-    request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ conversations: [summary] }).mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ ...summary, turns: [{ ...turn, answer: "参见 [S3]", sources: [{ ...source, id: "S3" }] }] });
+    request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ conversations: [summary] }).mockResolvedValueOnce({ datasets: [] }).mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ ...summary, turns: [{ ...turn, answer: "参见 [S3]", sources: [{ ...source, id: "S3" }] }] });
     const user = userEvent.setup(); render(<ProductKnowledge/>);
     await user.click(await screen.findByRole("button", { name: /设备资料/ }));
     await screen.findByText("参见 [S3]");
@@ -133,7 +273,7 @@ describe("ProductKnowledge", () => {
     await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe(""));
   });
   it("renders retrieval-empty as empty rather than an invented answer", async () => {
-    request.mockImplementationOnce(async () => ({ available: true })).mockResolvedValueOnce({ conversations: [summary] }).mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ ...summary, turns: [{ ...turn, outcome: "empty", answer: "ignored", sources: [] }] });
+    request.mockImplementationOnce(async () => ({ available: true })).mockResolvedValueOnce({ conversations: [summary] }).mockResolvedValueOnce({ datasets: [] }).mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ ...summary, turns: [{ ...turn, outcome: "empty", answer: "ignored", sources: [] }] });
     const user = userEvent.setup(); render(<ProductKnowledge/>);
     await user.click(await screen.findByRole("button", { name: /设备资料/ }));
     await screen.findByText(/未找到足够的相关资料/); expect(screen.queryByText("ignored")).toBeNull();
@@ -144,6 +284,7 @@ describe("ProductKnowledge", () => {
     await user.click(screen.getByRole("button", { name: "发送问题" }));
     await screen.findByText(/访问权限已变化/);
     expect(screen.queryByText(turn.answer)).toBeNull(); expect(screen.queryByText(source.content)).toBeNull();
+    expect(screen.queryByText("设备知识库")).toBeNull();
     expect(screen.queryByRole("button", { name: /设备资料/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "重试本次问题" })).toBeNull();
   });

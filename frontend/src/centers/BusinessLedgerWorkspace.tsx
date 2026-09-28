@@ -19,9 +19,9 @@ const failureMessage = (error: unknown) => {
 };
 const requiredRecordFields = new Set(['project_id', 'project_name', 'status', 'progress', 'contract_amount', 'received_amount', 'amount']);
 const numericRecordFields = new Set(['progress', 'contract_amount', 'received_amount', 'amount']);
-const dateRecordFields = new Set(['planned_end', 'due_date']);
+const dateRecordFields = new Set(['planned_end', 'due_date', 'follow_up_date']);
 
-export default function BusinessLedgerWorkspace({ preview = false }: { preview?: boolean }) {
+export default function BusinessLedgerWorkspace({ preview = false, onlyDepartment }: { preview?: boolean; onlyDepartment?: LedgerDepartment }) {
   const [access, setAccess] = useState<LedgerDepartmentAccess[]>([]);
   const [department, setDepartment] = useState<LedgerDepartment | ''>('');
   const [ledger, setLedger] = useState<BusinessLedger | null>(null);
@@ -59,13 +59,13 @@ export default function BusinessLedgerWorkspace({ preview = false }: { preview?:
     setLoading(true);
     listLedgerPermissions(controller.signal).then(result => {
       if (controller.signal.aborted) return;
-      const allowed = result.departments || [];
+      const allowed = (result.departments || []).filter(item => !onlyDepartment || item.department === onlyDepartment);
       setAccess(allowed);
       if (allowed[0]) setDepartment(current => current || allowed[0].department);
     }).catch(error => { if (!controller.signal.aborted) setError(failureMessage(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [preview]);
+  }, [preview, onlyDepartment]);
 
   useEffect(() => {
     if (!department || preview) return;
@@ -95,7 +95,7 @@ export default function BusinessLedgerWorkspace({ preview = false }: { preview?:
     const operation = editingId
       ? (current: BusinessLedger) => updateLedgerRecord(current, editingId, record)
       : (current: BusinessLedger) => addLedgerRecord(current, record);
-    void execute(operation, editingId ? '记录已更新并保存在草稿中。' : '记录已加入草稿。');
+    void execute(operation, onlyDepartment ? '跟进记录已保存，总经理售前看板将在刷新后显示。' : editingId ? '记录已更新并保存在草稿中。' : '记录已加入草稿。');
   };
   const edit = (row: Record<string, string>) => {
     setEditingId(row.project_id || row.opportunity_id || '');
@@ -106,14 +106,14 @@ export default function BusinessLedgerWorkspace({ preview = false }: { preview?:
   if (preview) return <section className="center-panel"><h2>部门台账录入</h2><p>实际页面按登录账号显示工程、财务或售前台账权限。预览不会读取、录入或发布业务数据。</p></section>;
 
   return <section className="ledger-workspace" aria-label="部门台账录入工作台">
-    <header className="ledger-head"><div><p className="eyebrow">经营数据治理</p><h2>部门台账录入</h2><p>录入人员维护草稿，发布人员确认后，总经理看板才会更新。</p></div>
+    <header className="ledger-head"><div><p className="eyebrow">经营数据治理</p><h2>{onlyDepartment ? '售前项目跟进' : '部门台账录入'}</h2><p>{onlyDepartment ? '维护项目跟进信息；保存后进入总经理售前看板（未发布数据会标注为工作数据）。金额统一填写人民币元。' : '录入人员维护草稿，发布人员确认后，总经理看板才会更新。'}</p></div>
       <button className="button secondary" disabled={!department || loading || busy} onClick={() => department && void loadLedger(department)}>刷新</button></header>
     {error && <p className="notice error" role="alert">{error}</p>}
     {notice && <p className="notice info" role="status">{notice}</p>}
     {loading && <p role="status">正在读取台账权限和最新版本…</p>}
-    {!loading && !access.length && <div className="center-empty"><h3>没有台账录入权限</h3><p>总经理请在企业台账页面查看已发布数据；录入权限由平台管理员按部门分配。</p></div>}
+    {!loading && !access.length && <div className="center-empty"><h3>没有台账录入权限</h3><p>{onlyDepartment ? '请平台管理员为当前账号授予售前台账的录入权限。' : '总经理请在企业台账页面查看已发布数据；录入权限由平台管理员按部门分配。'}</p></div>}
     {!!access.length && <>
-      <div className="ledger-tabs" role="tablist" aria-label="可维护台账">{access.map(item => <button key={item.department} role="tab" aria-selected={department === item.department} onClick={() => setDepartment(item.department)} disabled={busy}>{item.title}</button>)}</div>
+      {!onlyDepartment && <div className="ledger-tabs" role="tablist" aria-label="可维护台账">{access.map(item => <button key={item.department} role="tab" aria-selected={department === item.department} onClick={() => setDepartment(item.department)} disabled={busy}>{item.title}</button>)}</div>}
       {ledger && <div role="tabpanel" aria-label={ledger.title}>
         <div className="ledger-status-row"><span className={`ledger-state ${ledger.state}`}>{stateLabels[ledger.state]}</span><span>版本 {ledger.revision}</span><span>截止日期 {ledger.as_of || '未填写'}</span><span>更新于 {ledger.updated_at ? new Date(ledger.updated_at).toLocaleString('zh-CN') : '尚未保存'}</span></div>
         {ledger.last_return_reason && <p className="notice warning">上次退回原因：{ledger.last_return_reason}</p>}
@@ -131,6 +131,8 @@ export default function BusinessLedgerWorkspace({ preview = false }: { preview?:
             <div className="ledger-fields">{fieldEntries.map(([key, label]) => <label key={key}>{label}
               {key === 'status' && ledger.statuses.length
                 ? <select required value={record[key] || ''} onChange={event => setRecord({ ...record, [key]: event.target.value })}><option value="">请选择</option>{ledger.statuses.map(item => <option key={item}>{item}</option>)}</select>
+                : key === 'description' || key === 'project_progress'
+                  ? <textarea value={record[key] || ''} maxLength={2000} onChange={event => setRecord({ ...record, [key]: event.target.value })}/>
                 : <input type={numericRecordFields.has(key) ? 'number' : dateRecordFields.has(key) ? 'date' : 'text'} min={numericRecordFields.has(key) ? 0 : undefined} max={key === 'progress' ? 100 : undefined} step={numericRecordFields.has(key) ? '.01' : undefined} required={requiredRecordFields.has(key)} value={record[key] || ''} maxLength={numericRecordFields.has(key) || dateRecordFields.has(key) ? undefined : 200} onChange={event => setRecord({ ...record, [key]: event.target.value })} />}
             </label>)}</div>
             <div className="center-actions"><button className="button primary" disabled={busy}>{editingId ? '保存修改' : '新增记录'}</button>{editingId && <button type="button" className="button secondary" onClick={() => resetEditor(ledger)}>取消编辑</button>}</div>

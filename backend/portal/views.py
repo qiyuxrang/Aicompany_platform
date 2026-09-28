@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
@@ -126,27 +127,30 @@ def change_password(request):
         return Response({"detail": "密码输入无效。"}, status=400)
     if "confirm_password" in request.data and (not isinstance(confirmation, str) or confirmation != new):
         return Response({"detail": "两次输入的新密码不一致。"}, status=400)
+    user = request.user
+    # The authenticated first-login session proves the initial password already.
+    # Keep the old-password API compatible; only the forced two-field form may omit it.
+    if old is None:
+        if not user.must_change_password:
+            return Response({"detail": "修改密码需要验证当前密码。"}, status=400)
+        if confirmation != new:
+            return Response({"detail": "请再次输入新密码进行确认。"}, status=400)
+    elif not user.check_password(old):
+        return Response({"detail": "原密码不正确。"}, status=400)
+    if user.check_password(new):
+        return Response({"detail": "新密码不能与原密码相同。"}, status=400)
+    try:
+        validate_password(new, user)
+    except ValidationError as error:
+        return Response({"detail": " ".join(error.messages)}, status=400)
+    password = make_password(new)
     with transaction.atomic():
-        user = User.objects.select_for_update().get(pk=request.user.pk)
-        # The authenticated first-login session proves the initial password already.
-        # Keep the old-password API compatible; only the forced two-field form may omit it.
-        if old is None:
-            if not user.must_change_password:
-                return Response({"detail": "修改密码需要验证当前密码。"}, status=400)
-            if confirmation != new:
-                return Response({"detail": "请再次输入新密码进行确认。"}, status=400)
-        elif not user.check_password(old):
-            return Response({"detail": "原密码不正确。"}, status=400)
-        if user.check_password(new):
-            return Response({"detail": "新密码不能与原密码相同。"}, status=400)
-        try:
-            validate_password(new, user)
-        except ValidationError as error:
-            return Response({"detail": " ".join(error.messages)}, status=400)
-        user.set_password(new)
-        user.must_change_password = False
-        user.session_version += 1
-        user.save(update_fields=["password", "must_change_password", "session_version"])
+        changed = User.objects.filter(
+            pk=user.pk, password=user.password, session_version=user.session_version,
+            must_change_password=user.must_change_password,
+        ).update(password=password, must_change_password=False, session_version=F("session_version") + 1)
+        if not changed:
+            return Response({"detail": "账号状态已变化，请重新登录后重试。", "code": "stale_session"}, status=409)
         audit(user, "password_change", user.pk)
     logout(request)
     return Response({"detail": "密码已修改，所有旧会话已失效，请重新登录。"})

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiRequest, isApiError } from '../api';
+import { CenterLink } from './shared';
 import './business-boards.css';
 
 type Department = 'engineering' | 'finance' | 'presales';
@@ -9,7 +10,7 @@ type Board = {
   metrics: { key: string; label: string; value: number | string | null; unit: string }[];
   distribution: { label: string; count: number }[]; records: Record<string, string>[];
   total: number; filtered_count: number; scope: string; currency: string;
-  source: { name: string; as_of: string; imported_at: string; kind: string } | null;
+  source: { name: string; as_of: string; imported_at: string; kind: string; state?: string; revision?: number } | null;
 };
 const departments: [Department, string][] = [['engineering', '工程部看板'], ['finance', '财务部看板'], ['presales', '售前部门看板']];
 const explanations: Record<Department, string> = {
@@ -37,6 +38,66 @@ function display(value: number | string | null, unit: string) {
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return unit === '元' ? `${grouped}.${fraction.padEnd(2, '0')}` : grouped;
 }
+export function BusinessOverview({ preview = false }: { preview?: boolean }) {
+  const [boards, setBoards] = useState<Partial<Record<Department, Board>>>({});
+  const [failures, setFailures] = useState<Partial<Record<Department, string>>>({});
+  const [loading, setLoading] = useState(!preview);
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    if (preview) { setBoards({}); setFailures({}); setLoading(false); return; }
+    const controller = new AbortController();
+    setBoards({}); setFailures({}); setLoading(true);
+    void Promise.all(departments.map(async ([key]) => {
+      try {
+        const result = await apiRequest<unknown>(`/api/business/boards/${key}/`, { signal: controller.signal });
+        if (!validBoard(result) || result.department !== key) throw new Error('看板数据格式无效，请稍后重试。');
+        return { key, board: result };
+      } catch (error) {
+        return { key, error: isApiError(error) ? error.message : error instanceof Error ? error.message : '无法读取看板。' };
+      }
+    })).then(results => {
+      if (controller.signal.aborted) return;
+      const nextBoards: Partial<Record<Department, Board>> = {};
+      const nextFailures: Partial<Record<Department, string>> = {};
+      for (const result of results) {
+        if (result.board) nextBoards[result.key] = result.board;
+        if (result.error) nextFailures[result.key] = result.error;
+      }
+      setBoards(nextBoards); setFailures(nextFailures); setLoading(false);
+    });
+    return () => controller.abort();
+  }, [preview, refresh]);
+
+  useEffect(() => {
+    if (preview) return;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') setRefresh(value => value + 1);
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [preview]);
+
+  return <section className="business-overview" aria-label="企业台账总览">
+    <div className="business-overview-head"><div><p className="eyebrow">经营速览</p><h2>三部门数据，一屏掌握</h2><p>工程、财务取最新已发布台账；售前展示最新工作数据。指标均由台账计算。</p></div>
+      {!preview && <button type="button" className="button secondary" disabled={loading} onClick={() => setRefresh(value => value + 1)}>刷新数据</button>}</div>
+    <div className="business-overview-grid">{departments.map(([key, label]) => {
+      const board = boards[key];
+      const distribution = board?.distribution.filter(item => item.count > 0).sort((first, second) => second.count - first.count).slice(0, 3) ?? [];
+      return <article className={`business-overview-card business-overview-${key}`} key={key} aria-label={label}>
+        <div className="business-overview-card-head"><span>{label}</span><strong>{board && !board.available ? key === 'presales' ? '待录入' : '待发布' : key === 'presales' ? '最新跟进' : '已发布'}</strong></div>
+        {preview ? <p className="business-overview-message">预览不读取业务数据。</p> : loading ? <p className="business-overview-message" role="status">正在读取台账…</p>
+          : failures[key] ? <p className="business-overview-message" role="alert">{failures[key]}</p>
+            : board ? <>
+              <div className="business-overview-metrics">{board.metrics.slice(0, 3).map(item => <div key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></div>)}</div>
+              {board.available ? <><div className="business-overview-distribution"><p>状态分布</p>{distribution.length ? distribution.map(item => <div className="business-overview-bar" key={item.label}><span>{item.label}</span><meter min={0} max={Math.max(1, board.total)} value={item.count} aria-label={`${item.label} ${item.count} 项`} /><strong>{item.count}</strong></div>) : <span>暂无状态数据</span>}</div>
+                <p className="business-overview-source">{key === 'presales' && board.source?.state !== 'published' ? '未发布工作数据' : '已发布台账'} · 截止 {board.source?.as_of || '未填写'} · {board.source?.name}</p></>
+                : <p className="business-overview-source">{key === 'presales' ? '暂无售前跟进数据' : '暂无已发布台账'}，未提供的数据以“—”展示。</p>}
+            </> : <p className="business-overview-message">暂无看板数据。</p>}
+        <CenterLink href={`/centers/business/${key}`} className="business-overview-link">查看完整看板 <span aria-hidden="true">→</span></CenterLink>
+      </article>;
+    })}</div>
+  </section>;
+}
 export default function BusinessBoards({ initial = 'engineering', preview = false }: { initial?: Department; preview?: boolean }) {
   const [department, setDepartment] = useState<Department>(initial);
   const [data, setData] = useState<Board | null>(null), [error, setError] = useState('');
@@ -58,11 +119,16 @@ export default function BusinessBoards({ initial = 'engineering', preview = fals
       .finally(() => { if (!controller.signal.aborted && requestVersion.current === version) setLoading(false); });
     return () => { controller.abort(); requestVersion.current += 1; };
   }, [department, filter, refresh, preview]);
+  useEffect(() => {
+    if (preview || department !== 'presales') return;
+    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') setRefresh(value => value + 1); }, 5000);
+    return () => window.clearInterval(interval);
+  }, [department, preview]);
   const choose = (next: Department) => {
     setDepartment(next); setSearch(''); setStatus(''); setFilter({ q: '', status: '' });
   };
   return <section className="business-bi" aria-label="企业台账 BI 看板">
-    <div className="business-bi-head"><div><p className="eyebrow">企业台账</p><h2>经营数据，一处查看</h2><p>这里只读取各部门最新发布版本；草稿和待审核数据不会进入总经理看板。</p></div>
+    <div className="business-bi-head"><div><p className="eyebrow">企业台账</p><h2>经营数据，一处查看</h2><p>工程、财务读取已发布台账；售前展示产品事业部最新保存的跟进数据，并标注未发布状态。</p></div>
       {!preview && <button className="button secondary" disabled={loading} onClick={() => setRefresh(x => x + 1)}>刷新看板</button>}</div>
     <div role="tablist" aria-label="部门看板" className="business-tabs">{departments.map(([key, label]) => <button key={key} role="tab" aria-selected={department === key} onClick={() => choose(key)}>{label}</button>)}</div>
     {preview ? <div className="center-empty"><h3>看板预览</h3><p>包含工程、财务和售前三类看板。预览不读取业务数据；请使用已授权的总经理账号进入。</p></div> : <>
@@ -70,8 +136,8 @@ export default function BusinessBoards({ initial = 'engineering', preview = fals
       {error && <p className="notice error" role="alert">{error}</p>}
       {data && <div role="tabpanel" aria-label={data.title}>
         <div className="business-metrics">{data.metrics.map(item => <article key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></article>)}</div>
-        {data.source ? <p className="business-source">来源：{data.source.name} · 台账截止 {data.source.as_of} · 发布/更新时间 {new Date(data.source.imported_at).toLocaleString('zh-CN')}</p>
-          : <div className="center-empty"><h3>尚无已发布的{data.title.replace('看板', '')}台账</h3><p>请由已授权的部门录入人员维护并发布数据。未提供的数据以“—”展示，不会填入样例数字。</p></div>}
+        {data.source ? <p className="business-source">来源：{data.source.name} · 台账截止 {data.source.as_of || '未填写'} · {department === 'presales' ? `工作数据（${data.source.state === 'published' ? '已发布' : data.source.state === 'submitted' ? '待发布' : '草稿'}）· 版本 ${data.source.revision ?? '—'} · 更新于` : '发布于'} {new Date(data.source.imported_at).toLocaleString('zh-CN')}</p>
+          : <div className="center-empty"><h3>{department === 'presales' ? '尚无售前跟进数据' : `尚无已发布的${data.title.replace('看板', '')}台账`}</h3><p>{department === 'presales' ? '请由已授权的产品事业部人员录入项目跟进数据。' : '请由已授权的部门录入人员维护并发布数据。'}未提供的数据以“—”展示，不会填入样例数字。</p></div>}
         <form className="business-filters" onSubmit={e => { e.preventDefault(); setFilter({ q: search, status }); }}>
           <label>搜索项目<input placeholder="项目编号、名称或负责人" value={search} maxLength={100} onChange={e => setSearch(e.target.value)} /></label>
           {!!data.statuses.length && <label>状态<select value={status} onChange={e => setStatus(e.target.value)}><option value="">全部状态</option>{data.statuses.map(x => <option key={x}>{x}</option>)}</select></label>}

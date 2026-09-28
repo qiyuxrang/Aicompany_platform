@@ -7,9 +7,10 @@ import ProductWorkspace from "./ProductWorkspace";
 import EngineeringPendingPage from "./EngineeringPendingPage";
 import HrWorkspace from "./HrWorkspace";
 import ManagerWorkspace from "./ManagerWorkspace";
+
 import "./centers.css";
 import { CompanyMark, ProductIcon, type ProductIconName } from "../product/workbench-shared";
-const productNavIcons: Record<string, ProductIconName> = { overview: "home", opportunities: "search", projects: "folder", sources: "upload", outputs: "file", history: "clock", templates: "layers", new: "plus", documents: "settings" };
+const productNavIcons: Record<string, ProductIconName> = { overview: "home", opportunities: "search", projects: "folder", sources: "upload", outputs: "file", history: "clock", templates: "layers", presales: "file", new: "plus", documents: "settings" };
 
 type AccessState = { kind: "loading" } | { kind: "ready"; module: PortalModule; choices: PortalModule[] } | { kind: "error"; message: string };
 
@@ -25,12 +26,19 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
   const dirty = useRef(false);
   const config = centers[code];
   const isBusinessManager = user.roles.some(role => role.code === "general_manager");
+  const requestedSection = section === "assistant" ? "overview" : section;
   const activeSection = code === "business" && !preview
-    ? isBusinessManager ? section === "ledgers" ? "overview" : section : "ledgers"
-    : section;
+    ? isBusinessManager ? requestedSection === "ledgers" ? "overview" : requestedSection : "ledgers"
+    : requestedSection;
   const selected = config.sections.find((item) => item.code === activeSection);
   const back = user.is_platform_admin ? "/workspace" : "/";
   const base = preview ? "/preview" : "/centers";
+
+  useEffect(() => {
+    if (section !== "assistant" || window.location.pathname !== `${base}/${code}/assistant`) return;
+    window.history.replaceState({}, "", `${base}/${code}${window.location.search}${window.location.hash}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, [base, code, section]);
 
   useEffect(() => {
     if (!preview || !user.is_platform_admin) return;
@@ -131,6 +139,7 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
     ? availableState.choices.filter((item) => item.enabled && item.status !== "disabled").map((item) => item.code).filter(isCenterCode) : [];
   let content: ReactNode;
   if (!selected) content = <div className="center-empty"><h2>页面不存在</h2><p>请从工作台菜单选择页面。</p><CenterLink href={`${base}/${code}`} className="button secondary">返回工作概览</CenterLink></div>;
+
   else if (code === "product") content = <ProductWorkspace section={activeSection} />;
   else if (code === "cost") content = <EngineeringPendingPage section={activeSection} />;
   else if (code === "hr") content = <HrWorkspace section={activeSection} user={user} />;
@@ -140,11 +149,11 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
     <a className="skip-link" href="#center-main">跳到主要内容</a>
     <aside className="center-sidebar">
       <div className="center-brand"><span>{code === "product" ? <CompanyMark/> : <Icon name={config.icon} />}</span><div><strong>{config.name}</strong><small>{preview ? "管理预览 · 不授予业务权限" : "专属工作区 · 按角色授权"}</small></div></div>
-      <nav className="center-navigation" aria-label={`${config.name}菜单`}>{config.sections.filter(item => code !== "hr" || (user.roles.some(role => role.code === "hr") ? ['job', 'resumes', 'history'].includes(item.code) : ['overview', 'probation'].includes(item.code))).filter(item => code !== "business" || preview || (isBusinessManager ? item.code !== "ledgers" : item.code === "ledgers")).map((item) => <CenterLink key={item.code} href={`${base}/${code}${item.code === "overview" ? "" : `/${item.code}`}`} current={activeSection === item.code} className={activeSection === item.code ? "active" : ""}>{code === "product" ? <ProductIcon name={productNavIcons[item.code] || "file"}/> : code === "hr" ? <Icon name={item.code === "overview" ? "overview" : item.code === "results" ? "usage" : item.code === "resumes" ? "people" : "modules"}/> : <span className="center-nav-dot" aria-hidden="true"/>}{item.title}</CenterLink>)}</nav>
+      <nav className="center-navigation" aria-label={`${config.name}菜单`}>{config.sections.filter(item => code !== "product" || item.code !== "templates").filter(item => code !== "hr" || (user.roles.some(role => role.code === "hr") ? ['job', 'resumes', 'history'].includes(item.code) : ['overview', 'probation'].includes(item.code))).filter(item => code !== "business" || preview || (isBusinessManager ? item.code !== "ledgers" : item.code === "ledgers")).map((item) => <CenterLink key={item.code} href={`${base}/${code}${item.code === "overview" ? "" : `/${item.code}`}`} current={activeSection === item.code} className={activeSection === item.code ? "active" : ""}>{code === "product" ? <ProductIcon name={productNavIcons[item.code] || "file"}/> : code === "hr" ? <Icon name={item.code === "overview" ? "overview" : item.code === "results" ? "usage" : item.code === "resumes" ? "people" : "modules"}/> : <span className="center-nav-dot" aria-hidden="true"/>}{item.title}</CenterLink>)}</nav>
       <div className="center-switcher"><p>{preview ? "切换预览" : "已授权工作台"}</p>{options.map((item) => <CenterLink key={item} href={`${base}/${item}`} className={item === code ? "selected" : ""}>{centers[item].name}<span aria-hidden="true">↗</span></CenterLink>)}</div>
       <div className="center-sidebar-foot"><span>原系统保持独立</span><small>业务权限与平台管理权限分离</small></div>
     </aside>
-    <main className="center-main" id="center-main">
+    <main className={`center-main${code === "product" && activeSection === "knowledge" && !preview ? " center-main-knowledge" : ""}`} id="center-main">
       <nav className="center-breadcrumb" aria-label="当前位置"><CenterLink href={back}>我的工作台</CenterLink><span aria-hidden="true">/</span><span>{config.name}</span><span className="center-mode">{preview ? "前端设计预览" : code === "product" ? "项目与成果协作" : code === "hr" ? "招聘与人才协作" : code === "business" ? "企业台账与分析" : "业务能力待接入"}</span></nav>
       <header className="center-page-head"><div><p className="eyebrow">{config.name}</p><h1 ref={heading} tabIndex={-1}>{selected?.title || "未找到页面"}</h1><p>{config.description}</p></div><CenterLink href={back} className="button secondary">← 返回工作台</CenterLink></header>
       {preview && <div className="center-preview-banner" role="note"><strong>仅预览前端页面</strong><span>不读取部门业务数据，不启动旧系统，不代表已获业务授权。请使用已授权的部门账号执行真实业务操作。</span></div>}

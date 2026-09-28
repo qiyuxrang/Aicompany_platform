@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from portal.hr_models import HrJobTask, HrJobRevision, ProbationCase
 from portal.hr_recruitment_models import RecruitmentRequest, JDVersion, RecruitmentMessage
-from portal.hr_resume_storage import save_file
+from portal.hr_resume_storage import save_file, remove_file
 from portal.hr_retention import cleanup_history, active_requests, active_batches
 from portal.hr_screening_models import ResumeScreeningBatch, ResumeArtifact
 from portal.hr_screening_worker import claim_one, finish_one, process_one, renew_one
@@ -100,18 +100,33 @@ class HrRetentionTests(PortalTestCase):
         self.assertTrue(ProbationCase.objects.filter(pk=probation.pk).exists())
         self.assertEqual(cleanup_history(now=self.now)['requests'], 0)
 
-    def test_file_failure_preserves_retry_records_and_command_reports_failure(self):
+    def test_second_file_failure_happens_after_commit_and_marker_retries(self):
+        second = ResumeArtifact.objects.create(batch=self.batch, uploaded_by=self.hr,
+            **save_file('second.txt', b'Python'))
+        second_file = Path(self.temp.name) / second.file_id
+        removed = []
+
+        def fail_second(file_id):
+            removed.append(file_id)
+            if file_id == second.file_id:
+                raise StorageError('storage_cleanup_failed', 'denied')
+            return remove_file(file_id)
+
         self.expire()
-        with patch('portal.hr_resume_storage.remove_file', side_effect=StorageError('storage_cleanup_failed', 'denied')):
+        with patch('portal.hr_resume_storage.remove_file', side_effect=fail_second):
             report = cleanup_history(now=self.now)
             self.assertTrue(report['failures'])
-            self.assertTrue(RecruitmentRequest.objects.filter(pk=self.req.pk).exists())
-            self.assertTrue(ResumeArtifact.objects.filter(pk=self.item.pk).exists())
+            self.assertEqual(removed[:2], [self.item.file_id, second.file_id])
+            self.assertFalse(RecruitmentRequest.objects.filter(pk=self.req.pk).exists())
+            self.assertFalse(ResumeArtifact.objects.filter(batch_id=self.batch.pk).exists())
+            self.assertFalse(self.file.exists())
+            self.assertTrue(second_file.exists())
+            self.assertTrue(second_file.with_suffix('.delete').exists())
             with self.assertRaises(CommandError):
                 call_command('cleanup_hr_history', stdout=StringIO())
-        self.assertTrue(self.file.exists())
         self.assertEqual(cleanup_history(now=self.now)['failures'], [])
-        self.assertFalse(self.file.exists())
+        self.assertFalse(second_file.exists())
+        self.assertFalse(second_file.with_suffix('.delete').exists())
 
     def test_late_worker_and_stopped_worker_expiry(self):
         self.batch.status = 'queued'

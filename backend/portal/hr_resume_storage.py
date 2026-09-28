@@ -71,7 +71,7 @@ def remove_file(file_id):
 
 
 def defer_file_removal(file_id):
-    """Durable, content-free retry marker for a rolled-back upload only."""
+    """Durably request deletion after the artifact row is gone."""
     try:
         _path(file_id).with_suffix('.delete').write_text('', encoding='ascii')
     except OSError as error:
