@@ -1,1 +1,3 @@
 backend/portal/product_assets/** -text
+# Preserve original public response bytes and their provenance hashes.
+backend/portal/tests/fixtures/** -text -whitespace

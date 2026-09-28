@@ -211,5 +211,5 @@ from .business_models import (BusinessLedgerGrant, BusinessLedgerRevision,
 from .product_knowledge_models import ProductKnowledgeConversation
 from .tender_models import (TenderSource, TenderFetchRun, TenderManualRefresh, TenderConsumerHeartbeat,
                             TenderRecoveryAudit, TenderSnapshot, TenderNotice, TenderNoticeVersion,
-                            TenderOpportunity, TenderOpportunityEvent, TenderSourceHealthEvent)
+                            TenderOpportunity, TenderOpportunityUserState, TenderOpportunityEvent, TenderSourceHealthEvent)
 from .engineering_models import EngineeringJob

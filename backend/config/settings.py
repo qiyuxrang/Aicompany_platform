@@ -87,6 +87,17 @@ PRODUCT_STORAGE_ROOT = Path(os.environ.get("PORTAL_PRODUCT_STORAGE_ROOT", BASE_D
 TENDER_STORAGE_ROOT = Path(os.environ.get("PORTAL_TENDER_STORAGE_ROOT", BASE_DIR / ".runtime" / "tender-private"))
 PORTAL_TENDER_INGESTION_ENABLED = os.environ.get("PORTAL_TENDER_INGESTION_ENABLED") == "1"
 PORTAL_TENDER_MANUAL_REFRESH_ENABLED = os.environ.get("PORTAL_TENDER_MANUAL_REFRESH_ENABLED") == "1"
+PORTAL_TENDER_SCHEDULE_ENABLED = os.environ.get("PORTAL_TENDER_SCHEDULE_ENABLED") == "1"
+try:
+    TENDER_LOOKBACK_DAYS = int(os.environ.get("PORTAL_TENDER_LOOKBACK_DAYS", "30"))
+    TENDER_LEASE_SECONDS = int(os.environ.get("PORTAL_TENDER_LEASE_SECONDS", "180"))
+    TENDER_HEARTBEAT_SECONDS = int(os.environ.get("PORTAL_TENDER_HEARTBEAT_SECONDS", "5"))
+except ValueError:
+    raise ImproperlyConfigured("Tender 时间配置必须为整数") from None
+if not 1 <= TENDER_LOOKBACK_DAYS <= 30:
+    raise ImproperlyConfigured("Tender 滚动窗口必须为 1 至 30 天")
+if not 30 <= TENDER_LEASE_SECONDS <= 3600 or not 1 <= TENDER_HEARTBEAT_SECONDS <= 10:
+    raise ImproperlyConfigured("Tender 租约必须为 30 至 3600 秒，心跳必须为 1 至 10 秒")
 TENDER_RECOVERY_OPERATOR_IDS = tuple(int(value) for value in os.environ.get("PORTAL_TENDER_RECOVERY_OPERATOR_IDS", "").split(",") if value.isdigit())
 PRODUCT_IMPORT_ROOTS = tuple(Path(value) for value in os.environ.get("PORTAL_PRODUCT_IMPORT_ROOTS", "").split(os.pathsep) if value)
 PRODUCT_UPLOAD_MAX_BYTES = 20 * 1024 * 1024

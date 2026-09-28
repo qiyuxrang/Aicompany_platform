@@ -1,0 +1,24 @@
+{
+  "listing": {
+    "endpoint": "https://dzsw.sxylny.com/mall/announce/search",
+    "method": "POST",
+    "payload": {
+      "annoType": 1,
+      "page": 1,
+      "pageSize": 20
+    },
+    "full_response_sha256": "bb6891070fd7decc9296d149612d9a0c8c08a436a460e6f56ea5ff568a22352f",
+    "note": "Three original rows, content bodies omitted."
+  },
+  "detail": {
+    "endpoint": "https://dzsw.sxylny.com/mall/announce/detail",
+    "method": "POST",
+    "payload": {
+      "id": 52241,
+      "annoType": 1
+    },
+    "full_response_sha256": "e9b4215ec6fda3874ed65f2e572ffaa4d3acef13a5fe0e0f799b4215ad1f9395",
+    "official_url": "https://dzsw.sxylny.com/#/home/NoticeShow?id=52241&annoType=1"
+  },
+  "observed_on": "2026-09-29 Asia/Shanghai"
+}

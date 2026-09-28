@@ -2,6 +2,7 @@ import json
 import math
 import subprocess
 from functools import wraps
+from collections.abc import Mapping
 
 from django.db import transaction
 from django.http import FileResponse
@@ -126,7 +127,7 @@ def jobs(request):
         records = EngineeringJob.objects.filter(owner=request.user)
         return Response({"jobs": [_job_data(job) for job in records],
                          "capabilities": _capabilities()})
-    if set(request.data.keys()) - {"files", "region"}:
+    if not isinstance(request.data, Mapping) or set(request.data.keys()) - {"files", "region"}:
         raise EngineeringError("invalid_request", "请求字段无效。")
     uploads = request.FILES.getlist("files")
     if not 1 <= len(uploads) <= 2:

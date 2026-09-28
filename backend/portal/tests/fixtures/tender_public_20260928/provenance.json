@@ -1,0 +1,44 @@
+[
+  {
+    "fixture": "ccgp_national-1.html",
+    "url": "https://www.ccgp.gov.cn/cggg/zygg/index.htm",
+    "fetched_at": "2026-09-28T15:11:28.906892+00:00",
+    "original_sha256": "76aab5bec610cdc8cd9bcb1b4bd69bdc0dcc8daeb69b332c5b09e2d0a7eb4ae5",
+    "extraction": "First complete notice li and exact Pager invocation; no values fabricated."
+  },
+  {
+    "fixture": "ccgp_national-2.html",
+    "url": "https://www.ccgp.gov.cn/cggg/dfgg/index.htm",
+    "fetched_at": "2026-09-28T15:11:30.214703+00:00",
+    "original_sha256": "de74dae4fd8a2536549801b5cb4256db44528ef6781548376b1b6d6cafcbbd03",
+    "extraction": "First complete notice li and exact Pager invocation; no values fabricated."
+  },
+  {
+    "fixture": "ccgp_national-4.html",
+    "url": "https://www.ccgp.gov.cn/cggg/zygg/index_1.htm",
+    "fetched_at": "2026-09-28T15:11:33.182840+00:00",
+    "original_sha256": "7e6f825c612695c7a6b4474701be4d7893685eed151d5378404a988f8a303639",
+    "extraction": "First complete notice li and exact Pager invocation; no values fabricated."
+  },
+  {
+    "fixture": "ccgp_national-5.html",
+    "url": "https://www.ccgp.gov.cn/cggg/dfgg/index_1.htm",
+    "fetched_at": "2026-09-28T15:11:34.745466+00:00",
+    "original_sha256": "e7ba01a9e59db9e200660d20b2f3c4fc05a8632ab86ab8e7f116a57936f7a913",
+    "extraction": "First complete notice li and exact Pager invocation; no values fabricated."
+  },
+  {
+    "fixture": "sx_jk_ecai-1.html",
+    "url": "https://www.sxjkjcpt.com/",
+    "fetched_at": "2026-09-28T15:11:28.767812+00:00",
+    "original_sha256": "9a28ed2da7ff7a4f769456bc26ced5c43a413c72fad99c94e0bcdf79147d75cb",
+    "extraction": "First complete public notice anchor; decorative inline image omitted; URL/title/date unchanged."
+  },
+  {
+    "fixture": "shxjkjt-1.html",
+    "url": "https://www.shxjkjt.com/notice/bidding",
+    "fetched_at": "2026-09-28T15:11:28.700930+00:00",
+    "original_sha256": "7bfb2eaba9284a534551804601e11588c3625612edd18f4af6df9b4cf41e8be9",
+    "extraction": "First complete public notice anchor; decorative inline image omitted; URL/title/date unchanged."
+  }
+]

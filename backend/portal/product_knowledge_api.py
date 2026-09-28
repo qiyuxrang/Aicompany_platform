@@ -71,6 +71,11 @@ def stream_turn(request, item, claim, question, request_id, version, config):
             events = stream_for_use(request.user, config[2], service.answer_messages(question, item.turns, sources))
             try:
                 for event in events:
+                    # A provider stream can outlive a dataset grant or route change.
+                    # Check before releasing each chunk, not only before saving it.
+                    visible(request, item)
+                    if service.ready(request.user) != config:
+                        service.fail("unconfigured")
                     if "delta" in event and type(event["delta"]) is str:
                         raw += event["delta"]
                         if len(raw) > 12000:

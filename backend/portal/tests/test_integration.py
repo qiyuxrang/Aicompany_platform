@@ -97,6 +97,16 @@ class TicketIssuanceTests(IntegrationTestCase):
 
 
 class TicketRedemptionTests(IntegrationTestCase):
+    def test_invalid_unicode_ticket_is_rejected_without_consuming_valid_ticket(self):
+        token = issue_ticket(self.user)
+        self.assertEqual(self.redeem("\ud800").status_code, 400)
+        self.assertIsNone(IntegrationTicket.objects.get().consumed_at)
+        self.assertEqual(self.redeem(token).status_code, 200)
+
+    def test_reachable_handles_malformed_http_response(self):
+        with patch("portal.integration.open_fixed", side_effect=BadStatusLine("invalid")):
+            self.assertFalse(integration.reachable(SUMMARY_URL))
+
     def assert_old_ticket_revoked_and_new_ticket_works(self, old_token):
         self.assertEqual(self.redeem(old_token).status_code, 403)
         new_token = issue_ticket(self.user)

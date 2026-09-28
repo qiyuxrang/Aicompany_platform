@@ -1,0 +1,21 @@
+{
+  "fetched_at": "2026-09-28T16:23:02.131380+00:00",
+  "listing_endpoint": "https://qyzb.shccmg.com/cms/api/dynamicData/queryContentPage",
+  "listing_method": "POST",
+  "listing_full_response_sha256": "5c5ae6417ed496a693cd4aaa1b1778dd5fc7b0d432e0378413032d8ed41f7041",
+  "detail_url": "https://qyzb.shccmg.com/cms/default/webfile/1ywgg/20260924/1287816057720930304.html",
+  "detail_full_response_sha256": "65541855b48501a7cc32b82ad524f385dfcc7a2282432338ee44e6f95e750859",
+  "note": "Offline excerpts of real public responses; list omits body and unrelated rows; detail retains heading, publication and scope.",
+  "field_fixtures": [
+    {
+      "source_notice_id": "1287805794284208128",
+      "source": "listing_full_response_sha256",
+      "extraction": "Original HTML paragraphs/table containing purchaser, budget or project-code labels."
+    },
+    {
+      "source_notice_id": "1289184610822914048",
+      "source": "listing_full_response_sha256",
+      "extraction": "Original HTML paragraphs/table containing purchaser, budget or project-code labels."
+    }
+  ]
+}

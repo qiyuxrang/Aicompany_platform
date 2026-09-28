@@ -318,6 +318,16 @@ class IssueWriteTests(PortalTestCase):
             checked_at=now,
         )
 
+    def test_non_string_status_is_rejected_without_mutation(self):
+        for value in ([], {}, ["closed"], {"status": "closed"}):
+            with self.subTest(value=value):
+                response = self.client.post(f"/api/ops/issues/{self.issue.pk}/",
+                    json_body(status=value), content_type="application/json")
+                self.assertEqual(response.status_code, 400)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.status, OperationalIssue.Status.OPEN)
+        self.assertFalse(AuditEvent.objects.filter(action="operational_issue_update").exists())
+
     def test_issue_write_requires_csrf(self):
         client = csrf_client()
         token = self.csrf_token(client)

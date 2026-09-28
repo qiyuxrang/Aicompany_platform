@@ -11,6 +11,7 @@ export interface TenderSource {
   last_success_at: string | null;
   last_failure_at?: string | null;
   consecutive_failures?: number;
+  latest_run?: { state: string; statistics?: Record<string, number>; error_code?: string; detail?: string; error_detail?: string; started_at?: string | null; finished_at?: string | null } | null;
 }
 
 export interface OpportunityBudget {
@@ -18,6 +19,8 @@ export interface OpportunityBudget {
   cap_yuan: string | null;
   raw: string;
 }
+
+export interface OpportunityUserState { is_read: boolean; is_favorite: boolean; is_irrelevant: boolean }
 
 export interface OpportunitySummary {
   id: number;
@@ -36,6 +39,18 @@ export interface OpportunitySummary {
   original_url: string | null;
   current_version: number;
   first_seen_at: string | null;
+  industry_code?: string;
+  industry_label?: string;
+  digital_tags?: string[];
+  classification_status?: "matched" | "review" | "excluded";
+  notice_category?: string;
+  relevance_tier?: "core" | "related";
+  relevance_label?: string;
+  participation_status?: "open" | "expired" | "unknown" | "awarded";
+  participation_label?: string;
+  notice_count?: number;
+  user_state?: OpportunityUserState;
+  latest_batch_new?: boolean;
 }
 
 export interface OpportunityDetail extends OpportunitySummary {
@@ -44,10 +59,14 @@ export interface OpportunityDetail extends OpportunitySummary {
   procurement_method?: string;
   bid_open_at?: string | null;
   signup_time_text?: string;
+  procurement_scope?: string;
+  field_evidence?: Record<string, { status?: string; value?: unknown; raw?: string; rule?: string; source_url?: string; verification_status?: string; conflict?: unknown }>;
+  extraction_warnings?: string[];
   contact?: { person?: string; phone?: string };
   unknown_fields?: string[];
   notices?: Array<{ id: number; title: string; notice_type: string; source: TenderSource | null; original_url: string; publish_at: string | null; publish_date: string | null; publish_precision: string }>;
   versions?: Array<{ version: number; change_summary: string[]; is_current: boolean; created_at: string | null }>;
+  attachments?: Array<{ url: string; name: string; text_status: string }>;
 }
 
 export interface OpportunityListPayload {
@@ -56,32 +75,24 @@ export interface OpportunityListPayload {
   page: number;
   page_size: number;
   has_more: boolean;
+  stats?: { total: number; today_new: number; closing_soon: number; latest_batch_new?: number };
+  last_updated_at?: string | null;
 }
 
 export interface OpportunityFilters {
-  q?: string;
+  industry?: string;
+  notice_category?: string;
   region?: string;
-  source?: string;
-  status?: string;
-  purchaser?: string;
-  need?: string;
-  notice_type?: string;
-  publish_period?: string;
-  deadline_period?: string;
-  budget_band?: string;
+  user_state?: string;
+  participation?: string;
   page?: number;
   page_size?: number;
 }
 
 export interface OpportunityOptions {
   regions: SelectOption[];
-  sources: SelectOption[];
-  statuses: SelectOption[];
-  needs: SelectOption[];
-  noticeTypes: SelectOption[];
-  publishPeriods: SelectOption[];
-  deadlinePeriods: SelectOption[];
-  budgetBands: SelectOption[];
+  industries: SelectOption[];
+  noticeCategories: SelectOption[];
 }
 
 export interface RefreshSourceResult {
@@ -92,6 +103,7 @@ export interface RefreshSourceResult {
   new_versions?: number;
   error_code?: string;
   error_detail?: string;
+  detail?: string;
 }
 
 export interface RefreshBatch {
@@ -102,6 +114,7 @@ export interface RefreshBatch {
   created_at?: string;
   started_at?: string | null;
   finished_at?: string | null;
+  trigger?: "manual" | "scheduled";
 }
 
 export interface RefreshOverview {
@@ -109,6 +122,9 @@ export interface RefreshOverview {
   unavailable_reason: string;
   batch: RefreshBatch | null;
   last_success_at: string | null;
+  last_attempt_at: string | null;
+  consumer_online: boolean | null;
+  schedule: { enabled: boolean; interval_minutes: number; lookback_days: number; next_run_at: string | null } | null;
 }
 
 const root = "/api/product/";
@@ -116,7 +132,8 @@ const opportunities = `${root}opportunities/`;
 
 function queryString(filters: OpportunityFilters): string {
   const query = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
+  (["industry", "notice_category", "region", "user_state", "participation", "page", "page_size"] as const).forEach(key => {
+    const value = filters[key];
     if (value !== undefined && String(value).trim()) query.set(key, String(value));
   });
   return query.toString();
@@ -148,6 +165,7 @@ function normalizeBatch(value: unknown): RefreshBatch | null {
     created_at: typeof item.created_at === "string" ? item.created_at : undefined,
     started_at: typeof item.started_at === "string" ? item.started_at : null,
     finished_at: typeof item.finished_at === "string" ? item.finished_at : null,
+    trigger: item.trigger === "manual" || item.trigger === "scheduled" ? item.trigger : undefined,
   };
 }
 
@@ -161,17 +179,19 @@ export async function getOpportunity(id: number, signal?: AbortSignal): Promise<
   return "opportunity" in value ? value.opportunity : value;
 }
 
+export async function updateOpportunityState(id: number, state: Partial<OpportunityUserState>, signal?: AbortSignal): Promise<OpportunityUserState> {
+  const result = await apiRequest<{ user_state: OpportunityUserState }>(`${opportunities}${encodeURIComponent(id)}/state/`, {
+    method: "POST", body: JSON.stringify(state), signal,
+  });
+  return result.user_state;
+}
+
 export async function getOpportunityOptions(signal?: AbortSignal): Promise<OpportunityOptions> {
   const value = await apiRequest<Record<string, unknown>>(`${root}options/`, { signal });
   return {
     regions: optionList(value.regions ?? value.region),
-    sources: optionList(value.sources ?? value.source),
-    statuses: optionList(value.statuses ?? value.status),
-    needs: optionList(value.needs ?? value.need),
-    noticeTypes: optionList(value.notice_types ?? value.notice_type),
-    publishPeriods: optionList(value.publish_periods ?? value.publish_period),
-    deadlinePeriods: optionList(value.deadline_periods ?? value.deadline_period),
-    budgetBands: optionList(value.budget_bands ?? value.budget_band),
+    industries: optionList(value.industries),
+    noticeCategories: optionList(value.notice_categories),
   };
 }
 
@@ -185,15 +205,23 @@ export async function getRefreshOverview(signal?: AbortSignal): Promise<RefreshO
   const available = typeof value.available === "boolean" ? value.available
     : typeof value.refresh_available === "boolean" ? value.refresh_available
     : value.enabled === true && value.consumer_available === true;
+  const schedule = value.schedule && typeof value.schedule === "object" ? value.schedule as Record<string, unknown> : null;
   return {
     available,
     unavailable_reason: typeof value.unavailable_reason === "string" ? value.unavailable_reason
       : value.enabled === false ? "后台未启用手动刷新。"
-      : value.consumer_online === false ? "刷新消费者当前离线。"
+      : value.consumer_online === false ? "采集服务当前离线。"
       : value.sources_ready === false ? "采集来源尚未就绪。"
       : typeof value.detail === "string" ? value.detail : "",
     batch: normalizeBatch(value.active_batch ?? value.batch),
     last_success_at: typeof value.last_success_at === "string" ? value.last_success_at : null,
+    last_attempt_at: typeof value.last_attempt_at === "string" ? value.last_attempt_at : null,
+    consumer_online: typeof value.consumer_online === "boolean" ? value.consumer_online : null,
+    schedule: schedule && typeof schedule.enabled === "boolean" && typeof schedule.interval_minutes === "number"
+      && Number.isFinite(schedule.interval_minutes) && schedule.interval_minutes > 0
+      && typeof schedule.lookback_days === "number" && Number.isFinite(schedule.lookback_days) && schedule.lookback_days > 0
+      ? { enabled: schedule.enabled, interval_minutes: schedule.interval_minutes, lookback_days: schedule.lookback_days,
+          next_run_at: typeof schedule.next_run_at === "string" ? schedule.next_run_at : null } : null,
   };
 }
 

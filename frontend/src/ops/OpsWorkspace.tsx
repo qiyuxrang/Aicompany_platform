@@ -1,4 +1,7 @@
-import { CurrentUser } from "../api";
+import { useEffect, useState } from "react";
+import { CurrentUser, getModules, type PortalModule } from "../api";
+import WorkspaceSidebar from "../WorkspaceSidebar";
+import { centers, isCenterCode } from "../centers/config";
 import Icon from "../Icon";
 import {
   IssuesPage,
@@ -26,6 +29,23 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 export default function OpsWorkspace({ user, pathname }: { user: CurrentUser; pathname: string }) {
+  const [authorizedModules, setAuthorizedModules] = useState<PortalModule[]>([]);
+  useEffect(() => {
+    let active = true;
+    let pending = false;
+    const load = async () => {
+      if (pending) return;
+      pending = true;
+      try { const modules = await getModules(); if (active) setAuthorizedModules(modules); }
+      catch { if (active) setAuthorizedModules([]); }
+      finally { pending = false; }
+    };
+    void load();
+    const check = () => { if (!document.hidden) void load(); };
+    const timer = window.setInterval(check, 15000);
+    window.addEventListener("focus", check);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", check); };
+  }, [user.id]);
   let page: React.ReactNode;
   const normalized = pathname.replace(/\/$/, "") || "/";
   if (normalized === "/ops") page = <OverviewPage />;
@@ -45,11 +65,9 @@ export default function OpsWorkspace({ user, pathname }: { user: CurrentUser; pa
   return (
     <div className="ops-layout">
       <a className="skip-link" href="#ops-main">跳到主要内容</a>
-      <aside className="ops-sidebar">
-        <div className="ops-sidebar-heading">
-          <span className="ops-sidebar-mark" aria-hidden="true"><Icon name="portal" /></span>
-          <div><strong>平台运维</strong><small>统一管理 · 安全运维</small></div>
-        </div>
+      <WorkspaceSidebar title="平台运维" subtitle="平台管理员 · 按权限管理" mark={<Icon name="portal"/>}
+        workspaces={<><OpsLink href="/ops" className="selected" ariaCurrent="page">平台运维</OpsLink>{authorizedModules.filter(module => module.enabled && module.status !== "disabled" && isCenterCode(module.code)).map(module => <OpsLink key={module.code} href={`/centers/${module.code}`}>{isCenterCode(module.code) ? centers[module.code].name : module.name}<span aria-hidden="true">↗</span></OpsLink>)}</>}
+        footer={<><span>{user.display_name || user.username}</span><small>平台管理权限不授予业务数据权限</small><OpsLink href="/workspace">查看我的工作台</OpsLink></>}>
         <nav className="ops-navigation" aria-label="运维主菜单">
           {navigation.map((item) => (
             <OpsLink href={item.href} key={item.href} className={isActive(pathname, item.href) ? "active" : undefined} ariaCurrent={isActive(pathname, item.href) ? "page" : undefined}>
@@ -57,11 +75,7 @@ export default function OpsWorkspace({ user, pathname }: { user: CurrentUser; pa
             </OpsLink>
           ))}
         </nav>
-        <div className="ops-sidebar-foot">
-          <span>{user.display_name || user.username}</span>
-          <small>平台管理员 · 写操作仍受后端保护</small>
-        </div>
-      </aside>
+      </WorkspaceSidebar>
       <main className="ops-main" id="ops-main" tabIndex={-1}>{page}</main>
     </div>
   );

@@ -31,6 +31,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import socket
 import ssl
 import time
@@ -38,7 +39,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from django.conf import settings
 
@@ -84,6 +85,8 @@ class OutboundPolicy:
     retry_backoff_seconds: float = 1.5
     min_interval_seconds: float = 1.0
     require_https: bool = True
+    # Only public read-only search endpoints observed in a source's own page.
+    read_only_json_endpoints: frozenset[str] = frozenset()
 
     def validate(self) -> None:
         if not self.allowed_origins:
@@ -100,6 +103,12 @@ class OutboundPolicy:
                     or parsed.query or parsed.fragment or parsed.username or parsed.password
                     or origin != origin.strip()):
                 raise OutboundError("policy_invalid", f"origin 配置非法：{origin!r}")
+        for endpoint in self.read_only_json_endpoints:
+            parsed = urlparse(endpoint)
+            if (f"{parsed.scheme}://{parsed.netloc}" not in self.allowed_origins
+                    or parsed.scheme != "https" or parsed.query or parsed.fragment
+                    or parsed.username or parsed.password):
+                raise OutboundError("policy_invalid", "只读 JSON 端点必须属于 HTTPS 来源白名单")
 
 
 @dataclass
@@ -163,15 +172,22 @@ class OutboundResult:
 
 
 class _SameHostOnlyRedirect(urllib.request.HTTPRedirectHandler):
-    """只允许同 host 重定向；跨 host 直接拒绝。"""
+    """同 host 重定向仍须满足客户端的完整出站策略。"""
+
+    def __init__(self, assert_url_allowed):
+        super().__init__()
+        self._assert_url_allowed = assert_url_allowed
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        if req.get_method() != "GET":
+            raise OutboundError("redirect_not_allowed", "只读 POST 不跟随重定向。")
         same_host = urlparse(req.full_url).netloc == urlparse(newurl).netloc
         if not same_host:
             raise OutboundError(
                 "cross_host_redirect",
                 f"拒绝跨 host 重定向：{urlparse(req.full_url).netloc} -> {urlparse(newurl).netloc}",
             )
+        self._assert_url_allowed(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -179,13 +195,14 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _build_opener() -> urllib.request.OpenerDirector:
+def _build_opener(assert_url_allowed) -> urllib.request.OpenerDirector:
     # TLS 校验恒开启：显式 use_default_verify + check_hostname，无降级入口。
     context = ssl.create_default_context()
     context.check_hostname = True
     context.verify_mode = ssl.CERT_REQUIRED
     return urllib.request.build_opener(
-        _SameHostOnlyRedirect(),
+        urllib.request.ProxyHandler({}),
+        _SameHostOnlyRedirect(assert_url_allowed),
         urllib.request.HTTPSHandler(context=context),
     )
 
@@ -196,7 +213,7 @@ class TenderOutbound:
     def __init__(self, policy: OutboundPolicy, *, clock=time.monotonic, sleeper=time.sleep):
         policy.validate()
         self.policy = policy
-        self._opener = _build_opener()
+        self._opener = _build_opener(self._assert_url_allowed)
         self._clock = clock
         self._sleeper = sleeper
         self._last_request_at: dict[str, float] = {}
@@ -226,17 +243,22 @@ class TenderOutbound:
 
     # ---- 单次请求 -------------------------------------------------------
 
-    def _single_attempt(self, url: str, index: int) -> tuple[OutboundAttempt, OutboundResult | None]:
+    def _single_attempt(self, url: str, index: int, *, json_body: bytes | None = None) -> tuple[OutboundAttempt, OutboundResult | None]:
         attempt = OutboundAttempt(index=index, started_at=_now(), elapsed_ms=0)
         started = time.perf_counter()
         request = urllib.request.Request(
-            url,
+            # Public attachments may contain literal Chinese fileName query
+            # values. Encode request-target characters after origin validation;
+            # preserve existing escapes and URL delimiters without changing host.
+            quote(url, safe=":/?#[]@!$&'()*+,;=%"),
             headers={
                 "User-Agent": self.policy.user_agent,
                 "Accept": "*/*",
                 "Accept-Language": "zh-CN,zh;q=0.9",
+                **({"Content-Type": "application/json; charset=utf-8"} if json_body is not None else {}),
             },
-            method="GET",
+            data=json_body,
+            method="POST" if json_body is not None else "GET",
         )
         try:
             with self._opener.open(request, timeout=self.policy.timeout_seconds) as response:
@@ -302,6 +324,20 @@ class TenderOutbound:
 
     def fetch(self, url: str) -> OutboundResult:
         """抓取单个 URL。失败抛 `OutboundError`，`evidence` 内含全部尝试。"""
+        return self._fetch(url)
+
+    def fetch_readonly_json(self, url: str, payload: dict) -> OutboundResult:
+        """Submit a public listing query; exact endpoint opt-in is required."""
+        if url not in self.policy.read_only_json_endpoints:
+            raise OutboundError("endpoint_not_allowed", "未登记的只读 JSON 查询端点。")
+        if not isinstance(payload, dict):
+            raise OutboundError("request_invalid", "查询参数必须为 JSON 对象。")
+        body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        if len(body) > 16384:
+            raise OutboundError("request_too_large", "查询参数超过 16 KiB。")
+        return self._fetch(url, json_body=body)
+
+    def _fetch(self, url: str, *, json_body: bytes | None = None) -> OutboundResult:
         if not settings.PORTAL_TENDER_INGESTION_ENABLED:
             raise OutboundError('ingestion_disabled', 'Tender 采集默认关闭。')
         self._assert_url_allowed(url)
@@ -311,7 +347,8 @@ class TenderOutbound:
 
         for index in range(1, self.policy.max_attempts + 1):
             self._throttle(origin)
-            attempt, result = self._single_attempt(url, index)
+            attempt, result = (self._single_attempt(url, index) if json_body is None
+                               else self._single_attempt(url, index, json_body=json_body))
             attempts.append(attempt)
 
             if result is not None:

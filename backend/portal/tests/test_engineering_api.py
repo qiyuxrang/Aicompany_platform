@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from portal.engineering_models import EngineeringJob
 from portal.engineering_storage import private_root
-from portal.engineering_worker import _invoke, run_once, runtime_state
+from portal.engineering_worker import _invoke, claim_job, run_once, runtime_state
 from portal.models import Role
 from .base import PortalTestCase
 
@@ -209,7 +209,90 @@ class EngineeringApiTests(PortalTestCase):
             self.assertTrue(run_once())
         job = EngineeringJob.objects.get(pk=created["id"])
         self.assertEqual((job.status, job.error_code), ("blocked", "worker_unavailable"))
-        self.assertIsNone(job.next_retry_at)
+        self.assertIsNotNone(job.next_retry_at)
+
+    @override_settings(ENGINEERING_MAX_ATTEMPTS=3)
+    def test_unavailable_runtime_backs_off_allows_next_job_and_stops_at_limit(self):
+        for failure in ("non_json_exit", "os_error"):
+            with self.subTest(failure=failure):
+                first = EngineeringJob.objects.get(pk=self.create_job()["id"])
+                second = EngineeringJob.objects.get(pk=self.create_job()["id"])
+                first_path = str(private_root() / first.inputs[0]["storage_path"])
+
+                def cli(arguments, **kwargs):
+                    if arguments[3] == first_path:
+                        if failure == "os_error":
+                            raise OSError("synthetic launch failure")
+                        return subprocess.CompletedProcess(arguments, 1, stdout="", stderr="missing dependency")
+                    if arguments[2] == "inspect":
+                        payload = {"ok": True, "files": []}
+                    else:
+                        output = Path(arguments[arguments.index("--output-dir") + 1]) / "draft.xlsx"
+                        output.write_bytes(b"synthetic internal draft")
+                        output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+                        input_hash = second.inputs[0]["sha256"]
+                        payload = {
+                            "ok": True, "online_allowed": False, "result_type": "internal_draft",
+                            "input_hash": hashlib.sha256(input_hash.encode("ascii")).hexdigest(),
+                            "output_hash": hashlib.sha256(output_hash.encode("ascii")).hexdigest(),
+                            "files": [{"status": "completed", "internal_draft": True,
+                                       "input_sha256": input_hash, "output_sha256": output_hash,
+                                       "output_file": str(output)}],
+                        }
+                    return subprocess.CompletedProcess(arguments, 0, stdout=json.dumps(payload), stderr="")
+
+                started = timezone.now()
+                with patch("portal.engineering_worker.subprocess.run", side_effect=cli) as invoked, \
+                     patch("portal.engineering_worker.timezone.now", return_value=started) as clock:
+                    self.assertTrue(run_once())
+                    first.refresh_from_db()
+                    self.assertEqual((first.status, first.attempt_count), ("blocked", 1))
+                    self.assertEqual(first.next_retry_at, started + timedelta(seconds=60))
+                    self.assertTrue(run_once())
+                    second.refresh_from_db()
+                    self.assertEqual((second.status, second.attempt_count), ("completed", 1))
+                    self.assertFalse(run_once())
+                    self.assertEqual(invoked.call_count, 3)
+
+                    clock.return_value = started + timedelta(seconds=59)
+                    self.assertFalse(run_once())
+                    clock.return_value = started + timedelta(seconds=60)
+                    self.assertTrue(run_once())
+                    first.refresh_from_db()
+                    self.assertEqual(first.attempt_count, 2)
+                    self.assertEqual(first.next_retry_at, started + timedelta(seconds=180))
+                    clock.return_value = started + timedelta(seconds=179)
+                    self.assertFalse(run_once())
+                    clock.return_value = started + timedelta(seconds=180)
+                    self.assertTrue(run_once())
+                    first.refresh_from_db()
+                    self.assertEqual((first.status, first.attempt_count, first.error_code),
+                                     ("failed", 3, "worker_unavailable"))
+                    self.assertEqual(first.completed_at, clock.return_value)
+                    self.assertIsNone(first.next_retry_at)
+                    self.assertFalse(run_once())
+                    self.assertEqual(invoked.call_count, 5)
+
+    def test_preexisting_exhausted_runtime_block_is_failed_without_reclaiming(self):
+        first = EngineeringJob.objects.get(pk=self.create_job()["id"])
+        EngineeringJob.objects.filter(pk=first.pk).update(
+            status="blocked", error_code="worker_unavailable", attempt_count=5)
+        second = EngineeringJob.objects.get(pk=self.create_job()["id"])
+        self.assertEqual(claim_job()[0], second.pk)
+        first.refresh_from_db()
+        self.assertEqual((first.status, first.attempt_count, first.error_code),
+                         ("failed", 5, "attempt_limit"))
+        self.assertIsNotNone(first.completed_at)
+
+    def test_initial_configuration_block_can_be_claimed_when_runtime_is_restored(self):
+        with override_settings(ENGINEERING_PYTHON=""):
+            job = EngineeringJob.objects.get(pk=self.create_job()["id"])
+            self.assertIsNone(claim_job())
+            job.refresh_from_db()
+            self.assertEqual((job.status, job.attempt_count), ("blocked", 0))
+        self.assertEqual(claim_job()[0], job.pk)
+        job.refresh_from_db()
+        self.assertEqual((job.status, job.attempt_count), ("running", 1))
 
     def test_worker_denies_online_promoted_or_unhashed_success(self):
         invalid_contracts = (

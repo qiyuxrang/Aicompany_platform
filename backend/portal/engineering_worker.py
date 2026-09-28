@@ -8,6 +8,7 @@ PORTAL_ENGINEERING_ALLOW_ONLINE=1 and PORTAL_ENGINEERING_WEBPRICE_KEY is set.
 """
 import hashlib
 import json
+import logging
 import os
 import subprocess
 from datetime import timedelta
@@ -23,9 +24,12 @@ from .engineering_storage import (StorageError, persist_result, verified_cli_out
                                   verified_input, work_directory)
 from .security import audit, authorized_modules
 
+logger = logging.getLogger(__name__)
+
 
 SAFE_ENVIRONMENT = ("PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE",
                     "LOCALAPPDATA", "PROGRAMDATA")
+RUNTIME_BLOCK_ERRORS = ("worker_not_configured", "worker_unavailable")
 
 
 class WorkerUnavailable(Exception):
@@ -93,18 +97,18 @@ def claim_job():
     if runtime_state()["status"] != "ready":
         return None
     now = timezone.now()
-    EngineeringJob.objects.filter(status=EngineeringJob.Status.RUNNING,
-        lease_until__lte=now, attempt_count__gte=max_attempts()).update(
+    waiting = Q(status=EngineeringJob.Status.QUEUED) | Q(
+        status=EngineeringJob.Status.BLOCKED, error_code__in=RUNTIME_BLOCK_ERRORS)
+    expired = Q(status=EngineeringJob.Status.RUNNING, lease_until__lte=now)
+    EngineeringJob.objects.filter(waiting | expired,
+        attempt_count__gte=max_attempts()).update(
             status=EngineeringJob.Status.FAILED, lease_until=None, next_retry_at=None,
             error_code="attempt_limit", error_detail="已达到工程任务重试上限。",
             completed_at=now, updated_at=now)
-    eligible = (
-        Q(status=EngineeringJob.Status.QUEUED, attempt_count__lt=max_attempts())
+    eligible = ((
+        waiting
         & (Q(next_retry_at__isnull=True) | Q(next_retry_at__lte=now))
-    ) | Q(status=EngineeringJob.Status.RUNNING, lease_until__lte=now,
-          attempt_count__lt=max_attempts()) | Q(
-              status=EngineeringJob.Status.BLOCKED,
-              error_code__in=["worker_not_configured", "worker_unavailable"])
+    ) | expired) & Q(attempt_count__lt=max_attempts())
     locks = {"skip_locked": True} if connection.features.has_select_for_update_skip_locked else {}
     job = EngineeringJob.objects.select_for_update(**locks).filter(eligible).order_by("created_at").first()
     if job is None:
@@ -204,11 +208,15 @@ def _finalize(job_id, fence, *, status, error_code="", error_detail="", inspecti
         error_code = "permission_changed"
         error_detail = "工程成本模块授权已变化。"
         artifact = None
-    if retry and job.attempt_count < max_attempts():
-        status = EngineeringJob.Status.QUEUED
+    runtime_blocked = status == EngineeringJob.Status.BLOCKED and error_code in RUNTIME_BLOCK_ERRORS
+    if (retry or runtime_blocked) and job.attempt_count < max_attempts():
+        if not runtime_blocked:
+            status = EngineeringJob.Status.QUEUED
         job.next_retry_at = now + timedelta(seconds=min(60 * (2 ** (job.attempt_count - 1)), 300))
     else:
         job.next_retry_at = None
+        if runtime_blocked:
+            status = EngineeringJob.Status.FAILED
     job.status = status
     job.error_code = error_code
     job.error_detail = error_detail[:300]
@@ -247,7 +255,9 @@ def process_job(job_id, fence):
     inspection = None
     result = None
     try:
+        _guard_job(job_id, fence)
         paths = [verified_input(item) for item in job.inputs]
+        _guard_job(job_id, fence)
         inspect_code, inspect_payload = _invoke(config, "inspect", paths)
         inspection = _inspection(inspect_payload, job.inputs)
         if inspect_code == 2 and isinstance(inspect_payload.get("files"), list):
@@ -260,6 +270,7 @@ def process_job(job_id, fence):
                       error_code="inspect_failed", error_detail="工程清单预检程序执行失败。",
                       inspection=inspection, retry=True)
             return
+        _guard_job(job_id, fence)
         work = work_directory(job_id, fence)
         webprice_key = online_webprice_key()
         allow_online = bool(webprice_key)
@@ -304,6 +315,7 @@ def process_job(job_id, fence):
             output_hashes.append(record["output_sha256"])
         if run_payload["output_hash"] != _combined_hash(output_hashes):
             raise StorageError("invalid_result", "测算程序未返回受控内部草稿成果。")
+        _guard_job(job_id, fence)
         artifact = persist_result(job_id, fence, outputs)
         _finalize(job_id, fence, status=EngineeringJob.Status.COMPLETED,
                   inspection=inspection, result=result, artifact=artifact)
@@ -312,7 +324,10 @@ def process_job(job_id, fence):
                   error_code="worker_timeout", error_detail="成本测算处理超时。",
                   inspection=inspection, result=result, retry=True)
     except StorageError as error:
-        _finalize(job_id, fence, status=EngineeringJob.Status.FAILED,
+        if error.code == 'lease_lost':
+            return
+        _finalize(job_id, fence, status=(EngineeringJob.Status.BLOCKED if error.code == 'permission_changed'
+                                        else EngineeringJob.Status.FAILED),
                   error_code=error.code, error_detail=error.detail,
                   inspection=inspection, result=result)
     except OSError:
@@ -328,6 +343,7 @@ def process_job(job_id, fence):
                   error_code="invalid_worker_output", error_detail="成本测算程序返回格式无效。",
                   inspection=inspection, result=result, retry=True)
     except Exception:
+        logger.exception('Engineering job failed unexpectedly; job=%s fence=%s', job_id, fence)
         _finalize(job_id, fence, status=EngineeringJob.Status.FAILED,
                   error_code="worker_error", error_detail="工程成本 Worker 执行异常。",
                   inspection=inspection, result=result, retry=True)
@@ -339,3 +355,13 @@ def run_once():
         return False
     process_job(*claim)
     return True
+
+
+def _guard_job(job_id, fence):
+    """Re-read ownership and grants before starting another bounded execution stage."""
+    current = EngineeringJob.objects.select_related('owner').filter(pk=job_id).first()
+    if (current is None or current.status != EngineeringJob.Status.RUNNING or current.fence != fence
+            or not current.lease_until or current.lease_until <= timezone.now()):
+        raise StorageError('lease_lost', '工程任务处理租约已失效。')
+    if not _engineering_allowed(current.owner):
+        raise StorageError('permission_changed', '工程成本模块授权已变化。')

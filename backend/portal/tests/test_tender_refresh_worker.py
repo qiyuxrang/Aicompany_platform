@@ -8,9 +8,10 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from portal.tender_manual_refresh import ActiveRefresh, claim, enqueue, execute_once, serialize
-from portal.tender_models import TenderConsumerHeartbeat, TenderManualRefresh, TenderOpportunity, TenderSource
+from portal.tender_models import TenderConsumerHeartbeat, TenderFetchRun, TenderManualRefresh, TenderOpportunity, TenderSource
 from portal.tender_sources.base import FetchResult, NoticeRef, SourcePreflight, SourceState
-from portal.tender_worker import SourceRunResult
+from portal.tender_window import WindowCandidates
+from portal.tender_worker import SourceRunResult, run_source
 
 
 @override_settings(PORTAL_TENDER_INGESTION_ENABLED=True,
@@ -28,6 +29,83 @@ class RefreshWorkerTests(TestCase):
             enqueue(self.actor, [self.sources[1].code])
         self.assertEqual(caught.exception.batch_id, first.pk)
         self.assertEqual(TenderManualRefresh.objects.count(), 1)
+
+    def test_partial_scan_cursor_resumes_but_is_not_trusted_complete_coverage(self):
+        cursors = []
+        class CursorAdapter:
+            def preflight(self):
+                return SourcePreflight(source_code='ccgp_national', state=SourceState.OK)
+
+            def scan_window(self, **kwargs):
+                cursors.append(kwargs['cursor'])
+                listing = WindowCandidates([], False, 'bounded_public_procurement_scan')
+                listing.resume_cursor = {'central': 5, 'local': 5}
+                return listing
+
+        first = run_source(self.sources[0], adapter=CursorAdapter())
+        second = run_source(self.sources[0], adapter=CursorAdapter())
+        self.assertEqual(first.state, TenderFetchRun.State.PARTIAL)
+        self.assertEqual(second.state, TenderFetchRun.State.PARTIAL)
+        self.assertEqual(cursors, [{}, {'central': 5, 'local': 5}])
+        self.sources[0].refresh_from_db()
+        self.assertFalse(self.sources[0].initial_coverage_complete)
+        self.assertEqual(self.sources[0].trusted_checkpoint, {})
+
+    def test_detail_failure_does_not_advance_scan_cursor(self):
+        class CursorAdapter:
+            def preflight(self):
+                return SourcePreflight(source_code='ccgp_national', state=SourceState.OK)
+
+            def scan_window(self, **kwargs):
+                ref = NoticeRef(source_code='ccgp_national', source_notice_id='t20260928_10000001',
+                                title='系统建设采购公告',
+                                original_url='https://www.ccgp.gov.cn/cggg/zygg/gkzb/202609/t20260928_10000001.htm')
+                listing = WindowCandidates([ref], False, 'bounded_public_procurement_scan')
+                listing.resume_cursor = {'central': 5, 'local': 5}
+                return listing
+
+            def fetch_detail(self, ref):
+                raise TimeoutError('offline detail failure')
+
+        result = run_source(self.sources[0], adapter=CursorAdapter())
+        self.assertEqual(TenderFetchRun.objects.get(pk=result.run_id).checkpoint, {})
+
+    @override_settings(TENDER_MAX_ATTEMPTS=2)
+    def test_partial_runs_exhaust_retries_and_next_refresh_starts_a_new_run(self):
+        reference = NoticeRef(source_code='ccgp_national', source_notice_id='t20260926_10000001',
+                              title='Offline retry regression', published_at='2026-09-26',
+                              original_url='https://www.ccgp.gov.cn/cggg/zygg/gkzb/202609/t20260926_10000001.htm')
+
+        class FailingDetailAdapter:
+            def preflight(self):
+                return SourcePreflight(source_code='ccgp_national', state=SourceState.OK)
+
+            def fetch_detail(self, ref):
+                raise TimeoutError('offline detail failure')
+
+        scenarios = (
+            (WindowCandidates([reference], True, ''), 'detail_failed'),
+        )
+        for index, (listing, error_code) in enumerate(scenarios):
+            with self.subTest(error_code=error_code):
+                source = self.sources[index]
+                with patch('portal.tender_worker.list_window_candidates', return_value=listing):
+                    first = run_source(source, adapter=FailingDetailAdapter())
+                    second = run_source(source, adapter=FailingDetailAdapter())
+                    third = run_source(source, adapter=FailingDetailAdapter())
+                self.assertEqual(first.state, TenderFetchRun.State.WAITING_RETRY)
+                self.assertEqual(second.run_id, first.run_id)
+                self.assertEqual(second.state, TenderFetchRun.State.FAILED)
+                self.assertEqual(second.error_code, error_code)
+                self.assertFalse(second.complete)
+                exhausted = TenderFetchRun.objects.get(pk=second.run_id)
+                self.assertEqual(exhausted.state, TenderFetchRun.State.FAILED)
+                self.assertEqual(exhausted.attempt_count, 2)
+                self.assertEqual(exhausted.error_code, error_code)
+                self.assertIsNone(exhausted.lease_until)
+                self.assertNotEqual(third.run_id, first.run_id)
+                self.assertEqual(third.state, TenderFetchRun.State.WAITING_RETRY)
+                self.assertEqual(TenderFetchRun.objects.get(pk=third.run_id).attempt_count, 1)
 
     def test_no_new_batch_when_consumer_is_stale(self):
         TenderConsumerHeartbeat.objects.update(updated_at=timezone.now() - timedelta(minutes=5))

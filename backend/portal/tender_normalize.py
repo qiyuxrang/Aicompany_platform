@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import html as html_module
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Iterable
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 STATUS_OK = "OK"
 STATUS_UNKNOWN = "UNKNOWN"
@@ -23,7 +24,7 @@ FIELD_SPECS: dict[str, tuple[str, ...]] = {
     "region": ("项目所在地", "所属地区", "行政区域", "行政区划", "所在地区", "地区"),
     "publish_at": ("公告发布时间", "公告时间", "发布时间", "发布日期"),
     "signup_time": ("报名时间", "获取采购文件时间", "获取招标文件时间", "文件获取时间", "报名及获取文件时间"),
-    "bid_deadline": ("投标截止时间", "递交投标文件截止时间", "响应文件递交截止时间", "报价截止时间", "截止时间"),
+    "bid_deadline": ("投标截止时间", "递交投标文件截止时间", "响应文件递交截止时间", "提交响应文件截止时间", "报价截止时间", "提交投标文件截止时间"),
     "bid_open_at": ("开标时间", "开启时间", "唱标时间"),
     "budget": ("预算金额", "采购预算", "预算总额", "项目预算", "预算"),
     "budget_cap": ("最高限价", "最高投标限价", "控制价", "拦标价"),
@@ -42,7 +43,7 @@ _NOTICE_TYPE_KEYWORDS = (
 _TAG_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.I | re.S)
 _BLOCK_RE = re.compile(r"</?(?:p|div|tr|br|li|h[1-6]|table|td|th)[^>]*>", re.I)
 _ATTACHMENT_RE = re.compile(
-    r'<a\s[^>]*href=["\']([^"\']+?\.(?:pdf|docx?|xlsx?|zip|rar|7z))(?:\?[^"\']*)?["\'][^>]*>(.*?)</a>',
+    r'<a\s[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
     re.I | re.S,
 )
 _DATE_RE = re.compile(
@@ -123,10 +124,33 @@ def html_to_lines(raw: bytes | str, *, encoding: str = "utf-8") -> list[str]:
     return [cleaned for chunk in text.splitlines() if (cleaned := re.sub(r"[ \t]+", " ", chunk).strip())]
 
 
+def notice_content(raw: bytes | str, *, source_code: str = '', encoding: str = 'utf-8') -> str:
+    """Decode a known source envelope without changing its archived response bytes."""
+    if isinstance(raw, bytes):
+        meta = re.search(rb'charset\s*=\s*[\"\']?([\w-]+)', raw[:4096], re.I)
+        codec = meta.group(1).decode('ascii') if meta and encoding == 'utf-8' else encoding
+        try:
+            raw = raw.decode(codec, errors='replace')
+        except LookupError:
+            raw = raw.decode('utf-8', errors='replace')
+    if source_code == 'yuneng':
+        try:
+            envelope = json.loads(raw)
+            if envelope.get('success') is not True or envelope.get('code') != 'success':
+                return ''
+            content = envelope.get('content')
+            return content.get('content', '') if isinstance(content, dict) and isinstance(content.get('content'), str) else ''
+        except (ValueError, AttributeError):
+            return ''
+    return raw
+
+
 def _parse_datetime_parts(text: str) -> tuple[str, str] | None:
     if not text:
         return None
-    match = _DATE_RE.search(str(text))
+    # Rich-text editors sometimes split one year/minute across adjacent spans.
+    text = re.sub(r'(?<=\d)\s+(?=\d)', '', str(text))
+    match = _DATE_RE.search(text)
     if not match:
         return None
     try:
@@ -162,7 +186,16 @@ def parse_amount(text: str) -> dict | None:
     unit = match.group(2) or ""
     multipliers = {"亿元": Decimal(100000000), "亿": Decimal(100000000),
                    "万元": Decimal(10000), "万": Decimal(10000), "元": Decimal(1)}
-    yuan = (number * multipliers[unit]).quantize(Decimal("1")) if unit in multipliers else None
+    # Reject malformed identifiers/giant digit runs instead of overflowing the
+    # Decimal context and aborting ingestion of an otherwise readable notice.
+    try:
+        if number > Decimal('1000000000000000'):
+            return None
+        yuan = (number * multipliers[unit]).quantize(Decimal("1")) if unit in multipliers else None
+        if yuan is not None and yuan > Decimal('1000000000000000'):
+            return None
+    except InvalidOperation:
+        return None
     return {"raw": str(text).strip(), "number": str(number), "unit": unit,
             "amount_yuan": str(yuan) if yuan is not None else None, "currency": "CNY"}
 
@@ -170,10 +203,10 @@ def parse_amount(text: str) -> dict | None:
 def _match_label_value(lines: list[str], synonyms: Iterable[str]) -> tuple[str | None, str, str]:
     for index, line in enumerate(lines):
         for synonym in synonyms:
-            position = line.find(synonym)
-            if position < 0:
+            match = re.search(r'\s*'.join(map(re.escape, synonym)), line)
+            if not match:
                 continue
-            tail = line[position + len(synonym):].lstrip("  :：=-—·*　")
+            tail = line[match.end():].lstrip("  :：=-—·*　")
             if tail:
                 return tail.strip(), f"inline:{synonym}", line[:120]
             for offset in (1, 2):
@@ -194,9 +227,97 @@ def _notice_type(lines: list[str], title: str) -> tuple[str | None, str, str]:
     return None, "", ""
 
 
+def _qinyuan_display_field(lines: list[str], name: str) -> tuple[str | None, str, str]:
+    """Public QinYuan prose mentions labels inside unrelated sentences.
+
+    Prefer explicit fields and return UNKNOWN rather than exposing a paragraph
+    as an organization, a project code, or an amount.
+    """
+    labels = FIELD_SPECS[name]
+    label_pattern = '|'.join(r'\s*'.join(map(re.escape, label)) for label in labels)
+    if name == 'purchaser':
+        def organization(value):
+            value = value.strip().rstrip('。；;，,')
+            if (not 2 <= len(value) <= 120 or re.search(r'[，,。；;：:]|不予|不得|投标文件|资金来自', value)
+                    or not re.search(r'(?:公司|集团|银行|联社|研究院|医院|学校|大学|中心|委员会|政府|局|部)$', value)):
+                return None
+            return value
+
+        for index, line in enumerate(lines):
+            match = re.match(r'^\s*(?:\d+(?:[.、]\d+)*[.、]?\s*)?(?:' + label_pattern + r')\s*[:：]\s*(.*)$', line)
+            if not match:
+                continue
+            candidate = match.group(1).strip()
+            if not candidate and index + 1 < len(lines):
+                candidate = lines[index + 1].strip()
+            value = organization(candidate)
+            if value:
+                return value, 'qinyuan:explicit_purchaser', line[:120]
+        for line in lines:
+            match = re.search(r'(?:招\s*标\s*人|采\s*购\s*人)(?:\s*[（(]项目业主[）)])?\s*为\s*([^，,。；;]{2,120})', line)
+            if match and (value := organization(match.group(1))):
+                return value, 'qinyuan:purchaser_statement', match.group(0)[:120]
+    elif name == 'project_code':
+        for index, line in enumerate(lines):
+            match = re.search(r'(?:' + label_pattern + r')\s*[:：]\s*(.*)', line)
+            if not match:
+                continue
+            candidate = match.group(1).strip()
+            if not candidate and index + 1 < len(lines):
+                candidate = lines[index + 1].strip()
+            token = re.match(r'[A-Za-z0-9][A-Za-z0-9_./\-－—()（）]{2,100}', candidate)
+            if not token:
+                continue
+            value = token.group(0).rstrip('.')
+            for left, right in (('(', ')'), ('（', '）')):
+                while value.endswith(right) and value.count(right) > value.count(left):
+                    value = value[:-1]
+            if re.search(r'\d', value):
+                return value, 'qinyuan:explicit_project_code', match.group(0)[:120]
+    elif name == 'procurement_method':
+        for line in lines:
+            match = re.search(r'(?:采购方式|招标方式|采购形式)\s*[:：]\s*'
+                              r'(公开招标|邀请招标|竞争性磋商|竞争性谈判|询比采购|询价采购|谈判采购|直接采购|单一来源)', line)
+            if match:
+                return match.group(1), 'qinyuan:explicit_method', match.group(0)
+    elif name in _AMOUNT_FIELDS:
+        for index, line in enumerate(lines):
+            match = re.search(r'(?:' + label_pattern + r')\s*[:：]\s*(.*)', line)
+            if not match:
+                continue
+            candidate = match.group(1).strip()
+            if not candidate and index + 1 < len(lines):
+                candidate = lines[index + 1].strip()
+            amount = re.match(r'(?:人民币\s*)?\d[\d,，]*(?:\.\d+)?\s*(?:亿元|万元|元)', candidate)
+            if amount:
+                return amount.group(0), 'qinyuan:explicit_amount', match.group(0)[:120]
+    return None, '', ''
+
+
+def _region_label_value(lines: list[str]) -> tuple[str | None, str, str]:
+    """Accept a geographic field, never a mention of 地区 in a policy paragraph."""
+    for index, line in enumerate(lines):
+        for label in FIELD_SPECS['region']:
+            match = re.match(r'^\s*(?:\d+[.、]\s*)?' + re.escape(label) + r'(?:\s*[:：]\s*|\s*$)(.*)$', line)
+            if not match:
+                continue
+            value = match.group(1).strip()
+            rule = f'inline:{label}'
+            if not value and index + 1 < len(lines):
+                value = lines[index + 1].strip()
+                rule = f'nextline:{label}'
+            if (not value or len(value) > 60
+                    or re.search(r'[。；;：:]|政策|政府采购|中小企业|不得|应当|按照|投标|供应商|资质', value)
+                    or any(value.startswith(other) for key, labels in FIELD_SPECS.items()
+                           if key != 'region' for other in labels)):
+                continue
+            return value, rule, line[:120]
+    return None, '', ''
+
+
 def normalize_notice(raw_bytes: bytes | str, *, source_code: str, original_url: str,
                      fallback_title: str = "", encoding: str = "utf-8") -> NormalizedNotice:
-    html_text = raw_bytes.decode(encoding, errors="replace") if isinstance(raw_bytes, bytes) else raw_bytes
+    html_text = notice_content(raw_bytes, source_code=source_code, encoding=encoding)
     if source_code == "sx_jk_ecai":
         html_text = re.sub(
             r"<script>\s*document\.write\s*\(\s*\(?\s*['\"](\d{4}-\d\d-\d\d[ T]\d\d:\d\d:\d\d)(?:\.0)?['\"]\s*\)?(?:\.replace\(['\"]T['\"],['\"] ['\"]\))?(?:\.substring\(0,\s*\d+\))?\s*\)\s*;?\s*</script>",
@@ -224,10 +345,20 @@ def normalize_notice(raw_bytes: bytes | str, *, source_code: str, original_url: 
         if source_code == "csg_bidding" and name == "region":
             fields[name] = FieldResult(name)
             continue
-        value, rule, raw = _notice_type(lines, title) if name == "notice_type" else _match_label_value(lines, synonyms)
+        if source_code == 'qinyuan' and name in {'purchaser', 'project_code', 'budget', 'budget_cap', 'procurement_method'}:
+            value, rule, raw = _qinyuan_display_field(lines, name)
+        elif name == 'region':
+            value, rule, raw = _region_label_value(lines)
+        else:
+            value, rule, raw = _notice_type(lines, title) if name == "notice_type" else _match_label_value(lines, synonyms)
         if not value:
             fields[name] = FieldResult(name, raw=raw)
             continue
+        if name == 'project_code' and source_code != 'qinyuan':
+            value = value.strip().rstrip('，。；;')
+            for opening, closing in (('（', '）'), ('(', ')'), ('[', ']'), ('【', '】')):
+                while value.endswith(closing) and value.count(closing) > value.count(opening):
+                    value = value[:-1].rstrip()
         if name in _DATETIME_FIELDS:
             parsed = _parse_datetime_parts(value)
             if not parsed:
@@ -235,6 +366,12 @@ def normalize_notice(raw_bytes: bytes | str, *, source_code: str, original_url: 
                 warnings.append(f"{name}: 命中标签但时间格式无法解析")
                 continue
             iso_value, precision = parsed
+            if name in {'bid_deadline', 'bid_open_at'} and precision == 'date':
+                fields[name] = FieldResult(name, raw=value, rule=f'{rule}|time_unverified',
+                                           extra={'precision': precision, 'date': iso_value[:10],
+                                                  'verification_status': '待核实'})
+                warnings.append(f'{name}: 原文只有日期，具体时分待核实')
+                continue
             stored_value = iso_value[:10] if name == "publish_at" and precision == "date" else iso_value
             fields[name] = FieldResult(name, stored_value, value, STATUS_OK, rule,
                                        {"precision": precision, "date": iso_value[:10]})
@@ -253,12 +390,15 @@ def normalize_notice(raw_bytes: bytes | str, *, source_code: str, original_url: 
 
     attachments, seen = [], set()
     for match in _ATTACHMENT_RE.finditer(html_text):
-        href = match.group(1).strip()
+        href = html_module.unescape(match.group(1).strip())
         url = urljoin(original_url, href)
+        label = re.sub(r"\s+", " ", html_module.unescape(re.sub(r"<[^>]+>", "", match.group(2)))).strip()
+        if not re.search(r'\.(?:pdf|docx?|xlsx?|txt|zip|rar|7z)$', urlsplit(url).path, re.I) and not re.search(
+                r'\.(?:pdf|docx?|xlsx?|txt|zip|rar|7z)$', label, re.I):
+            continue
         if url in seen:
             continue
         seen.add(url)
-        label = re.sub(r"\s+", " ", html_module.unescape(re.sub(r"<[^>]+>", "", match.group(2)))).strip()
         attachments.append({"url": url, "href": href, "label": label[:200]})
 
     return NormalizedNotice(fields, attachments,

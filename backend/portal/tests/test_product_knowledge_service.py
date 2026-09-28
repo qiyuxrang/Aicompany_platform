@@ -1,5 +1,6 @@
 """Contract tests: no provider, proxy, or gateway is contacted."""
 import json
+from http.client import HTTPResponse
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -71,6 +72,42 @@ class ProductKnowledgeServiceTests(SimpleTestCase):
             with self.subTest(payload=payload), patch.object(service, "_open", return_value=Response(json.dumps(payload).encode())):
                 self.assert_error("invalid_response", service.list_datasets, SCOPE, CONFIG, status=502)
         with patch.object(service, "_open", return_value=Response(b" " * 65537)):
+            self.assert_error("invalid_response", service.list_datasets, SCOPE, CONFIG, status=502)
+
+    def test_dataset_listing_reads_real_chunked_http_response_to_eof(self):
+        payload = json.dumps({"code": 0, "data": [{"id": "dataset-1", "name": "产品资料"}]}).encode()
+        chunks = [payload[:20], payload[20:]]
+        encoded = (b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
+                   + b"".join(f"{len(part):x}\r\n".encode() + part + b"\r\n" for part in chunks)
+                   + b"0\r\n\r\n")
+        socket = SimpleNamespace(makefile=lambda *args: BytesIO(encoded))
+        response = HTTPResponse(socket)
+        response.begin()
+        with patch.object(service, "_open", return_value=response):
+            self.assertEqual(service.list_datasets(SCOPE, CONFIG), [
+                {"id": "dataset-1", "name": "产品资料", "document_count": 1}])
+        self.assertTrue(response.closed)
+
+    def test_dataset_listing_enforces_cumulative_size_boundary(self):
+        payload = b'{"code":0,"data":[]}'
+        for size in (65536, 65537):
+            response = Response(payload + b" " * (size - len(payload)))
+            with self.subTest(size=size), patch.object(service, "_open", return_value=response):
+                if size == 65536:
+                    self.assertEqual(service.list_datasets(SCOPE, CONFIG), [])
+                else:
+                    self.assert_error("invalid_response", service.list_datasets, SCOPE, CONFIG, status=502)
+            self.assertEqual(sum(response.read_sizes), 65537)
+            self.assertLessEqual(max(response.read_sizes), 8192)
+
+    def test_dataset_listing_rejects_expired_reads_and_nonbytes(self):
+        response = Response(b'{"code":0,"data":[]}')
+        with patch.object(service, "monotonic", side_effect=[0, 0, 1, 26]), \
+                patch.object(service, "_open", return_value=response):
+            self.assert_error("unavailable", service.list_datasets, SCOPE, CONFIG)
+        self.assertEqual(response.read_sizes, [8192])
+        with patch.object(response, "read1", return_value="not bytes"), \
+                patch.object(service, "_open", return_value=response):
             self.assert_error("invalid_response", service.list_datasets, SCOPE, CONFIG, status=502)
 
     def test_official_payload_uses_only_authorized_dataset_document_pairs(self):

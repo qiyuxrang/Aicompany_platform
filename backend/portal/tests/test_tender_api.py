@@ -25,6 +25,7 @@ class TenderApiTests(PortalTestCase):
             "sx_jk_ecai": "陕西交控 e 采",
             "shxjkjt": "陕西交控集团官网",
             "csg_bidding": "南方电网供应链平台",
+            "qinyuan": "陕煤秦源招标平台",
         }
         return TenderSource.objects.create(code=code, name=names[code], adapter_code=code,
                                            enabled=enabled)
@@ -32,7 +33,7 @@ class TenderApiTests(PortalTestCase):
     def opportunity(self, *, source=None, notice_id="t20260928_123456", url=None,
                     name="榆林市信息化项目", purchaser="采购单位甲"):
         source = source or self.source()
-        url = url or f"https://www.ccgp.gov.cn/cggg/zygg/260928/{notice_id}.htm"
+        url = url or f"https://www.ccgp.gov.cn/cggg/zygg/gkzb/202609/{notice_id}.htm"
         notice = TenderNotice.objects.create(
             source=source, source_notice_id=notice_id, canonical_key=f"{source.code}:id:{notice_id}",
             title=name, notice_type="公开招标", original_url=url, publish_at=self.now,
@@ -52,6 +53,8 @@ class TenderApiTests(PortalTestCase):
             region="榆林", notice_type="公开招标", procurement_method="公开招标",
             publish_at=self.now, publish_date=self.now.date(), publish_precision="second",
             status=TenderOpportunity.Status.ACTIVE, current_version=1, first_seen_at=self.now,
+            classification_status='matched', industry_code='municipal',
+            digital_tags=['信息化建设'],
         )
 
     def test_empty_database_returns_zero_without_demo_data_and_admin_has_no_business_rights(self):
@@ -66,6 +69,26 @@ class TenderApiTests(PortalTestCase):
         denied = admin_client.get("/api/product/opportunities/")
         self.assertEqual(denied.status_code, 404)
         self.assertNotIn("items", denied.json())
+
+    def test_qinyuan_official_details_and_source_status_are_available(self):
+        from portal.tender_api import _official_notice_url
+
+        source = self.source('qinyuan')
+        notice_id = '1287816057720930304'
+        url = f'https://qyzb.shccmg.com/cms/default/webfile/1ywgg/20260924/{notice_id}.html'
+        opportunity = self.opportunity(source=source, notice_id=notice_id, url=url)
+        self.assertEqual(self.client.get('/api/product/opportunities/').json()['items'][0]['original_url'], url)
+        sources = self.client.get('/api/product/sources/').json()
+        self.assertEqual([row['code'] for row in sources['items']], ['qinyuan'])
+        notice = opportunity.primary_notice
+        notice.original_url = url.replace('/1ywgg/', '/2ywgg/')
+        self.assertEqual(_official_notice_url(notice), notice.original_url)
+        for invalid in (url + '?redirect=x', url.replace('/1ywgg/', '/3ywgg/'),
+                        url.replace(notice_id, '1287816057720930305'),
+                        url.replace('qyzb.shccmg.com', 'untrusted.example')):
+            with self.subTest(url=invalid):
+                notice.original_url = invalid
+                self.assertIsNone(_official_notice_url(notice))
 
     def test_all_endpoints_require_current_product_permission(self):
         opportunity = self.opportunity()
@@ -120,6 +143,42 @@ class TenderApiTests(PortalTestCase):
         self.assertEqual(versions.status_code, 200, versions.content)
         self.assertEqual(versions.json()["versions"][0]["snapshot_sha256"], "a" * 64)
         self.assertNotIn("source_url", versions.json()["versions"][0])
+
+    def test_ccgp_category_urls_remain_visible_in_list_and_detail(self):
+        source = self.source()
+        for index, (scope, category) in enumerate((('zygg', 'gkzb'), ('dfgg', 'jzxtp'),
+                                                   ('zygg', 'zbgg'), ('dfgg', 'gzgg'))):
+            notice_id = f't20260928_{100001 + index}'
+            url = f'https://www.ccgp.gov.cn/cggg/{scope}/{category}/202609/{notice_id}.htm'
+            opportunity = self.opportunity(source=source, notice_id=notice_id, url=url)
+            with self.subTest(scope=scope, category=category):
+                response = self.client.get(f'/api/product/opportunities/{opportunity.pk}/')
+                self.assertEqual(response.status_code, 200, response.content)
+                payload = response.json()['opportunity']
+                self.assertEqual(payload['original_url'], url)
+                self.assertEqual([notice['original_url'] for notice in payload['notices']], [url])
+        response = self.client.get('/api/product/opportunities/')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['total'], 4)
+        self.assertTrue(all(item['original_url'] for item in response.json()['items']))
+
+    def test_ccgp_url_validation_still_rejects_non_official_or_mismatched_notices(self):
+        source = self.source()
+        notice_id = 't20260928_654321'
+        path = f'/cggg/zygg/gkzb/202609/{notice_id}.htm'
+        opportunity = self.opportunity(source=source, notice_id=notice_id)
+        for url in (f'http://www.ccgp.gov.cn{path}', f'https://example.test{path}',
+                    f'https://www.ccgp.gov.cn{path}?redirect=other',
+                    f'https://www.ccgp.gov.cn{path}#fragment',
+                    f'https://www.ccgp.gov.cn{path.replace(notice_id, "t20260928_999999")}',
+                    f'https://www.ccgp.gov.cn{path.replace("/gkzb/", "/")}',
+                    f'https://www.ccgp.gov.cn{path.replace("/gkzb/", "/gkzb/extra/")}'):
+            with self.subTest(url=url):
+                TenderNotice.objects.filter(pk=opportunity.primary_notice_id).update(original_url=url)
+                response = self.client.get(f'/api/product/opportunities/{opportunity.pk}/')
+                self.assertEqual(response.status_code, 200, response.content)
+                self.assertIsNone(response.json()['opportunity']['original_url'])
+                self.assertEqual(response.json()['opportunity']['notices'], [])
 
     def test_filter_options_do_not_truncate_real_database_values(self):
         source = self.source()

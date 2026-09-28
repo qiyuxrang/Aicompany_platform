@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import userEvent from "@testing-library/user-event";
 import { clearApiSession } from "./api";
+import { COMPANY_NAME, COMPANY_ENGLISH_NAME } from "./CompanyIdentity";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -10,6 +11,23 @@ function json(body: unknown, status = 200): Response {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+it.each(['product', 'cost', 'hr', 'business'])("%s 部门共享完整品牌和统一侧栏，预览不读取业务", async code => {
+  clearApiSession();
+  window.history.replaceState({}, '', `/preview/${code}`);
+  const fetchMock = vi.fn((input: RequestInfo | URL) => String(input) === '/api/me/'
+    ? Promise.resolve(json({ id: 99, username: 'admin', display_name: '管理员', is_platform_admin: true, roles: [], must_change_password: false }))
+    : Promise.resolve(json({ detail: 'unexpected' }, 404)));
+  vi.stubGlobal('fetch', fetchMock);
+  const { container } = render(<App/>);
+  expect(await screen.findByText(COMPANY_NAME)).toBeTruthy();
+  expect(screen.getByText(COMPANY_ENGLISH_NAME)).toBeTruthy();
+  expect(screen.getByRole('link', { name: '企业统一门户首页' })).toBeTruthy();
+  await screen.findByRole('navigation', { name: '切换预览' });
+  expect(container.querySelector('.unified-app-shell > .app-content .workspace-sidebar')).not.toBeNull();
+  expect(fetchMock.mock.calls.every(([path]) => String(path) === '/api/me/')).toBe(true);
+  cleanup(); vi.unstubAllGlobals();
+});
 
 const baseUser = {
   id: 1,

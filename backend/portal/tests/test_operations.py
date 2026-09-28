@@ -137,6 +137,12 @@ class OperationsReadTests(PortalTestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 400)
 
+    def test_page_offsets_outside_database_integer_range_are_rejected(self):
+        for path in ("users", "issues", "maintenance"):
+            with self.subTest(path=path):
+                response = self.client.get(f"/api/ops/{path}/?page={10 ** 100}")
+                self.assertEqual(response.status_code, 400)
+
     def test_admin_cannot_create_users_through_read_only_ops_api(self):
         before = User.objects.count()
         self.assertEqual(self.client.post("/api/ops/users/", json_body(username="unauthorized-create"), content_type="application/json").status_code, 405)

@@ -170,14 +170,27 @@ def list_datasets(scope, config):
             with _open(request, min(10, remaining)) as response:
                 if response.status != 200:
                     fail("unavailable")
-                raw = response.read1(65537)
+                parts, size = [], 0
+                while True:
+                    if monotonic() >= deadline:
+                        fail("unavailable")
+                    part = response.read1(min(8192, 65537 - size))
+                    if monotonic() >= deadline:
+                        fail("unavailable")
+                    if not isinstance(part, bytes):
+                        fail("invalid_response", 502)
+                    if not part:
+                        break
+                    parts.append(part)
+                    size += len(part)
+                    if size > 65536:
+                        fail("invalid_response", 502)
+                raw = b"".join(parts)
         except HTTPError as error:
             error.close()
             fail("unavailable")
         except (URLError, OSError, TimeoutError, HTTPException):
             fail("unavailable")
-        if not isinstance(raw, bytes) or len(raw) > 65536:
-            fail("invalid_response", 502)
         payload = decode(raw)
         if (not isinstance(payload, dict) or type(payload.get("code")) is not int
                 or payload["code"] != 0 or not isinstance(payload.get("data"), list)

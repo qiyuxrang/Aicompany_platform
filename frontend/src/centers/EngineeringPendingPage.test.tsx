@@ -47,7 +47,7 @@ describe("EngineeringPendingPage", () => {
     fireEvent.change(screen.getByLabelText("清单文件"), { target: { files: [new File(["a"], "one.xlsx"), new File(["b"], "two.xlsx")] } });
     await user.type(screen.getByLabelText("地区"), "榆林");
     await user.click(screen.getByRole("button", { name: "创建内部成本草稿" }));
-    await screen.findByText("真实状态：completed · 地区：榆林");
+    await screen.findByText("当前状态：已完成 · 地区：榆林");
     const post = request.mock.calls.find(([path, init]) => path === root && init?.method === "POST");
     const body = post?.[1]?.body as FormData;
     expect(Array.from(body.getAll("files"), (file) => (file as File).name)).toEqual(["one.xlsx", "two.xlsx"]);
@@ -68,8 +68,8 @@ describe("EngineeringPendingPage", () => {
     request.mockImplementation(async (path) => path === knowledgeRoot ? { status: "locked", detail: "尚未授权" } : path === root ? { jobs: [failed], capabilities } : { job: failed, capabilities });
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="overview" />);
-    expect(await screen.findByText(/知识库状态：locked · 尚未授权/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: `failed · ${failed.id}` }));
+    expect(await screen.findByText(/知识库状态：待解锁 · 尚未授权/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: `失败 · ${failed.id}` }));
     await screen.findByText("任务错误：preflight_failed · 工程清单预检未通过，未执行测算。");
     expect(screen.getAllByText("待复核")).toHaveLength(2);
     expect(screen.getByText("缺少设备数量")).toBeTruthy();
@@ -87,7 +87,7 @@ describe("EngineeringPendingPage", () => {
     request.mockImplementation(async (path) => path === root ? { jobs: [suspicious], capabilities } : { job: suspicious, capabilities });
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="overview" />);
-    await user.click(await screen.findByRole("button", { name: `completed · ${suspicious.id}` }));
+    await user.click(await screen.findByRole("button", { name: `已完成 · ${suspicious.id}` }));
     expect(screen.getAllByText("待复核")).toHaveLength(2);
     expect(screen.getByText("审计结论：可疑")).toBeTruthy();
     expect(screen.getByText("报价来源待核验")).toBeTruthy();
@@ -97,7 +97,7 @@ describe("EngineeringPendingPage", () => {
 
   it("keeps the knowledge base unavailable and quota unimplemented", async () => {
     const view = render(<EngineeringPendingPage section="estimate" />);
-    await screen.findByText(/知识库状态：locked · 尚未授权/);
+    await screen.findByText(/知识库状态：待解锁 · 尚未授权/);
     expect(screen.getByText(/上传清单并预检通过、工程文档解析完成后，知识库才可能解锁；定额推荐和正式报价仍未开放/)).toBeTruthy();
     view.rerender(<EngineeringPendingPage section="quota" />);
     expect(screen.getByText("未实现")).toBeTruthy();
@@ -107,7 +107,7 @@ describe("EngineeringPendingPage", () => {
 
   it("locks retrieval and preserves D-05 on the quota route", async () => {
     render(<EngineeringPendingPage section="quota" />);
-    expect(await screen.findByText(/知识库状态：locked · 尚未授权/)).toBeTruthy();
+    expect(await screen.findByText(/知识库状态：待解锁 · 尚未授权/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "检索资料" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/套用定额 D-05 尚未实现/)).toBeTruthy();
     expect(request.mock.calls.some(([path]) => path === root)).toBe(false);
@@ -168,11 +168,11 @@ describe("EngineeringPendingPage", () => {
       : { jobs: [], capabilities });
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="estimate" />);
-    expect(await screen.findByText(/知识库状态：locked · 等待解析 · 文档数：0/)).toBeTruthy();
+    expect(await screen.findByText(/知识库状态：待解锁 · 等待解析 · 文档数：0/)).toBeTruthy();
     expect((screen.getByLabelText("检索问题") as HTMLInputElement).disabled).toBe(true);
     ready = true;
     await user.click(screen.getByRole("button", { name: "刷新知识库状态" }));
-    expect(await screen.findByText(/知识库状态：ready · 已解析 · 文档数：1/)).toBeTruthy();
+    expect(await screen.findByText(/知识库状态：已就绪 · 已解析 · 文档数：1/)).toBeTruthy();
     expect((screen.getByLabelText("检索问题") as HTMLInputElement).disabled).toBe(false);
     expect(request.mock.calls.filter(([path]) => path === knowledgeRoot)).toHaveLength(2);
     expect(request.mock.calls.filter(([path]) => path === root)).toHaveLength(1);
@@ -187,11 +187,11 @@ describe("EngineeringPendingPage", () => {
     });
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="quota" />);
-    await screen.findByText(/知识库状态：ready · 已解析/);
+    await screen.findByText(/知识库状态：已就绪 · 已解析/);
     failed = true;
     await user.click(screen.getByRole("button", { name: "刷新知识库状态" }));
     expect(await screen.findByText(/知识库状态读取失败：状态暂不可用/)).toBeTruthy();
-    expect(screen.queryByText(/知识库状态：ready/)).toBeNull();
+    expect(screen.queryByText(/知识库状态：已就绪/)).toBeNull();
     expect((screen.getByLabelText("检索问题") as HTMLInputElement).disabled).toBe(true);
   });
 
@@ -199,7 +199,7 @@ describe("EngineeringPendingPage", () => {
     request.mockImplementation(async (path) => path === knowledgeRoot
       ? { status: "ready", detail: "已连接", dataset_document_count: 0 } : { jobs: [], capabilities });
     render(<EngineeringPendingPage section="quota" />);
-    expect(await screen.findByText(/知识库状态：ready · 已连接 · 文档数：0/)).toBeTruthy();
+    expect(await screen.findByText(/知识库状态：已就绪 · 已连接 · 文档数：0/)).toBeTruthy();
     expect(screen.getByText("知识库暂无文档，暂不可检索。")).toBeTruthy();
     expect((screen.getByRole("button", { name: "检索资料" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByText(/RAGFlow 工程知识库：未接入/)).toBeNull();
@@ -209,7 +209,7 @@ describe("EngineeringPendingPage", () => {
     request.mockImplementation(async (path) => path === knowledgeRoot
       ? { status: "ready", detail: "可检索", dataset_document_count: 1 } : { jobs: [], capabilities });
     render(<EngineeringPendingPage section="estimate" />);
-    await screen.findByText(/知识库状态：ready · 可检索/);
+    await screen.findByText(/知识库状态：已就绪 · 可检索/);
     await screen.findByText("暂无服务端任务。");
     expect(screen.queryByText(/RAGFlow 工程知识库：未接入/)).toBeNull();
     expect((screen.getByRole("button", { name: "检索资料" }) as HTMLButtonElement).disabled).toBe(true);
@@ -224,7 +224,7 @@ describe("EngineeringPendingPage", () => {
     });
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="quota" />);
-    await screen.findByText(/知识库状态：ready · 可检索/);
+    await screen.findByText(/知识库状态：已就绪 · 可检索/);
     await user.type(screen.getByLabelText("检索问题"), "  如何施工？  ");
     await user.click(screen.getByRole("button", { name: "检索资料" }));
     expect(await screen.findByText("施工工序说明")).toBeTruthy();
@@ -251,10 +251,10 @@ describe("EngineeringPendingPage", () => {
     });
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="quota" />);
-    await screen.findByText(/知识库状态：ready/);
+    await screen.findByText(/知识库状态：已就绪/);
     await user.type(screen.getByLabelText("检索问题"), "施工依据");
     await user.click(screen.getByRole("button", { name: "检索资料" }));
-    expect(await screen.findByText(/知识库状态：locked · 权限尚未解锁/)).toBeTruthy();
+    expect(await screen.findByText(/知识库状态：待解锁 · 权限尚未解锁/)).toBeTruthy();
     expect(screen.getByText(/检索失败：权限尚未解锁/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "检索资料" }) as HTMLButtonElement).disabled).toBe(true);
   });

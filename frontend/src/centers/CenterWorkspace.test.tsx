@@ -5,6 +5,11 @@ import CenterWorkspace from "./CenterWorkspace";
 import type { CenterCode } from "./config";
 
 vi.mock("./ManagerWorkspace", () => ({ default: ({ section }: { section: string }) => <div>经营页面：{section}</div> }));
+vi.mock("./ProductWorkspace", async importOriginal => {
+  const { default: ProductWorkspace } = await importOriginal<typeof import("./ProductWorkspace")>();
+  return { default: ({ section }: { section: string }) => section === "opportunities"
+    ? <section><h2>全国商机看板</h2></section> : <ProductWorkspace section={section}/> };
+});
 vi.mock("../ModelSelector", () => ({ default: ({ route }: { route: string }) => <div data-testid="department-model-selector">{route}</div> }));
 
 const apiMocks = vi.hoisted(() => ({
@@ -42,6 +47,34 @@ beforeEach(() => {
 });
 
 describe("CenterWorkspace", () => {
+  it("共享侧栏只列后端授权且启用的工作台", async () => {
+    apiMocks.getModules.mockResolvedValue([productModule(), { code: 'cost', name: '工程部', enabled: false, status: 'disabled' }]);
+    render(<CenterWorkspace code="product" section="overview" user={staff} businessPanel={null}/>);
+    const switcher = await screen.findByRole('navigation', { name: '已授权工作台' });
+    expect(switcher.textContent).toContain('产品事业部');
+    expect(switcher.textContent).not.toContain('工程部');
+    expect(switcher.textContent).not.toContain('平台运维');
+    expect(screen.getByRole('complementary').className).toBe('workspace-sidebar');
+  });
+
+  it("只有转正授权的用人经理默认进入转正并不展示招聘菜单", async () => {
+    apiMocks.getModule.mockResolvedValue({ code: 'hr', name: '人事部门', enabled: true, status: 'verified' });
+    apiMocks.getModules.mockResolvedValue([{ code: 'hr', name: '人事部门', enabled: true, status: 'verified' }]);
+    render(<CenterWorkspace code="hr" section="overview" user={staff} businessPanel={null}/>);
+    const nav = await screen.findByRole('navigation', { name: '人事部门菜单' });
+    expect(nav.textContent).toBe('转正工作流');
+    expect(screen.queryByText('当前账号没有 HR 岗位、JD、招聘渠道或简历权限。')).toBeNull();
+    expect(screen.getByRole('heading', { name: '转正工作流', level: 1 })).toBeTruthy();
+  });
+
+  it("商机页只保留内部紧凑标题且不重复显示父级介绍", async () => {
+    const { container } = render(<CenterWorkspace code="product" section="opportunities" user={staff} businessPanel={null} />);
+    expect(await screen.findByRole("heading", { name: "全国商机看板" })).toBeTruthy();
+    expect(screen.getAllByRole("heading", { name: "全国商机看板" })).toHaveLength(1);
+    expect(container.querySelector(".center-page-head")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "当前位置" })).toBeNull();
+  });
+
   it("只在产品知识库页面启用铺满布局", async () => {
     const { container } = render(<CenterWorkspace code="product" section="knowledge" user={staff} businessPanel={null} />);
     await waitFor(() => expect(container.querySelector(".center-main-knowledge")).not.toBeNull());
@@ -54,7 +87,7 @@ describe("CenterWorkspace", () => {
     const navigation = screen.getByRole("navigation", { name: "产品事业部菜单" });
     expect(navigation.textContent).not.toContain("模板");
     expect(navigation.textContent).not.toContain("需求准备稿");
-    expect(screen.getByRole("link", { name: "商机获取" }).getAttribute("href")).toBe("/centers/product/opportunities");
+    expect(screen.getByRole("link", { name: "全国商机看板" }).getAttribute("href")).toBe("/centers/product/opportunities");
     expect(screen.getByRole("link", { name: "售前数据录入" }).getAttribute("href")).toBe("/centers/product/presales");
     expect(screen.getByRole("link", { name: "专业工作台" })).toBeTruthy();
   });

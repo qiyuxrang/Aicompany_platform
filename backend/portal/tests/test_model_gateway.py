@@ -1,5 +1,6 @@
 import json
 from io import BytesIO
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
@@ -15,6 +16,25 @@ LOCAL_PROVIDER_URL = "http://127.0.0.1:19880/api/v1/openai/0123456789abcdef01234
 
 
 class ProviderUrlValidationTests(SimpleTestCase):
+    @override_settings(MODEL_GATEWAY_URL="http://127.0.0.1:18410", MODEL_GATEWAY_TOKEN="x" * 48)
+    @patch("portal.model_gateway.build_opener")
+    def test_malformed_upstream_error_codes_are_sanitized_for_both_transports(self, opener):
+        payload = {"model": {"timeout_seconds": 2}, "messages": [{"role": "user", "content": "test"}]}
+        for code in ([], {}, None, 123, "unknown-private-error"):
+            for streaming in (False, True):
+                with self.subTest(code=code, streaming=streaming):
+                    body = BytesIO(json.dumps({"code": code, "detail": "private upstream data"}).encode())
+                    opener.return_value.open.side_effect = HTTPError("http://127.0.0.1:18410", 502, "error", {}, body)
+                    with self.assertRaises(model_gateway.GatewayError) as caught:
+                        if streaming:
+                            list(model_gateway._request_gateway_stream(payload))
+                        else:
+                            model_gateway._request_gateway(payload)
+                    self.assertEqual(caught.exception.code, "upstream_error")
+                    self.assertEqual(caught.exception.status, 502)
+                    self.assertNotIn("private", str(caught.exception))
+                    self.assertTrue(body.closed)
+
     @override_settings(DEBUG=True, MODEL_PROVIDER_LOCAL_HTTP=True)
     def test_exact_local_provider_url_allowed_for_opted_in_development(self):
         model_gateway.validate_provider_url(LOCAL_PROVIDER_URL)

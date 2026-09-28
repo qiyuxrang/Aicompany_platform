@@ -35,6 +35,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 
@@ -46,7 +47,14 @@ from .security import audit
 from .tender_models import TenderFetchRun, TenderSource
 from .tender_sources import get_adapter
 from .tender_sources.base import SourceBlocked
-from .tender_window import classify_window_date, list_window_candidates
+from .tender_window import classify_window_date, list_window_candidates, window_bounds
+from .tender_normalize import normalize_notice
+from .tender_extraction import enrich_notice
+from .tender_runtime import LeaseHeartbeat, LeaseLost, database_retry
+
+logger = logging.getLogger(__name__)
+PROGRESS_FIELDS = ('listed', 'ingested', 'skipped', 'out_of_window', 'unverified',
+                   'new_notices', 'new_versions', 'events', 'complete', 'coverage_reason')
 
 __all__ = ["SourceRunResult", "WorkerSummary", "run_source", "run_all", "DEFAULT_PAGE_SIZE"]
 
@@ -62,6 +70,8 @@ KNOWN_ERROR_CODES = frozenset({
     "ingest_failed",
     "lease_lost",
     "execution_failed",
+    "coverage_partial",
+    "source_blocked",
 })
 
 
@@ -91,6 +101,9 @@ class SourceRunResult:
     new_versions: int = 0
     events: int = 0
     skipped: int = 0
+    out_of_window: int = 0
+    unverified: int = 0
+    coverage_reason: str = ""
     error_code: str = ""
     error_detail: str = ""
     notes: list[str] = field(default_factory=list)
@@ -226,7 +239,74 @@ def run_source(
     actor=None,
     page: int = 1,
     page_size: int = DEFAULT_PAGE_SIZE,
+    heartbeat=None,
 ) -> SourceRunResult:
+    if not getattr(settings, 'PORTAL_TENDER_INGESTION_ENABLED', False):
+        return SourceRunResult(source.code, TenderFetchRun.State.BLOCKED, error_code='ingestion_disabled')
+
+    def perform(keeper):
+        context = {}
+        try:
+            return _run_source(source, adapter=adapter, now=now, actor=actor,
+                               page=page, page_size=page_size, heartbeat=keeper, context=context)
+        except LeaseLost:
+            logger.warning('Tender source lease lost; source=%s run=%s', source.code,
+                           getattr(context.get('run'), 'pk', None))
+            return SourceRunResult(source.code, TenderFetchRun.State.SKIPPED,
+                                   run_id=getattr(context.get('run'), 'pk', None),
+                                   error_code='lease_lost')
+        except Exception:
+            logger.exception('Tender source execution failed; source=%s run=%s', source.code,
+                             getattr(context.get('run'), 'pk', None))
+            return _recover_execution_failure(source, context, now=now)
+        finally:
+            keeper.detach_source()
+
+    if heartbeat is not None:
+        return perform(heartbeat)
+    with LeaseHeartbeat(clock=(lambda: now) if now is not None else None) as keeper:
+        return perform(keeper)
+
+
+def _recover_execution_failure(source, context, *, now=None):
+    """The owner has unwound its work; fence it to a terminal/retry state if still owned."""
+    result = context.get('result') or SourceRunResult(source.code, TenderFetchRun.State.FAILED)
+    run = context.get('run')
+    result.complete = False
+    result.error_code = 'execution_failed'
+    result.error_detail = '采集执行异常，已保存可用进度，请稍后重试。'
+    if run is None:
+        return result
+    fence = context['fence']
+    try:
+        current = database_retry(lambda: TenderFetchRun.objects.get(pk=run.pk), label='read failed source run')
+        if current.fence != fence:
+            result.state, result.error_code = TenderFetchRun.State.SKIPPED, 'lease_lost'
+            return result
+        # Ancillary health/audit writes can fail after a successful state commit.
+        # Preserve that durable outcome instead of reporting a second failure.
+        if current.state != TenderFetchRun.State.RUNNING:
+            result.state, result.error_code = current.state, current.error_code
+            result.complete = bool((current.stats or {}).get('complete'))
+            result.error_detail = ''
+            return result
+        stats = {**(current.stats or {}), **{key: getattr(result, key) for key in PROGRESS_FIELDS}}
+        state = TenderFetchRun.State.FAILED if current.attempt_count >= _max_attempts() else TenderFetchRun.State.WAITING_RETRY
+        finished = database_retry(lambda: _finish(
+            current, fence, state=state, moment=now or datetime.now(timezone.utc), stats=stats,
+            error_code='execution_failed', error_detail=result.error_detail), label='finish failed source run')
+        result.state = state if finished else TenderFetchRun.State.SKIPPED
+        if not finished:
+            result.error_code = 'lease_lost'
+    except Exception:
+        logger.exception('Tender source failure could not be persisted; source=%s run=%s fence=%s', source.code, run.pk, fence)
+        # Do not fabricate completion or proceed with additional sources while
+        # this source's ownership is unresolved. Existing recovery remains explicit.
+        result.state, result.error_code = TenderFetchRun.State.SKIPPED, 'recovery_required'
+    return result
+
+
+def _run_source(source, *, adapter, now, actor, page, page_size, heartbeat, context=None):
     """执行单个来源的一次采集。
 
     **异常绝不外泄**：任何失败都被转换为 `TenderFetchRun` 状态 + 来源健康事件，
@@ -239,7 +319,8 @@ def run_source(
         return SourceRunResult(source.code, TenderFetchRun.State.BLOCKED, error_code="ingestion_disabled")
     moment = now or datetime.now(timezone.utc)
     try:
-        run, fence = _claim_run(source, now=moment)
+        run, fence = database_retry(lambda: _claim_run(source, now=now or datetime.now(timezone.utc)),
+                                   label='claim tender source')
     except LeaseHeld as held:
         return SourceRunResult(
             source_code=source.code, state=TenderFetchRun.State.SKIPPED,
@@ -248,9 +329,27 @@ def run_source(
         )
     result = SourceRunResult(source_code=source.code, state=TenderFetchRun.State.RUNNING,
                              run_id=run.pk)
+    if context is not None:
+        context.update(run=run, fence=fence, result=result)
+    heartbeat.attach_source(run, fence)
+    window = window_bounds(moment)
 
     def completion_time():
         return moment if now is not None else datetime.now(timezone.utc)
+
+    def persist_progress():
+        heartbeat.guard()
+        values = {key: getattr(result, key) for key in (
+            'listed', 'ingested', 'skipped', 'out_of_window', 'unverified', 'new_notices',
+            'new_versions', 'events', 'complete', 'coverage_reason')}
+        values['window_start'], values['window_end'] = (item.isoformat() for item in window)
+        updated = database_retry(lambda: TenderFetchRun.objects.filter(
+            pk=run.pk, fence=fence, state=TenderFetchRun.State.RUNNING,
+            lease_until__gt=completion_time(),
+        ).update(stats=values), label='persist tender source progress')
+        if not updated:
+            raise LeaseLost('来源进度更新失去租约')
+        return values
 
     # 1) 取得适配器
     try:
@@ -262,8 +361,13 @@ def run_source(
 
     # 2) 预检：未过预检不得进入采集
     try:
+        heartbeat.guard()
         preflight = source_adapter.preflight()
+        heartbeat.guard()
+    except LeaseLost:
+        raise
     except Exception as error:  # noqa: BLE001
+        logger.exception('Tender source preflight failed; source=%s run=%s', source.code, run.pk)
         return _finish_failure(source, run, fence, result, completion_time(),
                                "preflight_failed", str(error))
 
@@ -284,84 +388,131 @@ def run_source(
         result.notes.append("预检未通过，按规格不进入采集")
         return result
 
-    # 3) 全国来源必须扫描到上轮完整边界，不能只截断第一页。
+    # 3) 每轮复查滚动窗口，已保存的历史与可信检查点不因此删除。
     listing = None
     try:
-        max_pages = max(1, min(int(source.fetch_policy.get('max_pages', 3)), 10))
-        max_candidates = max(1, min(int(source.fetch_policy.get('max_candidates', 100)), 500))
-        if not source.initial_coverage_complete:
-            pages = max_pages if source.code == 'ccgp_national' else 1
-            listing = list_window_candidates(source_adapter, max_pages=pages,
-                                             max_candidates=max_candidates)
-            refs = listing.refs
-        elif source.code == 'ccgp_national' and hasattr(source_adapter, 'list_incremental'):
-            previous = source.trusted_checkpoint.get('head_ids')
-            if not previous:
-                raise ValueError('没有可信初始边界，禁止增量采集')
-            listing = source_adapter.list_incremental(previous, max_pages=max_pages, page_size=page_size)
-            refs = listing.refs
+        max_pages = max(1, min(int(source.fetch_policy.get('max_pages', 10)), 30))
+        max_candidates = max(1, min(int(source.fetch_policy.get('max_candidates', 500)), 1500))
+        if callable(getattr(source_adapter, 'scan_window', None)):
+            previous = (TenderFetchRun.objects.filter(source=source)
+                        .exclude(pk=run.pk).exclude(checkpoint={})
+                        .order_by('-created_at').first())
+            cursor = (previous.checkpoint or {}).get('window_scan', {}) if previous else {}
+            listing = source_adapter.scan_window(max_pages=max_pages, max_candidates=max_candidates,
+                                                 window=window, heartbeat=heartbeat, cursor=cursor)
         else:
-            raise ValueError('此来源没有可信增量扫描边界')
+            pages = max_pages if (source.code in ('ccgp_national', 'qinyuan') or
+                                 getattr(source_adapter, 'supports_pagination', False)) else 1
+            listing = list_window_candidates(source_adapter, max_pages=pages,
+                                             max_candidates=max_candidates, window=window,
+                                             heartbeat=heartbeat)
+        refs = listing.refs
+    except LeaseLost:
+        raise
     except SourceBlocked as error:
         return _finish_blocked(source, run, fence, result, completion_time(), error, actor)
     except Exception as error:  # noqa: BLE001
+        logger.exception('Tender source listing failed; source=%s run=%s', source.code, run.pk)
         return _finish_failure(source, run, fence, result, completion_time(), "list_failed", str(error))
 
     result.listed = len(refs)
+    result.coverage_reason = listing.reason
+    persist_progress()
 
     # 4) 逐条抓详情并入库。单条失败不影响整批。
     for ref in refs:
         try:
+            heartbeat.guard()
             fetched = source_adapter.fetch_detail(ref)
-            if not source.initial_coverage_complete:
-                verified_date = (fetched.source_metadata.get('detail_published_at')
-                                 or fetched.source_metadata.get('list_published_at')
-                                 or ref.published_at)
-                if classify_window_date(verified_date) in ('before', 'after'):
-                    result.skipped += 1
-                    continue
-            outcome = tender_service.ingest_fetch_result(
-                fetched, source=source, run=run, actor=actor)
+            heartbeat.guard()
+            # Download/parse public attachments before ingest opens its transaction.
+            normalized = normalize_notice(fetched.raw_bytes, source_code=source.code,
+                                          original_url=fetched.original_url,
+                                          fallback_title=ref.title)
+            attachment_urls = {item.get('url') for item in normalized.attachments}
+            normalized.attachments.extend(item for item in fetched.attachment_refs
+                                          if item.get('url') not in attachment_urls)
+            extraction = enrich_notice(normalized, raw=fetched.raw_bytes,
+                                       attachment_client=getattr(source_adapter, 'outbound', None),
+                                       heartbeat=heartbeat)
+            fetched.source_metadata = {**(fetched.source_metadata or {}),
+                                       'public_extraction': extraction.to_dict()}
+            heartbeat.guard()
+            outcome = database_retry(lambda: tender_service.ingest_fetch_result(
+                fetched, source=source, run=run, actor=actor, window=window), label='ingest tender notice')
+        except LeaseLost:
+            raise
+        except tender_service.TenderIngestRejected as error:
+            result.skipped += 1
+            result.out_of_window += int(error.code == 'publish_date_outside_window')
+            result.unverified += int(error.code == 'publish_date_unverified')
+            result.notes.append(f'{ref.source_notice_id}: {error.code}')
+            persist_progress()
+            continue
         except SourceBlocked as error:
             result.skipped += 1
             result.notes.append(f"{ref.source_notice_id}: {error.detail or '来源阻塞'}")
-            continue
+            persist_progress()
+            return _finish_blocked(source, run, fence, result, completion_time(), error, actor)
         except Exception as error:  # noqa: BLE001
+            logger.exception('Tender detail failed; source=%s run=%s notice=%s', source.code, run.pk, ref.source_notice_id)
             result.skipped += 1
             result.notes.append(f"{ref.source_notice_id}: {type(error).__name__}: {error}")
+            persist_progress()
             continue
 
         result.ingested += 1
         result.new_notices += int(outcome.notice_created)
         result.new_versions += int(outcome.version_created)
         result.events += len(outcome.events)
+        persist_progress()
+        # A real successful write is useful even when site-wide coverage cannot
+        # be proven. Health remains degraded until a complete scan succeeds.
+        database_retry(lambda: TenderSource.objects.filter(pk=source.pk).update(
+            last_success_at=completion_time(), health_state=TenderSource.Health.DEGRADED,
+            health_detail='已更新部分公告，未证明完整覆盖。'), label='persist tender source health')
+        source.last_success_at = completion_time()
 
     # 注入的测试时间沿用原契约；真实执行以完成时刻检查租约。
     finish_at = completion_time()
     # 5) 仅完整扫描且全部详情成功时推进全国边界。
-    result.complete = bool(listing is not None and listing.complete and result.skipped == 0)
-    stats = {"listed": result.listed, "ingested": result.ingested, "skipped": result.skipped,
-             "new_notices": result.new_notices, "new_versions": result.new_versions,
-             "events": result.events, "complete": result.complete}
+    result.complete = bool(listing is not None and listing.complete and result.skipped == result.out_of_window)
+    stats = persist_progress()
     if listing is not None and not result.complete:
-        result.error_code = 'detail_failed' if result.skipped else 'list_failed'
+        result.error_code = 'detail_failed' if result.skipped > result.out_of_window else 'coverage_partial'
         result.error_detail = listing.reason or '部分详情抓取失败'
-        finished = _finish(run, fence, state=TenderFetchRun.State.WAITING_RETRY,
-                           moment=finish_at, stats=stats,
-                           error_code=result.error_code, error_detail=result.error_detail)
-        result.state = TenderFetchRun.State.WAITING_RETRY if finished else TenderFetchRun.State.SKIPPED
+        state = (TenderFetchRun.State.PARTIAL if result.error_code == 'coverage_partial' else
+                 TenderFetchRun.State.FAILED if run.attempt_count >= _max_attempts()
+                 else TenderFetchRun.State.WAITING_RETRY)
+        finished = database_retry(lambda: _finish(run, fence, state=state,
+                           moment=completion_time(), stats=stats,
+                           error_code=result.error_code, error_detail=result.error_detail), label='finish tender source')
+        result.state = state if finished else TenderFetchRun.State.SKIPPED
+        if finished and result.error_code == 'coverage_partial' and hasattr(listing, 'resume_cursor'):
+            # Traversal progress is separate from trusted complete coverage. Never
+            # advance on failed details, lost leases or an interrupted process.
+            database_retry(lambda: TenderFetchRun.objects.filter(pk=run.pk, fence=fence, state=state).update(
+                checkpoint={'window_scan': listing.resume_cursor}), label='persist tender scan cursor')
+        if finished and result.ingested:
+            tender_service.record_source_health(
+                source, event_type='DEGRADED', reason_code=result.error_code,
+                detail='已更新部分公告，未证明完整覆盖。', payload=stats,
+                occurred_at=finish_at, actor=actor)
         result.complete = False
         return result
-    with transaction.atomic():
-        finished = _finish(run, fence, state=TenderFetchRun.State.SUCCESS,
-                           moment=finish_at, stats=stats)
-        if finished and listing is not None and hasattr(listing, 'head_ids'):
-            checkpoint = {'head_ids': listing.head_ids, 'pages_seen': listing.pages_seen}
-            run.checkpoint = checkpoint
-            run.save(update_fields=['checkpoint'])
-            source.initial_coverage_complete = True
-            source.trusted_checkpoint = checkpoint
-            source.save(update_fields=['initial_coverage_complete', 'trusted_checkpoint'])
+    def complete_source():
+        with transaction.atomic():
+            finished = _finish(run, fence, state=TenderFetchRun.State.SUCCESS,
+                               moment=completion_time(), stats=stats)
+            if finished and listing is not None and hasattr(listing, 'head_ids'):
+                checkpoint = {'head_ids': listing.head_ids, 'pages_seen': listing.pages_seen}
+                run.checkpoint = checkpoint
+                run.save(update_fields=['checkpoint'])
+                source.initial_coverage_complete = True
+                source.trusted_checkpoint = checkpoint
+                source.save(update_fields=['initial_coverage_complete', 'trusted_checkpoint'])
+            return finished
+    finished = database_retry(complete_source, label='complete tender source and checkpoint')
     if finished:
         tender_service.record_source_health(
             source, event_type="PREFLIGHT_OK", detail="预检与采集均正常。",
@@ -377,14 +528,17 @@ def _finish_blocked(source: TenderSource, run: TenderFetchRun, fence: int,
                     error: SourceBlocked, actor) -> SourceRunResult:
     reason = ",".join(item.value for item in error.reasons) or "unknown"
     finished = _finish(run, fence, state=TenderFetchRun.State.BLOCKED, moment=moment,
-                       error_code="list_failed", error_detail=error.detail)
+                       stats={key: getattr(result, key) for key in (
+                           'listed', 'ingested', 'skipped', 'out_of_window', 'unverified',
+                           'new_notices', 'new_versions', 'events', 'complete', 'coverage_reason')},
+                       error_code="source_blocked", error_detail=error.detail)
     if finished:
         tender_service.record_source_health(
             source, event_type="PREFLIGHT_BLOCKED", reason_code=reason,
             detail=error.detail, occurred_at=moment, actor=actor,
         )
     result.state = TenderFetchRun.State.BLOCKED if finished else TenderFetchRun.State.SKIPPED
-    result.error_code = "list_failed"
+    result.error_code = "source_blocked"
     result.error_detail = error.detail
     return result
 
@@ -435,8 +589,9 @@ def run_all(
         try:
             adapter = adapter_factory(source) if adapter_factory else None
             summary.sources.append(run_source(
-                source, adapter=adapter, now=moment, actor=actor, page_size=page_size))
+                source, adapter=adapter, now=now, actor=actor, page_size=page_size))
         except Exception as error:  # noqa: BLE001 - 隔离兜底：绝不让单个来源中断整轮
+            logger.exception('Tender source dispatch failed; source=%s', source.code)
             summary.sources.append(SourceRunResult(
                 source_code=source.code,
                 state=TenderFetchRun.State.FAILED,

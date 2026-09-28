@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from portal.hr_models import HrJobTask, ProbationCase
 from portal.models import Module, Role
-from portal.product_models import DocumentApproval, DocumentArtifact, DocumentTask
+from portal.product_models import DocumentApproval, DocumentArtifact, DocumentRevision, DocumentTask
 from portal.work_summary import summary
 
 from .base import PortalTestCase
@@ -110,6 +110,19 @@ class WorkSummaryTests(PortalTestCase):
         self.assertEqual(body["sections"]["my_tasks"]["count"], 1)
         self.assertEqual(body["sections"]["my_tasks"]["items"][0]["kind"], "hr_job")
         self.assertIn("仅汇总已授权模块", body["sections"]["my_tasks"]["reason"])
+
+    def test_revoked_product_source_removes_task_titles_and_counts_for_owner_and_reviewer(self):
+        for owner, reviewer in ((self.user, self.other), (self.other, self.user)):
+            task = self.product_task(owner=owner, reviewer=reviewer, title="REVOKED_PRIVATE_TITLE",
+                state=DocumentTask.State.WAITING_REVIEW, input_version=1)
+            DocumentRevision.objects.create(task=task, kind="input", version=1, sha256="f" * 64,
+                payload={"authorization_dependencies": [{"invalid": "revoked"}]})
+        with override_settings(PRODUCT_REVIEWER_IDS=(self.user.pk,)):
+            response = self.client.get("/api/work/summary/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(b"REVOKED_PRIVATE_TITLE", response.content)
+        for section in response.json()["sections"].values():
+            self.assertEqual(section["count"], 0)
 
     def test_no_business_module_reports_unknown_instead_of_zero(self):
         outsider = self.create_user("summary-outsider")

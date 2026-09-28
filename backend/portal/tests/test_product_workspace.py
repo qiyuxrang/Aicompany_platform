@@ -1,4 +1,5 @@
 """Product workspace contracts. Synthetic data; no external/model calls."""
+import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -6,7 +7,7 @@ from unittest.mock import patch
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, override_settings
 
-from portal.product_models import DocumentTask, DocumentSource
+from portal.product_models import DocumentArtifact, DocumentTask, DocumentSource
 from portal.product_service import append_revision
 from .base import PortalTestCase, json_body
 
@@ -90,7 +91,7 @@ class ProductWorkspaceTests(PortalTestCase):
         self.assertEqual(result["metrics"]["active"], 6)
         self.assertEqual(result["metrics"]["review"], 1)
         self.assertEqual(self.client.get("/api/product/workspace/?filter=review").json()["pagination"]["total"], 1)
-        for query in ("page=0", "page_size=1000", "filter=unknown", "page=abc"):
+        for query in ("page=0", "page_size=1000", "filter=unknown", "page=abc", "page=" + "9" * 5000):
             self.assertEqual(self.client.get(f"/api/product/workspace/?{query}").status_code, 400)
 
     def test_revoked_source_authorization_is_not_counted_or_exposed(self):
@@ -125,6 +126,43 @@ class ProductWorkspaceTests(PortalTestCase):
         self.assertEqual(self.client.get(url).status_code, 409)
         self.login(self.client, self.other)
         self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_file_downloads_recheck_task_scope_after_disk_verification(self):
+        from portal.product_storage import verified_artifact
+
+        for family in ("source", "feasibility", "presentation"):
+            with self.subTest(family=family):
+                task = self.task(family)
+                content = b"PRIVATE_DOCUMENT_BYTES"
+                if family == "source":
+                    upload = self.client.post(f"/api/product/tasks/{task.pk}/sources/", {
+                        "expected_version": task.version, "file": SimpleUploadedFile("source.txt", content)})
+                    self.assertEqual(upload.status_code, 201, upload.content)
+                    record = DocumentSource.objects.get(task=task)
+                    url = f"/api/product/sources/{record.pk}/download/"
+                    patch_target = "portal.product_workspace.verified_artifact"
+                else:
+                    relative = Path(str(task.pk)) / "artifacts" / "draft.docx"
+                    target = Path(self.storage.name) / relative
+                    target.parent.mkdir(parents=True)
+                    target.write_bytes(content)
+                    record = DocumentArtifact.objects.create(task=task, family=family, version=1,
+                        path=relative.as_posix(), sha256=hashlib.sha256(content).hexdigest(),
+                        input_hash=task.revisions.get(kind="input").sha256,
+                        blueprint_hash="b" * 64, template_hash="t" * 64)
+                    url = f"/api/product/outputs/{record.pk}/download/?history=1"
+                    patch_target = "portal.product_outputs.verified_artifact"
+
+                def verify_then_transfer(item):
+                    target = verified_artifact(item)
+                    DocumentTask.objects.filter(pk=task.pk).update(owner=self.other)
+                    return target
+
+                with patch(patch_target, side_effect=verify_then_transfer):
+                    response = self.client.get(url)
+                self.assertEqual(response.status_code, 404)
+                self.assertFalse(response.streaming)
+                self.assertNotIn(content, response.content)
 
     def test_queued_and_running_tasks_cannot_be_edited_or_requeued(self):
         for state in ("QUEUED", "RUNNING"):

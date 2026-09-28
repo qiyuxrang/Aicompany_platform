@@ -1,8 +1,43 @@
-.tender-workspace { max-width:1500px; }
-.tender-hero { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:25px 28px; border:1px solid var(--pd-border); border-radius:14px; background:linear-gradient(120deg,color-mix(in srgb,var(--surface) 82%,#b8d8ff),var(--surface)); }
-.tender-hero h2 { margin:0 0 6px; }.tender-hero p { margin:0; max-width:760px; color:var(--muted); }.tender-hero .pd-eyebrow { color:var(--accent); font-size:10px; letter-spacing:.14em; }
-.tender-filters { display:grid; grid-template-columns:minmax(180px,1.35fr) repeat(4,minmax(130px,1fr)) auto; gap:12px; align-items:end; }
+.pd-workspace.tender-workspace { max-width:1500px; gap:12px; }
+.tender-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 0 12px; border-bottom:1px solid var(--pd-border); }
+.tender-workspace .tender-hero h2 { margin:0 0 4px; font-size:22px; line-height:1.3; }.tender-hero p { margin:0; color:var(--muted); font-size:12px; }
+.tender-hero > button { flex-shrink:0; }
+.pd-panel.tender-filters { display:grid; grid-template-columns:minmax(180px,1.4fr) minmax(130px,1fr) minmax(130px,1fr) auto; gap:12px; align-items:end; padding:14px 16px; }
 .tender-filters label { display:grid; gap:7px; color:var(--muted); font-size:12px; }.tender-filters .pd-actions { flex-wrap:nowrap; }
+.tender-hero small { display:block; margin-top:8px; color:var(--muted); font-size:12px; }
+.tender-filters select,.tender-industry summary { box-sizing:border-box; width:100%; min-height:40px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; }
+.tender-industry { min-width:0; display:grid; gap:7px; color:var(--muted); font-size:12px; }
+.tender-industry details { position:relative; }
+.tender-industry summary { display:flex; align-items:center; gap:12px; cursor:pointer; list-style:none; }
+.tender-industry summary::-webkit-details-marker { display:none; }
+.tender-industry summary::after { content:"▾"; margin-left:auto; }
+.tender-industry summary span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tender-industry summary:focus-visible,.tender-filters select:focus-visible,.tender-industry input:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.tender-industry-menu { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:5; min-width:220px; max-height:300px; overflow:auto; margin:0; padding:8px; border:1px solid var(--line); border-radius:10px; background:var(--surface); box-shadow:0 10px 28px #0002; }
+.tender-industry-menu label { display:flex; align-items:center; gap:10px; padding:8px; border-radius:5px; color:var(--ink); cursor:pointer; }
+.tender-industry-menu label:hover { background:var(--pd-soft); }
+.tender-industry-menu input { width:16px; height:16px; min-height:0; margin:0; accent-color:var(--accent); }
+.tender-stats { display:flex; flex-wrap:wrap; gap:8px 24px; margin:0 0 12px; }
+.tender-stats > div { display:flex; align-items:baseline; gap:8px; }
+.tender-stats span { color:var(--muted); font-size:12px; }.tender-stats strong { color:var(--ink); font-size:16px; font-variant-numeric:tabular-nums; }
+.pd-panel.tender-list { padding:16px; }
+.tender-list .pd-panel-heading { margin-bottom:10px; gap:8px; flex-wrap:wrap; }
+.tender-coverage { margin:0; color:var(--muted); font-size:12px; }
+.tender-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:9px; }
+.tender-tag { padding:3px 7px; border-radius:5px; background:var(--pd-soft); color:var(--muted); font-size:11px; }
+.tender-tag.industry-tag { color:var(--accent); }
+.tender-tag.relevance-core,.tender-tag.tender-new { background:#e8f7ef; color:#15704a; }
+.tender-personal-filters { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; color:var(--muted); font-size:12px; }
+.tender-personal-filters label { display:flex; align-items:center; gap:8px; }
+.tender-personal-filters select { max-width:190px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink); font:inherit; }
+.tender-state-actions { display:flex; flex-wrap:wrap; gap:6px; min-width:90px; }
+.tender-state-actions button { padding:4px 6px; border:1px solid var(--line); border-radius:5px; background:var(--surface); color:var(--accent); font:inherit; font-size:12px; cursor:pointer; white-space:nowrap; }
+.tender-state-actions button[aria-pressed=true] { background:var(--pd-soft); }
+.tender-state-actions button:disabled { opacity:.6; cursor:wait; }
+.tender-evidence details + details { margin-top:16px; }
+.tender-evidence summary { color:var(--ink); font-weight:650; cursor:pointer; }
+.tender-evidence h3 { margin:16px 0 6px; font-size:14px; }
+.tender-scope-text { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; }
 .tender-list .pd-panel-heading > span,.tender-sources .pd-panel-heading > span { color:var(--muted); font-size:12px; }
 .tender-table-wrap { overflow:auto; border:1px solid var(--line); border-radius:9px; }
 .tender-table-wrap table { width:100%; min-width:1050px; border-collapse:collapse; font-size:12px; }
@@ -11,6 +46,7 @@
 .tender-table-wrap tr:last-child td { border-bottom:0; }.tender-table-wrap tbody tr:hover { background:color-mix(in srgb,var(--surface) 92%,#dbeaff); }
 .tender-table-wrap td:first-child { min-width:220px; }.tender-table-wrap td:nth-child(3) { min-width:170px; }.tender-table-wrap td small { display:block; margin-top:6px; color:var(--muted); }
 .tender-title { border:0; padding:0; background:none; color:var(--accent); font:inherit; font-weight:650; text-align:left; cursor:pointer; }
+.tender-purchaser { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; overflow-wrap:anywhere; max-width:210px; line-height:1.5; max-height:3em; }
 .tender-title:hover,.tender-back:hover { text-decoration:underline; }
 .tender-badge,.tender-health { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; background:var(--pd-soft); color:var(--accent); font-size:11px; font-weight:650; white-space:nowrap; }
 .tender-badge.status-awarded,.tender-badge.batch-success,.tender-health.health-ok { background:#e8f7ef; color:#15704a; }
@@ -27,5 +63,5 @@
 .tender-detail-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:24px 0 0; }
 .tender-detail-grid > div { padding:14px; border:1px solid var(--line); border-radius:9px; }.tender-detail-grid dt { color:var(--muted); font-size:11px; }.tender-detail-grid dd { margin:7px 0 0; font-size:13px; overflow-wrap:anywhere; }.tender-unknown,.tender-muted { color:var(--muted); }
 .tender-record-list { display:grid; gap:10px; margin:0; padding:0; list-style:none; }.tender-record-list li { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:13px 0; border-bottom:1px solid var(--line); }.tender-record-list li:last-child { border-bottom:0; }.tender-record-list div { display:grid; gap:5px; }.tender-record-list small,.tender-record-list span { color:var(--muted); }.tender-record-list a { color:var(--accent); white-space:nowrap; }
-@media(max-width:1100px) { .tender-filters { grid-template-columns:repeat(3,minmax(0,1fr)); }.tender-source-grid,.tender-detail-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(max-width:700px) { .tender-hero,.tender-detail-head { align-items:stretch; flex-direction:column; }.tender-filters,.tender-source-grid,.tender-detail-grid { grid-template-columns:1fr; }.tender-filters .pd-actions .button { flex:1; }.tender-pager { align-items:flex-start; flex-direction:column; } }
+@media(max-width:1100px) { .pd-panel.tender-filters { grid-template-columns:repeat(3,minmax(0,1fr)) auto; }.tender-filters > button { justify-self:start; }.tender-source-grid,.tender-detail-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:700px) { .tender-detail-head { align-items:stretch; flex-direction:column; }.tender-workspace .tender-hero h2 { font-size:20px; }.pd-panel.tender-filters { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }.tender-industry { grid-column:1/-1; }.tender-filters > button { grid-column:1/-1; }.tender-source-grid,.tender-detail-grid { grid-template-columns:1fr; }.tender-stats { gap:7px; }.tender-stats > div { gap:5px; }.tender-pager { align-items:flex-start; flex-direction:column; } }

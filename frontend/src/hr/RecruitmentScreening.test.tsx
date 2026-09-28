@@ -59,6 +59,7 @@ it('连续分组上传使用响应版本，最后才进行筛选', async () => {
   await screen.findByText('待上传/待开始');
   const files = Array.from({ length: 21 }, (_, i) => new File([`resume ${i}`], `${i}.txt`));
   fireEvent.change(screen.getByLabelText('选择简历文件夹'), { target: { files } });
+  await waitFor(() => expect((screen.getByRole('button', { name: '进行筛选' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole('button', { name: '进行筛选' }));
   await waitFor(() => expect(versions).toEqual(['2', '3']));
   await waitFor(() => expect(api.apiRequest).toHaveBeenCalledWith('/api/hr/recruitment/batches/batch-1/run/', expect.objectContaining({ body: JSON.stringify({ expected_version: 4 }) })));

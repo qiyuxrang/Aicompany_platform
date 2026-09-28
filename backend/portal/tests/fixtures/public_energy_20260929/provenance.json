@@ -1,0 +1,123 @@
+[
+  {
+    "file": "zmzb-list-1.html",
+    "url": "https://www.zmzb.com/cms/channel/ywgg1hw/index.htm",
+    "final_url": "https://www.zmzb.com/cms/channel/ywgg1hw/index.htm",
+    "http_status": 200,
+    "content_type": "text/html;charset=UTF-8",
+    "sha256": "c5ba1f2e707d42c356a96af6170141fc25c5a74fb4b9672569c22eaa76732ec8",
+    "bytes": 23925,
+    "fetched_at": "2026-09-28T17:08:15.537441+00:00",
+    "server": "nginx",
+    "content_length_declared": "",
+    "attempts": [
+      {
+        "index": 1,
+        "started_at": "2026-09-28T17:08:14.798752+00:00",
+        "elapsed_ms": 739,
+        "http_status": 200,
+        "bytes_read": 23925,
+        "outcome": "ok",
+        "error_code": "",
+        "error_detail": ""
+      }
+    ],
+    "note": "Original announcement li elements; navigation omitted."
+  },
+  {
+    "file": "zmzb-list-2.html",
+    "url": "https://www.zmzb.com/cms/channel/ywgg1hw/index.htm?pageNo=2",
+    "final_url": "https://www.zmzb.com/cms/channel/ywgg1hw/index.htm?pageNo=2",
+    "http_status": 200,
+    "content_type": "text/html;charset=UTF-8",
+    "sha256": "52b2c4bc697284096cedf89d4a53c4c27a73a020f4bb71a731c9894f73038151",
+    "bytes": 23653,
+    "fetched_at": "2026-09-28T17:08:16.446006+00:00",
+    "server": "nginx",
+    "content_length_declared": "",
+    "attempts": [
+      {
+        "index": 1,
+        "started_at": "2026-09-28T17:08:15.799090+00:00",
+        "elapsed_ms": 647,
+        "http_status": 200,
+        "bytes_read": 23653,
+        "outcome": "ok",
+        "error_code": "",
+        "error_detail": ""
+      }
+    ],
+    "note": "Original announcement li elements; navigation omitted."
+  },
+  {
+    "file": "chnenergy-list-1.html",
+    "url": "https://www.chnenergybidding.com.cn/bidweb/001/001002/moreinfo.html",
+    "final_url": "https://www.chnenergybidding.com.cn/bidweb/001/001002/moreinfo.html",
+    "http_status": 200,
+    "content_type": "text/html",
+    "sha256": "2ecb593007d287686c588d7e8115b8a787883e168f0df7bb8f1dfa7dc55da5e9",
+    "bytes": 25075,
+    "fetched_at": "2026-09-28T17:08:16.985056+00:00",
+    "server": "",
+    "content_length_declared": "25075",
+    "attempts": [
+      {
+        "index": 1,
+        "started_at": "2026-09-28T17:08:16.464290+00:00",
+        "elapsed_ms": 521,
+        "http_status": 200,
+        "bytes_read": 25075,
+        "outcome": "ok",
+        "error_code": "",
+        "error_detail": ""
+      }
+    ],
+    "note": "Original announcement li elements; navigation omitted."
+  },
+  {
+    "file": "chnenergy-list-2.html",
+    "url": "https://www.chnenergybidding.com.cn/bidweb/001/001002/2.html",
+    "final_url": "https://www.chnenergybidding.com.cn/bidweb/001/001002/2.html",
+    "http_status": 200,
+    "content_type": "text/html",
+    "sha256": "d7d9c55f2893c52cec760f36b5d83a57a5d3333a7367c039196a22b01a69df0a",
+    "bytes": 25591,
+    "fetched_at": "2026-09-28T17:08:18.041171+00:00",
+    "server": "",
+    "content_length_declared": "25591",
+    "attempts": [
+      {
+        "index": 1,
+        "started_at": "2026-09-28T17:08:17.464429+00:00",
+        "elapsed_ms": 577,
+        "http_status": 200,
+        "bytes_read": 25591,
+        "outcome": "ok",
+        "error_code": "",
+        "error_detail": ""
+      }
+    ],
+    "note": "Original announcement li elements; navigation omitted."
+  },
+  {
+    "file": "zmzb-detail.html",
+    "sha256": "b39594a99f98df3719df94837dedd570c1b05cb8303531d505d96c18f4689b73",
+    "note": "Original heading, date and project scope excerpt; full response digest.",
+    "observed_on": "2026-09-29 Asia/Shanghai",
+    "url": "https://www.zmzb.com/cms/channel/ywgg1hw/61786.htm"
+  },
+  {
+    "file": "chnenergy-detail.html",
+    "sha256": "2fa636d8896dd58156be946ddc8113006cbb0cd22574069aaf977163285e9a64",
+    "note": "Original heading, date and project scope excerpt; full response digest.",
+    "observed_on": "2026-09-29 Asia/Shanghai",
+    "url": "https://www.chnenergybidding.com.cn/bidweb/001/001002/001002002/20260928/222d9c1c-2c7c-4b52-86c6-3a3fd4397be5.html"
+  },
+  {
+    "file": "chnenergy-digital-detail.html",
+    "sha256": "e04a7c334545d0ba0c120e562f5f80959a19ff09f78cde73e463d507332a088e",
+    "note": "Original heading, date and project scope excerpt; full response digest.",
+    "observed_on": "2026-09-29 Asia/Shanghai",
+    "url": "https://www.chnenergybidding.com.cn/bidweb/001/001002/001002003/20260928/c223624c-4cf7-4499-8f0d-23bd3cf8a7f0.html"
+  }
+]

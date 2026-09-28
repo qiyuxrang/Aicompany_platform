@@ -3,11 +3,11 @@ import { IconName } from "../Icon";
 export const centers = {
   product: {
     name: "产品事业部", icon: "modules" as IconName, description: "一份项目资料贯穿分析、编制、审校与成果复用。",
-    sections: [{ code: "overview", title: "工作台" }, { code: "opportunities", title: "商机获取" }, { code: "projects", title: "项目" }, { code: "sources", title: "资料" }, { code: "outputs", title: "文档成果" }, { code: "history", title: "版本记录" }, { code: "templates", title: "模板" }, { code: "knowledge", title: "知识库问答" }, { code: "presales", title: "售前数据录入" }, { code: "new", title: "新建项目" }, { code: "documents", title: "专业工作台" }],
+    sections: [{ code: "overview", title: "工作台" }, { code: "opportunities", title: "全国商机看板" }, { code: "projects", title: "项目" }, { code: "sources", title: "资料" }, { code: "outputs", title: "文档成果" }, { code: "history", title: "版本记录" }, { code: "templates", title: "模板" }, { code: "knowledge", title: "知识库问答" }, { code: "presales", title: "售前数据录入" }, { code: "new", title: "新建项目" }, { code: "documents", title: "专业工作台" }],
   },
   cost: {
-    name: "工程部", icon: "maintenance" as IconName, description: "工程部业务仍在开发，本平台当前只保留隔离入口。",
-    sections: [{ code: "overview", title: "工作概览" }, { code: "estimate", title: "成本测算（开发中）" }, { code: "quota", title: "套用定额（开发中）" }],
+    name: "工程部", icon: "maintenance" as IconName, description: "清单核验、内部成本草稿与定额查询，具体能力以授权和服务状态为准。",
+    sections: [{ code: "overview", title: "工作概览" }, { code: "estimate", title: "成本测算" }, { code: "quota", title: "套用定额" }],
   },
   hr: {
     name: "人事部门", icon: "people" as IconName, description: "招聘任务、简历处理与历史记录。",

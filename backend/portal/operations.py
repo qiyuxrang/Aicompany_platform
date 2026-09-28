@@ -108,7 +108,7 @@ def _parse_page(value):
         page = int(value or "1")
     except (TypeError, ValueError) as error:
         raise ParseError("页码必须为正整数。") from error
-    if page < 1 or str(page) != str(value or "1"):
+    if not 1 <= page <= (2 ** 63 - 1) // PAGE_SIZE or str(page) != str(value or "1"):
         raise ParseError("页码必须为正整数。")
     return page
 
@@ -745,8 +745,8 @@ def ops_issue_detail(request, issue_id):
     if not has_status and not has_note:
         raise ParseError("至少提交状态或备注。")
     status = request.data.get("status")
-    if has_status and status not in {OperationalIssue.Status.OPEN, OperationalIssue.Status.INVESTIGATING,
-                                    OperationalIssue.Status.CLOSED}:
+    if has_status and (not isinstance(status, str) or status not in {
+            OperationalIssue.Status.OPEN, OperationalIssue.Status.INVESTIGATING, OperationalIssue.Status.CLOSED}):
         raise ParseError("人工状态仅支持open、investigating或closed。")
     note = request.data.get("note")
     if has_note and (not isinstance(note, str) or not note.strip() or len(note.strip()) > 500):

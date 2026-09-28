@@ -4,6 +4,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
@@ -18,7 +19,7 @@ class RecoveryRejected(ValueError):
 
 
 def _authorize(actor, reason):
-    operator_ids = getattr(settings, 'TENDER_OPERATOR_IDS', ())
+    operator_ids = getattr(settings, 'TENDER_RECOVERY_OPERATOR_IDS', ())
     if not operator_ids or not product_user_allowed(actor) or actor.pk not in operator_ids:
         raise RecoveryRejected('操作员不在已配置的 Tender 权限名单内')
     if not isinstance(reason, str):
@@ -59,19 +60,19 @@ def confirm_batch(batch_id: UUID, actor, reason: str) -> TenderManualRefresh:
     with transaction.atomic():
         try:
             batch = TenderManualRefresh.objects.select_for_update().get(pk=batch_id)
-        except (TenderManualRefresh.DoesNotExist, ValueError):
+        except (TenderManualRefresh.DoesNotExist, ValueError, ValidationError):
             raise RecoveryRejected('批次 ID 无效') from None
         if batch.state != batch.State.RUNNING or batch.lease_until is None or batch.lease_until > now:
             raise RecoveryRejected('批次不是租约已过期的 RUNNING')
         if TenderFetchRun.objects.filter(source__code__in=batch.source_codes, state=TenderFetchRun.State.RUNNING).exists():
             raise RecoveryRejected('冻结的来源仍有 RUNNING，须先确认所有旧来源执行节点')
-        expired = batch.started_at is None or batch.started_at + timedelta(minutes=15) <= now
-        state = batch.State.PARTIAL if expired else batch.State.QUEUED
+        # The operator has confirmed the previous process is stopped. Preserve
+        # its partial evidence and finish this slot; a new trigger starts fresh.
+        state = batch.State.PARTIAL if batch.results else batch.State.INTERRUPTED
         updated = TenderManualRefresh.objects.filter(
             pk=batch_id, state=batch.State.RUNNING, fence=batch.fence,
             lease_until__lte=now).update(state=state, fence=F('fence') + 1,
-                lease_until=None, finished_at=now if expired else None,
-                error_code='budget_exceeded' if expired else '')
+                lease_until=None, finished_at=now, error_code='operator_confirmed_stopped')
         if not updated:
             raise RecoveryRejected('批次被并发修改')
         TenderRecoveryAudit.objects.create(operator=actor, target_type='batch',

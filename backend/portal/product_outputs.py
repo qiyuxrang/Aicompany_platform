@@ -63,6 +63,9 @@ def draft_download(request, artifact_id):
         target = verified_artifact(artifact)
     except StorageError as error:
         raise ProductError(error.code, error.detail, 409) from error
+    task = task_for(request.user, artifact.task_id)
+    if not input_authorized(task, task.revisions.filter(kind="input", sha256=artifact.input_hash).first()):
+        raise ProductError("source_permission_changed", "来源授权已变化。", 404)
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", task.title).strip(" .") or "报告"
     prefix = "草稿" if current else "历史草稿-已过期"
     response = FileResponse(target.open("rb"), as_attachment=True,

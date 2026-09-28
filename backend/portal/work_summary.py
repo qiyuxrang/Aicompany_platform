@@ -1,12 +1,12 @@
-from django.db.models import Q
+from django.db.models import F, Prefetch, Q
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .hr_models import HrJobTask, ProbationCase
 from .hr_retention import cutoff
 from .models import Module
-from .product_models import DocumentApproval, DocumentArtifact, DocumentTask
-from .product_service import ProductError, effective_artifact_approval, reviewer_allowed
+from .product_models import DocumentApproval, DocumentArtifact, DocumentRevision, DocumentTask
+from .product_service import ProductError, effective_artifact_approval, input_authorized, reviewer_allowed
 from .product_storage import StorageError
 from .security import authorized_modules
 
@@ -57,7 +57,11 @@ def _product_items(user):
     can_review = reviewer_allowed(user)
     if can_review:
         visible |= Q(reviewer=user)
-    tasks = DocumentTask.objects.filter(visible).select_related("owner", "reviewer")
+    current_inputs = DocumentRevision.objects.filter(kind="input", version=F("task__input_version"))
+    scoped = (DocumentTask.objects.filter(visible).select_related("owner", "reviewer")
+              .prefetch_related(Prefetch("revisions", queryset=current_inputs, to_attr="summary_inputs")))
+    # Match task detail/workspace authorization before disclosing even a title or count.
+    tasks = [task for task in scoped if not task.summary_inputs or input_authorized(task, task.summary_inputs[0])]
     mine = [
         (task.updated_at, _item(task.pk, task.title, task.state,
          f"/centers/product/documents?task={task.pk}", task.updated_at, "product_task"))

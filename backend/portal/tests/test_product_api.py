@@ -3,6 +3,7 @@ import json
 from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, override_settings
@@ -692,6 +693,45 @@ class ProductApiTests(PortalTestCase):
         self.assertIn("attachment", download.headers["Content-Disposition"])
         self.assertIn("%E8%8D%89%E7%A8%BF", download.headers["Content-Disposition"])
         self.assertEqual(b"".join(download.streaming_content), content)
+
+    def test_download_rechecks_permission_after_file_verification(self):
+        from portal.product_storage import verified_artifact
+
+        task = self.create_task()
+        model_task = DocumentTask.objects.get(pk=task["id"])
+        relative = Path(str(model_task.pk)) / "artifacts" / "private.docx"
+        target = Path(self.storage.name) / relative
+        target.parent.mkdir(parents=True)
+        content = b"PRIVATE_ARTIFACT_BYTES"
+        target.write_bytes(content)
+        artifact = DocumentArtifact.objects.create(
+            task=model_task, version=1, path=relative.as_posix(), sha256=hashlib.sha256(content).hexdigest(),
+            input_hash=model_task.revisions.get(kind="input", version=model_task.input_version).sha256,
+            blueprint_hash="b" * 64, template_hash="t" * 64,
+        )
+
+        def verify_then_revoke(record):
+            path = verified_artifact(record)
+            self.owner.roles.clear()
+            return path
+
+        with patch("portal.product_api.verified_artifact", side_effect=verify_then_revoke):
+            response = self.owner_client.get(f"/api/product/artifacts/{artifact.pk}/download/?history=1")
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(response.streaming)
+        self.assertNotIn(content, response.content)
+
+    def test_invalid_version_strings_fail_without_server_error_or_mutation(self):
+        task = self.create_task()
+        for version in ("9" * 5000, "²"):
+            with self.subTest(version_length=len(version)):
+                response = self.owner_client.patch(f"/api/product/tasks/{task['id']}/",
+                    json_body(expected_version=version, title="覆盖标题"), content_type="application/json")
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["code"], "invalid_request")
+        saved = DocumentTask.objects.get(pk=task["id"])
+        self.assertEqual(saved.version, task["version"])
+        self.assertNotEqual(saved.title, "覆盖标题")
 
     def test_legacy_verified_marker_cannot_replace_real_evidence(self):
         task = self.save_blueprint(self.create_task())

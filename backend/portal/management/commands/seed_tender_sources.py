@@ -5,10 +5,10 @@ from portal.tender_sources import registered_adapters
 
 
 class Command(BaseCommand):
-    help = '登记四个公开来源为默认停用状态，不访问外站或改变既有来源配置'
+    help = '登记公开来源为默认停用状态，不访问外站或改变既有来源配置'
 
     def handle(self, *args, **options):
-        for code in ('ccgp_national', 'sx_jk_ecai', 'shxjkjt', 'csg_bidding'):
+        for code in registered_adapters():
             adapter = registered_adapters()[code]
             _, created = TenderSource.objects.get_or_create(
                 code=code,

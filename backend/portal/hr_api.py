@@ -1,6 +1,8 @@
 from collections.abc import Mapping
 from functools import wraps
 
+from django.core.exceptions import ValidationError
+
 from django.db import transaction
 from django.db.models import Q
 from django.urls import path
@@ -28,6 +30,8 @@ def hr_endpoint(function):
             return function(request, *args, **kwargs)
         except ParseError:
             error = HrError("invalid_json", "请求 JSON 格式无效。")
+        except ValidationError:
+            error = HrError('invalid_request', '请求字段格式无效。')
         except HrError as caught:
             error = caught
         audit(request.user, request.hr_audit_action, request.path[:150], result="denied", changes=[error.code])
@@ -51,9 +55,9 @@ def _text(value, field, *, required=False, maximum=12000):
 
 
 def _expected(value):
-    if isinstance(value, str) and value.isdigit():
+    if isinstance(value, str) and value.isascii() and value.isdecimal() and len(value) <= 10:
         value = int(value)
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 2147483647:
         raise HrError("invalid_request", "expected_version 必须为正整数。")
     return value
 
@@ -309,7 +313,7 @@ def transition_probation(request, case_id):
     request.hr_audit_action = "hr_probation_transition"
     body = _body(request, {"expected_version", "action", "comment"})
     action = body["action"]
-    if action not in TRANSITIONS:
+    if not isinstance(action, str) or action not in TRANSITIONS:
         raise HrError("invalid_transition", "不支持的状态操作。", 409)
     comment = _text(body["comment"], "处理意见", required=action in {"manager_approve", "hr_archive"}, maximum=12000)
     expected_state, target_state, actor_kind = TRANSITIONS[action]

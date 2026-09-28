@@ -87,7 +87,7 @@ class TenderIngestTests(TestCase):
         cases = (
             ("<html><title>无日期公告</title></html>", "publish_date_unverified"),
             ("<html><title>窗口外公告</title><p>发布时间：2026-09-29</p></html>",
-             "publish_date_outside_initial_window"),
+             "publish_date_outside_window"),
         )
         for html, code in cases:
             with self.subTest(code=code):

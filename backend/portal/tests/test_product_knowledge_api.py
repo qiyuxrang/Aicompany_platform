@@ -140,6 +140,39 @@ class ProductKnowledgeApiTests(PortalTestCase):
         self.assertEqual(closed, [True])
         self.assert_unchanged(item)
 
+    def test_stream_rechecks_scope_and_route_before_releasing_next_chunk(self):
+        for change in ("scope", "route"):
+            with self.subTest(change=change):
+                self.grants[str(self.owner.pk)] = {"dataset-1": ["document-1"]}
+                self.ready.return_value = CONFIG
+                item = self.create()
+                closed = []
+
+                def provider_events():
+                    try:
+                        yield {"delta": '{"answer":"允许的开头'}
+                        if change == "scope":
+                            self.grants[str(self.owner.pk)] = {"dataset-1": ["replacement-document"]}
+                        else:
+                            self.ready.return_value = (CONFIG[0], CONFIG[1], "replacement_route")
+                        yield {"delta": 'SECRET_AFTER_REVOCATION","source_ids":["S1"]}'}
+                        yield {"done": True}
+                    finally:
+                        closed.append(True)
+
+                with patch("portal.model_gateway.stream_for_use", return_value=provider_events()):
+                    request = self.factory.post("/api/product/knowledge/", {
+                        "question": "问题", "version": 0, "request_id": str(uuid.uuid4()), "stream": True}, format="json")
+                    force_authenticate(request, user=self.owner)
+                    response = api.conversation(request, conversation_id=item.pk)
+                    events = [json.loads(line[6:]) for chunk in response.streaming_content
+                              for line in chunk.decode().splitlines() if line.startswith("data: ")]
+                self.assertEqual(events[0], {"delta": "允许的开头"})
+                self.assertEqual(events[-1]["error"]["code"], "scope_revoked" if change == "scope" else "unconfigured")
+                self.assertNotIn("SECRET_AFTER_REVOCATION", json.dumps(events))
+                self.assertEqual(closed, [True])
+                self.assert_unchanged(item)
+
     def test_streaming_question_without_done_does_not_persist_answer(self):
         item = self.create()
         with patch("portal.model_gateway.stream_for_use", return_value=iter([{"delta": '{"answer":"未完成"'}])):

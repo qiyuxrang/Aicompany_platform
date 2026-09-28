@@ -1,4 +1,4 @@
-import { FormEvent, MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { type AnchorHTMLAttributes, FormEvent, MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   BusinessSummary,
@@ -29,6 +29,8 @@ import './password-dialog.css';
 import CenterWorkspace from "./centers/CenterWorkspace";
 import HrHeaderTools from './hr/HrHeaderTools';
 import { centers, isCenterCode } from "./centers/config";
+import CompanyIdentity from "./CompanyIdentity";
+import "./workspace-shell.css";
 
 const statusMeta = {
   pending: { label: "待接入", tone: "warning", detail: "入口尚在准备中，开放时间以平台通知为准。" },
@@ -71,30 +73,21 @@ function useLocation(): { pathname: string; search: string } {
   return location;
 }
 
-function AppLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+function AppLink({ href, className, children, ...attributes }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode }) {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     navigate(href);
   };
   return (
-    <a href={href} className={className} onClick={handleClick}>
+    <a {...attributes} href={href} className={className} onClick={handleClick}>
       {children}
     </a>
   );
 }
 
 function Brand() {
-  if (/^\/(centers|preview)\/product(?:\/|$)/.test(window.location.pathname)) return <AppLink href="/" className="brand product-company-brand"><svg width="43" height="35" viewBox="0 0 74 52" aria-hidden="true"><path d="M12 40V13c0-10 14-10 18-2s12 8 18 1" stroke="#00a0e9" strokeWidth="13" strokeLinecap="round" fill="none"/><circle cx="12" cy="40" r="9" fill="#00a0e9"/><circle cx="46" cy="10" r="9" fill="#00a0e9"/><path d="M41 42c7-12 14 12 23 0" stroke="#ffbe00" strokeWidth="13" strokeLinecap="round" fill="none"/><circle cx="65" cy="10" r="8" fill="#ee1729"/></svg><span><strong>陕西一二三数字信息技术有限公司</strong><small>SHAANXI 123 DIGITAL INFORMATION TECHNOLOGY</small></span></AppLink>;
-  return (
-    <AppLink href="/" className="brand" aria-label="企业统一门户首页">
-      <span className="brand-mark" aria-hidden="true"><Icon name="portal" /></span>
-      <span>
-        <strong>企业统一门户</strong>
-        <small>统一入口 · 安全协同</small>
-      </span>
-    </AppLink>
-  );
+  return <AppLink href="/" className="brand company-brand" aria-label="企业统一门户首页"><CompanyIdentity /></AppLink>;
 }
 
 function PageLoading({ label = "正在加载门户" }: { label?: string }) {
@@ -328,15 +321,9 @@ function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: (
   };
 
   return (
-    <div className={`app-shell${hrShell ? ' hr-app-shell' : ''}`}>
+    <div className="app-shell unified-app-shell">
       <header className="topbar">
         <Brand />
-        {hrShell && <nav className="hr-global-nav" aria-label="业务导航">
-          <AppLink href="/">工作台</AppLink><AppLink href="/centers/product">产品事业部</AppLink>
-          <span aria-disabled="true">招投标商机</span><AppLink href="/centers/hr" className="selected">人事部门</AppLink>
-          <AppLink href="/centers/cost">工程管理</AppLink><AppLink href="/centers/business">经营管理</AppLink>
-          {user.is_platform_admin && <AppLink href="/ops">系统管理</AppLink>}
-        </nav>}
         {hrShell && user.roles.some(role => role.code === 'hr') && <HrHeaderTools />}
         <nav className="account-nav" aria-label="账户导航">
           <span className="account-name">{user.display_name || user.username}</span>
@@ -352,7 +339,7 @@ function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: (
         </nav>
       </header>
       {logoutError && <div className="global-alert" role="alert">{logoutError}</div>}
-      {children}
+      <div className="app-content">{children}</div>
     </div>
   );
 }

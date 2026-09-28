@@ -12,7 +12,7 @@ class TenderSeedTests(TestCase):
                                     adapter_code='ccgp_national', enabled=True)
         call_command('seed_tender_sources', stdout=StringIO())
         call_command('seed_tender_sources', stdout=StringIO())
-        self.assertEqual(TenderSource.objects.count(), 4)
+        self.assertEqual(TenderSource.objects.count(), 8)
         self.assertEqual(TenderSource.objects.filter(enabled=True).count(), 1)
         self.assertEqual(TenderSource.objects.get(code='ccgp_national').name, 'existing')
         self.assertEqual(TenderSource.objects.exclude(code='ccgp_national').filter(enabled=True).count(), 0)

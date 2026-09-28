@@ -44,7 +44,7 @@ def reachable(url):
             return 200 <= response.status < 300
     except HTTPError as error:
         return error.code in (401, 403, 405)
-    except (ValidationError, URLError, TimeoutError, OSError, ValueError):
+    except (ValidationError, HTTPException, URLError, TimeoutError, OSError, ValueError):
         return False
 
 
@@ -77,7 +77,7 @@ def redeem(request):
         if not isinstance(body, dict) or set(body) != {"ticket", "audience", "purpose"}:
             raise ValueError
         token = body.get("ticket")
-        if not isinstance(token, str) or not token or len(token) > 128 or body.get("audience") != "business" or body.get("purpose") != "read_summary":
+        if not isinstance(token, str) or not token or not token.isascii() or len(token) > 128 or body.get("audience") != "business" or body.get("purpose") != "read_summary":
             raise ValueError
     except (ValueError, AttributeError, UnicodeDecodeError):
         return JsonResponse({"detail": "兑换请求无效。"}, status=400)

@@ -46,7 +46,7 @@ ERROR_MESSAGES = {
 
 class GatewayError(Exception):
     def __init__(self, code, message=None, status=502):
-        self.code = code if code in ERROR_MESSAGES else "upstream_error"
+        self.code = code if isinstance(code, str) and code in ERROR_MESSAGES else "upstream_error"
         self.message = ERROR_MESSAGES[self.code]
         self.status = status
         super().__init__(self.message)

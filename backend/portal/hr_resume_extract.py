@@ -4,9 +4,10 @@ import json
 import os
 import subprocess
 import tempfile
+import zlib
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from zipfile import BadZipFile, ZipFile
+from zipfile import BadZipFile, ZipFile, ZIP_STORED, ZIP_DEFLATED
 
 from django.conf import settings
 
@@ -24,6 +25,16 @@ def _xml(raw):
     return ET.fromstring(raw)
 
 
+def _zip_read(archive, entry, limit):
+    # Do not rely only on the central directory's declared uncompressed length.
+    # A bounded read also limits deflate allocation for malformed ZIP entries.
+    with archive.open(entry) as stream:
+        raw = stream.read(limit + 1)
+    if len(raw) > limit:
+        raise StorageError('invalid_file', 'DOCX 解压正文超过限制。')
+    return raw
+
+
 def _docx(content):
     try:
         with ZipFile(io.BytesIO(content)) as archive:
@@ -35,20 +46,20 @@ def _docx(content):
                     or any('vba' in name.lower() or name.startswith('word/embeddings/') for name in names)):
                 raise StorageError('invalid_file', 'DOCX 包无效、过大或包含嵌入内容。')
             for entry in entries:
-                if entry.flag_bits & 1:
+                if entry.flag_bits & 1 or entry.compress_type not in {ZIP_STORED, ZIP_DEFLATED}:
                     raise StorageError('invalid_file', '不支持加密文档。')
                 if entry.filename.endswith('.rels'):
                     if entry.file_size > 1024 * 1024:
                         raise StorageError('invalid_file', '文档关系文件过大。')
-                    relations = _xml(archive.read(entry))
+                    relations = _xml(_zip_read(archive, entry, 1024 * 1024))
                     if any(node.get('TargetMode') == 'External' for node in relations.iter()):
                         raise StorageError('invalid_file', '文档包含外部链接，请移除后上传。')
             if archive.getinfo('word/document.xml').file_size > 4 * 1024 * 1024:
                 raise StorageError('invalid_file', '文档正文过大。')
-            root = _xml(archive.read('word/document.xml'))
+            root = _xml(_zip_read(archive, 'word/document.xml', 4 * 1024 * 1024))
             paragraphs = [''.join(node.text or '' for node in para.iter(W + 't')) for para in root.iter(W + 'p')]
             return '\n'.join(text for text in paragraphs if text.strip())
-    except (BadZipFile, ET.ParseError, KeyError, RuntimeError, ValueError):
+    except (BadZipFile, ET.ParseError, KeyError, RuntimeError, ValueError, zlib.error, EOFError):
         raise StorageError('invalid_file', 'DOCX 文件损坏或格式无效。') from None
 
 

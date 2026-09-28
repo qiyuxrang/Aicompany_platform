@@ -93,6 +93,7 @@ class TenderFetchRun(models.Model):
         QUEUED = "QUEUED", "排队"
         RUNNING = "RUNNING", "执行中"
         SUCCESS = "SUCCESS", "成功"
+        PARTIAL = "PARTIAL", "部分更新"
         BLOCKED = "BLOCKED", "来源阻塞"
         FAILED = "FAILED", "失败"
         WAITING_RETRY = "WAITING_RETRY", "等待重试"
@@ -142,7 +143,9 @@ class TenderManualRefresh(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     active_slot = models.PositiveSmallIntegerField(default=1, editable=False)
-    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True)
+    trigger = models.CharField(max_length=12, default='manual')
+    scheduled_for = models.DateTimeField(null=True, blank=True, unique=True)
     state = models.CharField(max_length=20, choices=State, default=State.QUEUED)
     source_codes = models.JSONField(default=list)
     source_plan = models.JSONField(default=dict)
@@ -285,7 +288,8 @@ class TenderOpportunity(models.Model):
     """商机：用户看到的对象，聚合同一项目的多份公告与变化。
 
     `opportunity_key` 为 **source-local** 聚合键（规格第八章：先实现 source-local dedupe）。
-    跨来源相似项只记入 `possible_match_keys`，**不合并**（规格第八章：不得仅因标题相似强制合并）。
+    原始记录及版本独立保留；project_group_key 仅按明确编号、采购人和标包/轮次合并展示，
+    不按标题相似合并。possible_match_keys 保留旧的候选关系。
     """
 
     class Status(models.TextChoices):
@@ -295,6 +299,7 @@ class TenderOpportunity(models.Model):
         CLOSED = "CLOSED", "已结束"
 
     opportunity_key = models.CharField("聚合键", max_length=255, unique=True)
+    project_group_key = models.CharField("跨来源项目组", max_length=255, blank=True, db_index=True)
     source = models.ForeignKey(TenderSource, on_delete=models.SET_NULL, null=True, blank=True,
                                related_name="opportunities")
     primary_notice = models.ForeignKey(TenderNotice, on_delete=models.SET_NULL, null=True, blank=True,
@@ -308,6 +313,17 @@ class TenderOpportunity(models.Model):
     region = models.CharField("地区", max_length=120, blank=True)
     notice_type = models.CharField("公告类型", max_length=80, blank=True)
     procurement_method = models.CharField("采购方式", max_length=80, blank=True)
+
+    industry_code = models.CharField("行业代码", max_length=24, blank=True, db_index=True)
+    digital_tags = models.JSONField("数字建设标签", default=list, blank=True)
+    classification_status = models.CharField("相关性", max_length=12, default="review", db_index=True)
+    notice_category = models.CharField("公告分组", max_length=16, default="procurement", db_index=True)
+    classification_evidence = models.JSONField("分类证据", default=dict, blank=True)
+    extraction_evidence = models.JSONField("公开字段提取证据", default=dict, blank=True)
+    classification_version = models.CharField("分类规则版本", max_length=40, blank=True)
+    classification_notice_version = models.ForeignKey(
+        TenderNoticeVersion, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="classified_opportunities")
 
     budget_amount_yuan = models.DecimalField("预算(元)", max_digits=20, decimal_places=2,
                                              null=True, blank=True)
@@ -343,10 +359,25 @@ class TenderOpportunity(models.Model):
             models.Index(fields=["region", "-publish_at"], name="tender_opp_region_time"),
             models.Index(fields=["bid_deadline"], name="tender_opp_deadline"),
             models.Index(fields=["status", "-updated_at"], name="tender_opp_status_time"),
+            models.Index(fields=["classification_status", "notice_category", "industry_code"],
+                         name="tender_opp_board_filter"),
         ]
 
     def __str__(self) -> str:
         return f"opp#{self.pk} {self.project_name[:40]}"
+
+
+class TenderOpportunityUserState(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    project_group_key = models.CharField(max_length=255)
+    is_read = models.BooleanField(default=False)
+    is_favorite = models.BooleanField(default=False)
+    is_irrelevant = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'project_group_key'],
+                                               name='tender_user_project_state')]
 
 
 class TenderOpportunityEvent(models.Model):

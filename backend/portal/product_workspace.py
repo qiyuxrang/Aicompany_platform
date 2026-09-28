@@ -44,7 +44,7 @@ def _matches(task, category):
 
 def _number(request, key, default, maximum):
     raw = request.query_params.get(key, str(default))
-    if not raw.isascii() or not raw.isdigit() or not 1 <= int(raw) <= maximum:
+    if len(raw) > len(str(maximum)) or not raw.isascii() or not raw.isdigit() or not 1 <= int(raw) <= maximum:
         raise ProductError("invalid_filter", f"{key} 超出有效范围。")
     return int(raw)
 
@@ -152,6 +152,7 @@ def source_download(request, source_id):
         target = verified_artifact(source)
     except StorageError as error:
         raise ProductError(error.code, "原始资料缺失或完整性校验失败。", 409) from error
+    task = task_for(request.user, source.task_id)
     response = FileResponse(target.open("rb"), as_attachment=True, filename=source.original_name,
                             content_type="application/octet-stream")
     response["Cache-Control"] = "private, no-store"

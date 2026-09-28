@@ -69,7 +69,7 @@ def _body(request, required, optional=()):
 
 
 def _expected(value):
-    if isinstance(value, str) and value.isdigit():
+    if isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 19:
         value = int(value)
     if isinstance(value, bool) or not isinstance(value, int):
         raise ProductError("invalid_request", "expected_version 必须是整数。")
@@ -1032,6 +1032,10 @@ def download(request, artifact_id):
             target = verified_artifact(artifact)
     except StorageError as error:
         raise ProductError(error.code, error.detail, 409) from error
+    # Disk verification can take time; recheck authorization before opening bytes.
+    task = task_for(request.user, artifact.task_id)
+    if not input_authorized(task, task.revisions.filter(kind="input", sha256=artifact.input_hash).first()):
+        raise ProductError("source_permission_changed", "资料授权已变化，成果不可下载。", 404)
     document_title = artifact.render_evidence.get("document_title", task.title)
     safe_title = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", document_title).strip(" .") or "技术方案"
     prefix = "" if approved else "草稿-"
@@ -1058,7 +1062,7 @@ def artifact_preview(request, artifact_id):
     if not candidate_current(artifact):
         raise ProductError("stale_evidence", "候选或渲染证据已变化。", 409)
     page = request.query_params.get("page", "")
-    if not page.isdigit() or len(page) > 6 or not 1 <= int(page) <= len(artifact.render_evidence["pages"]):
+    if not page.isascii() or not page.isdigit() or len(page) > 6 or not 1 <= int(page) <= len(artifact.render_evidence["pages"]):
         raise ProductError("invalid_page", "页面编号无效。")
     target = evidence_file(artifact.render_evidence["pages"][int(page) - 1])
     with transaction.atomic():

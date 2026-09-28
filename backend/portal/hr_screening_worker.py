@@ -1,6 +1,7 @@
 """Per-resume leased execution. Model network calls never hold database locks."""
 import hashlib
 import json
+import logging
 from datetime import timedelta
 
 from django.db import connection, transaction
@@ -17,6 +18,8 @@ from .hr_screening_models import ResumeArtifact, ResumeScreeningBatch
 from .model_gateway import GatewayError, generate_for_use, selectable_models, validate_model_selection
 from .product_storage import StorageError
 from .security import audit
+
+logger = logging.getLogger(__name__)
 
 
 @transaction.atomic
@@ -170,3 +173,6 @@ def process_one(item_id, fence):
         finish_one(item_id, fence, error=error.code)
     except ValueError:
         finish_one(item_id, fence, error='invalid_model_output')
+    except Exception:
+        logger.exception('HR resume processing failed unexpectedly; artifact=%s fence=%s', item_id, fence)
+        finish_one(item_id, fence, error='worker_error')

@@ -1,0 +1,38 @@
+{
+  "attrs": [],
+  "business": null,
+  "code": "success",
+  "content": [
+    {
+      "annoType": 1,
+      "annoTypeName": "招标公告",
+      "company": "陕西银河煤业开发有限公司",
+      "id": 51939,
+      "publishTime": "2026-09-18 10:52:03",
+      "title": "陕西银河煤业开发有限公司洗选车间配电室高低压配电柜智能化改造项目招标公告"
+    },
+    {
+      "annoType": 1,
+      "annoTypeName": "招标公告",
+      "company": "陕西银河煤业开发有限公司",
+      "id": 51643,
+      "publishTime": "2026-09-15 15:55:02",
+      "title": "陕西银河煤业开发有限公司井下主排水系统高压配电柜及软启动柜智能化改造项目（N2标段）招标公告"
+    },
+    {
+      "annoType": 1,
+      "annoTypeName": "招标公告",
+      "company": "榆林市榆神煤炭榆树湾煤矿有限公司",
+      "id": 52241,
+      "publishTime": "2026-09-21 18:24:50",
+      "title": "榆林市榆神煤炭榆树湾煤矿有限公司主运系统煤流智能调速系统改造招标公告"
+    }
+  ],
+  "count": 1100,
+  "errorMessage": "",
+  "page": 1,
+  "pageSize": 20,
+  "success": true,
+  "totalPage": 55,
+  "traceId": "765db6b3-9863-48c1-9b81-4971dbbcbad6"
+}

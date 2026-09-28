@@ -9,7 +9,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from urllib.parse import urljoin
+from html import unescape
+from urllib.parse import urljoin, urlsplit
+
+from ..tender_classification import notice_category
+from ..tender_window import BEIJING, WindowCandidates, classify_window_date
 
 from ..tender_outbound import OutboundError, OutboundPolicy, OutboundResult
 from .base import (
@@ -32,7 +36,7 @@ CHANNELS: tuple[tuple[str, str, str], ...] = (
 )
 
 _ITEM_RE = re.compile(
-    r"<li[^>]*>\s*<a[^>]+href=[\"'](?P<href>[^\"'\s]+?/[a-z]+/\d{6}/(?P<id>t\d{8}_\d+)\.htm)[\"'][^>]*>"
+    r"<li[^>]*>\s*<a[^>]+href=[\"'](?P<href>[^\"'\s]*?/\d{6}/(?P<id>t\d{8}_\d+)\.htm)[\"'][^>]*>"
     r"(?P<title>[^<]{6,}?)</a>(?P<tail>[\s\S]{0,400}?)</li>",
     re.I,
 )
@@ -56,7 +60,8 @@ _PROTECTION_PATTERNS = (
 
 
 def _page_url(channel_url: str, page: int) -> str:
-    return channel_url if page <= 1 else channel_url.replace("index.htm", f"index_{page}.htm")
+    # The public pager numbers files from zero: index.htm, index_1.htm, ...
+    return channel_url if page <= 1 else channel_url.replace("index.htm", f"index_{page - 1}.htm")
 
 
 def _value(pattern: re.Pattern[str], text: str) -> str:
@@ -131,6 +136,76 @@ class CcgpNationalAdapter(TenderSourceAdapter):
     name = "中国政府采购网"
     allowed_origins = ("https://www.ccgp.gov.cn",)
     entry_url = HOME
+
+    def scan_window(self, *, max_pages, max_candidates, window, heartbeat=None, cursor=None):
+        """Scan bounded lists before spending detail budget; resume deeper procurement pages.
+
+        Fresh general lists retain changes/results. Public-tender lists cover a longer
+        period than mixed feeds. The cursor is traversal progress, never proof of full
+        coverage, and is persisted by the worker only after processing these candidates.
+        """
+        refs = []
+        next_pages = {}
+        cursor = cursor if isinstance(cursor, dict) else {}
+        for scope, name, general_url in CHANNELS:
+            general = self._read_list(general_url, scope, name, heartbeat)
+            refs.extend(general[0])
+            if max_pages <= 1:
+                continue
+            entry = general_url.replace('/index.htm', '/gkzb/index.htm')
+            first, html = self._read_list(entry, scope, name, heartbeat)
+            refs.extend(first)
+            pager = re.search(r"Pager\(\{\s*size\s*:\s*(\d+)\s*,\s*current\s*:\s*0", html)
+            size = min(int(pager.group(1)), 500) if pager else 1
+            start = cursor.get(scope, 2)
+            start = start if isinstance(start, int) and 2 <= start <= size else 2
+            next_page = start
+            for page in range(start, min(size + 1, start + max_pages - 2)):
+                items, _ = self._read_list(_page_url(entry, page), scope, name, heartbeat)
+                refs.extend(items)
+                next_page = page + 1
+            next_pages[scope] = next_page if next_page <= size else 2
+        eligible = []
+        processed = set(value for value in cursor.get('_processed_ids', []) if isinstance(value, str))
+        for ref in self._prioritize_and_dedupe(refs):
+            if ref.source_notice_id in processed:
+                continue
+            try:
+                published = datetime.strptime(ref.published_at or '', '%Y-%m-%d %H:%M').replace(tzinfo=BEIJING)
+            except ValueError:
+                published = ref.published_at
+            if classify_window_date(published, window=window) in ('inside', 'unknown'):
+                eligible.append(ref)
+        # If the candidate cap omits eligible notices, retry these pages with a
+        # larger budget rather than advancing a cursor past unprocessed records.
+        truncated = len(eligible) > max_candidates
+        result = WindowCandidates(eligible[:max_candidates], False,
+                                  'candidate_limit' if truncated else 'bounded_public_procurement_scan')
+        if truncated:
+            resume = dict(cursor)
+            resume['_processed_ids'] = sorted(processed | {ref.source_notice_id for ref in result.refs})
+            result.resume_cursor = resume
+        else:
+            result.resume_cursor = next_pages
+        return result
+
+    def _read_list(self, url, scope, name, heartbeat=None):
+        if heartbeat is not None:
+            heartbeat.guard()
+        try:
+            response = self.outbound.fetch(url)
+            html = _decode_html(response, self.code)
+            _raise_if_protected(self.code, html, name)
+        except OutboundError as error:
+            raise SourceBlocked(self.code, [_blocked_reason(error)],
+                                f'{name}公开列表不可读：{error.code}', evidence=error.evidence) from error
+        if heartbeat is not None:
+            heartbeat.guard()
+        items = self._parse_items(html, url, scope)
+        if not items:
+            raise SourceBlocked(self.code, [BlockReason.JS_RENDER_REQUIRED],
+                                f'{name}列表没有可验证的公告，停止扫描')
+        return items, html
 
     def build_policy(self, **overrides) -> OutboundPolicy:
         return super().build_policy(min_interval_seconds=1.5, **overrides)
@@ -251,16 +326,26 @@ class CcgpNationalAdapter(TenderSourceAdapter):
     def _parse_items(cls, html: str, base_url: str, scope: str) -> list[NoticeRef]:
         items: list[NoticeRef] = []
         for match in _ITEM_RE.finditer(html):
+            original_url = urljoin(base_url, match.group('href'))
+            parsed_url = urlsplit(original_url)
+            # News/sidebar links share CCGP's tYYYYMMDD_ID naming convention.
+            # Only actual procurement detail paths are eligible.
+            if parsed_url.netloc != 'www.ccgp.gov.cn' or not re.fullmatch(
+                    r'/cggg/(?:zygg|dfgg)/[a-z]+/\d{6}/t\d{8}_\d+\.htm', parsed_url.path):
+                continue
             tail = match.group("tail") or ""
             region = _value(_REGION_RE, tail)
-            title = match.group("title").strip()
+            anchor = re.search(r"<a\b[^>]*>", match.group(0), re.I)
+            full_title = re.search(r"\btitle\s*=\s*([\"'])(.*?)\1", anchor.group(0), re.I | re.S) if anchor else None
+            # CCGP truncates visible anchor text but preserves the full title attribute.
+            title = unescape(full_title.group(2) if full_title else match.group("title")).strip()
             purchaser = _value(_PURCHASER_RE, tail)
-            yulin = scope == "local" and any("榆林" in value for value in (title, region, purchaser))
+            yulin = ('陕西' in region and any('榆林' in value for value in (title, purchaser))) or '陕西省榆林' in region
             items.append(NoticeRef(
                 source_code=cls.code,
                 source_notice_id=match.group("id"),
                 title=title,
-                original_url=urljoin(base_url, match.group("href")),
+                original_url=original_url,
                 published_at=_value(_DATE_RE, tail) or None,
                 raw={
                     "scope": scope,
@@ -280,7 +365,15 @@ class CcgpNationalAdapter(TenderSourceAdapter):
             if ref.source_notice_id not in seen:
                 seen.add(ref.source_notice_id)
                 result.append(ref)
-        return result
+        def rank(ref):
+            metadata = ref.raw or {}
+            region = metadata.get('region', '')
+            locality = (0 if metadata.get('yulin_priority') else 1 if '陕西' in region else
+                        2 if any(value in region for value in ('内蒙古', '山西', '宁夏')) else 3)
+            procurement = notice_category(ref.title, metadata.get('channel', '')) == 'procurement'
+            digital = bool(re.search(r'信息|数字|智能|智慧|系统|平台|网络|监控|监测|服务器|算力|计算集群|软件', ref.title))
+            return (not procurement, not digital, locality)
+        return sorted(result, key=rank)
 
     def fetch_notice(self, ref: NoticeRef) -> FetchResult:
         try:
