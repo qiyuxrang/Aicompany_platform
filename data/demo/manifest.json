@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-09-28T23:07:47.865Z",
+  "file": "tender-public.json.gz",
+  "sha256": "61ae3f23be084fba9922db2254ae4de8871033843a58a2a99ff1012b4a7a9dc7",
+  "bytes": 2918530,
+  "counts": {
+    "sources": 7,
+    "notices": 1909,
+    "versions": 2681,
+    "opportunities": 1891
+  },
+  "verified_display_counts": {
+    "national": 263,
+    "yulin": 18,
+    "shaanxi": 40
+  },
+  "contains": "public notices only; no accounts, sessions, private configuration or collection jobs"
+}

@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$UseExistingDependencies,
+    [switch]$DisableTenderUpdates,
     [string[]]$ManagementCommand
 )
 
@@ -64,6 +65,13 @@ if (($values.PORTAL_SECRET_KEY | Out-String).Trim().Length -lt 40) {
 
 $python = Join-Path $root '.venv/Scripts/python.exe'
 $values['PYTHONIOENCODING'] = 'utf-8'
+if ($DisableTenderUpdates) {
+    # A portable demo displays the imported public snapshot without starting
+    # collection. Keep the saved local configuration unchanged.
+    $values['PORTAL_TENDER_INGESTION_ENABLED'] = '0'
+    $values['PORTAL_TENDER_MANUAL_REFRESH_ENABLED'] = '0'
+    $values['PORTAL_TENDER_SCHEDULE_ENABLED'] = '0'
+}
 $savedEnvironment = @{}
 $tenderConsumer = $null
 $environmentNames = @($values.Keys) + @(Get-ChildItem Env: | Where-Object {

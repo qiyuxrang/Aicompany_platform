@@ -66,6 +66,8 @@
 
 ## 本地启动
 
+**另一台电脑演示已采集商机：** 拉取最新代码，完成本地环境初始化并停止旧服务后，运行 `.\scripts\import-tender-demo.ps1`，即可导入仓库附带的真实公开公告快照并启动看板。不会复制账号密码，不需要 RAGFlow；本次演示不自动联网采集。详细步骤与离线范围见[商机演示迁移](docs/product/TENDER_DEMO_TRANSFER.md)。
+
 需要 Python 3.13、uv、Node.js 24 和 Corepack。依赖版本固定在 `uv.lock`、`frontend/package.json` 和 `frontend/pnpm-lock.yaml` 中。
 
 在 Windows PowerShell 中，从仓库根目录运行：
