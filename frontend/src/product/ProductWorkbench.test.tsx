@@ -151,12 +151,15 @@ describe("product business workbench", () => {
     expect(target.searchParams.get("returnTo")).toBe("/centers/product/projects?filter=review&q=%E4%BE%9B%E7%94%B5&page=2");
   });
   it("creates a single project with an ordinary business form while model calls are gated", async () => {
+    upload.mockResolvedValue(sampleTask({ version: 2 }));
     const user = userEvent.setup(); render(<NewProductProject/>);
-    await screen.findByLabelText("项目名称 *");
-    await user.type(screen.getByLabelText("项目名称 *"), "合成新项目");
-    await user.type(screen.getByLabelText("建设目标 *"), "可靠供电");
+    await screen.findByLabelText("设备清单文件");
+    await user.type(screen.getByLabelText("项目名称"), "合成新项目");
+    await user.type(screen.getByLabelText("额外编制要求"), "可靠供电");
+    fireEvent.change(screen.getByLabelText("设备清单文件"), { target: { files: [new File(["name,quantity"], "设备.csv", { type: "text/csv" })] } });
+    fireEvent.change(screen.getByLabelText("选择项目资料文件"), { target: { files: [new File(["项目背景"], "调研.txt", { type: "text/plain" })] } });
     expect(screen.queryByLabelText("蓝图与成果审核人")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    await user.click(screen.getByRole("button", { name: "上传并保存资料" }));
     await waitFor(() => expect(window.location.search).toContain(sampleTask().id));
     expect(create).toHaveBeenCalledTimes(1);
     expect(create.mock.calls[0][0]).toMatchObject({ title: "合成新项目", input: { requirements: "可靠供电" } });
@@ -166,18 +169,20 @@ describe("product business workbench", () => {
   it("freezes and reuses the idempotency key after an uncertain create response", async () => {
     create.mockRejectedValueOnce(new Error("连接中断"));
     const user = userEvent.setup(); render(<NewProductProject/>);
-    await screen.findByLabelText("项目名称 *");
-    await user.type(screen.getByLabelText("项目名称 *"), "合成重试项目");
-    await user.type(screen.getByLabelText("建设目标 *"), "可靠供电");
-    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    await screen.findByLabelText("设备清单文件");
+    await user.type(screen.getByLabelText("项目名称"), "合成重试项目");
+    await user.type(screen.getByLabelText("额外编制要求"), "可靠供电");
+    fireEvent.change(screen.getByLabelText("设备清单文件"), { target: { files: [new File(["name,quantity"], "设备.csv", { type: "text/csv" })] } });
+    fireEvent.change(screen.getByLabelText("选择项目资料文件"), { target: { files: [new File(["项目背景"], "调研.txt", { type: "text/plain" })] } });
+    await user.click(screen.getByRole("button", { name: "上传并保存资料" }));
     await screen.findByRole("alert");
-    expect((screen.getByLabelText("项目名称 *") as HTMLInputElement).disabled || screen.getByLabelText("项目名称 *").closest("fieldset")?.disabled).toBe(true);
+    expect((screen.getByLabelText("项目名称") as HTMLInputElement).disabled || screen.getByLabelText("项目名称").closest("fieldset")?.disabled).toBe(true);
     await user.click(screen.getByRole("button", { name: "重试并继续" }));
     await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
     expect(create.mock.calls[0].slice(0, 2)).toEqual(create.mock.calls[1].slice(0, 2));
   });
   it("rejects unsupported or empty files without submitting them", async () => {
-    render(<NewProductProject/>); await screen.findByLabelText("项目名称 *");
+    render(<NewProductProject/>); await screen.findByLabelText("设备清单文件");
     fireEvent.change(screen.getByLabelText("选择项目资料文件"), { target: { files: [new File(["not-pdf"], "不支持.pdf", { type: "application/pdf" })] } });
     await screen.findByRole("alert"); expect(upload).not.toHaveBeenCalled(); expect(create).not.toHaveBeenCalled();
   });
@@ -286,12 +291,13 @@ describe("product business workbench", () => {
   });
   it("uses indeterminate progress instead of inventing a percentage", () => {
     render(<ProjectStages {...stages(sampleTask({ state: "RUNNING", stage: "WRITING", actions: ["cancel"] }))}/>);
-    const progress = screen.getByRole("progressbar"); expect(progress.hasAttribute("aria-valuenow")).toBe(false);
+    const progress = screen.getByRole("progressbar", { name: "后台正在处理" }); expect(progress.hasAttribute("aria-valuenow")).toBe(false);
     expect(screen.queryByText(/60%|70%|预计.*分钟/)).toBeNull();
   });
   it("provides a normal input editor while retaining raw evidence rows", async () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=sources");
     const props = stages(); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
+    expect(screen.getByRole("link", { name: /进入专业工作台核对输入问题/ }).getAttribute("href")).toBe(`/centers/product/projects?task=${encodeURIComponent(sampleTask().id)}&tab=sources`);
     await user.click(screen.getByRole("button", { name: "编辑项目底稿" }));
     await user.clear(screen.getByLabelText("建设目标")); await user.type(screen.getByLabelText("建设目标"), "修订供电目标");
     await user.click(screen.getByRole("button", { name: "保存项目底稿" }));
@@ -315,28 +321,25 @@ describe("product business workbench", () => {
   it("retains the created task and uploads only the remaining file after a partial failure", async () => {
     const first = new File(["first"], "第一份.txt", { type: "text/plain" });
     const second = new File(["second"], "第二份.txt", { type: "text/plain" });
-    const saved = sampleTask({ version: 2, sources: [{ id: "source-one", original_name: first.name, size: first.size }] });
+    const saved = sampleTask({ version: 2, sources: [{ id: "source-one", original_name: first.name, size: first.size, purpose: "equipment" }] });
     upload.mockResolvedValueOnce(saved).mockRejectedValueOnce(new Error("上传中断")).mockResolvedValueOnce(sampleTask({ version: 3 }));
     get.mockResolvedValue(saved);
     const user = userEvent.setup(); render(<NewProductProject/>);
-    await screen.findByLabelText("项目名称 *");
-    await user.type(screen.getByLabelText("项目名称 *"), "附件续传项目");
-    await user.type(screen.getByLabelText("建设目标 *"), "保持来源和版本连续");
-    fireEvent.change(screen.getByLabelText("选择项目资料文件"), { target: { files: [first, second] } });
-    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    await screen.findByLabelText("设备清单文件");
+    fireEvent.change(screen.getByLabelText("设备清单文件"), { target: { files: [first] } });
+    fireEvent.change(screen.getByLabelText("选择项目资料文件"), { target: { files: [second] } });
+    await user.click(screen.getByRole("button", { name: "上传并保存资料" }));
     await screen.findByRole("alert");
     await user.click(screen.getByRole("button", { name: "重试并继续" }));
     await waitFor(() => expect(window.location.search).toContain(sampleTask().id));
     expect(create).toHaveBeenCalledTimes(1);
-    expect(upload.mock.calls.map(call => [call[1].name, call[2]])).toEqual([[first.name, 1], [second.name, 2], [second.name, 2]]);
+    expect(upload.mock.calls.map(call => [call[1].name, call[2], call[4]])).toEqual([[first.name, 1, "equipment"], [second.name, 2, "background"], [second.name, 2, "background"]]);
   });
   it('requires separate equipment and background files before starting generation', async () => {
     overview.mockResolvedValue({ ...sampleOverview(), capabilities: { ...sampleOverview().capabilities, model_generation: true } });
     const user = userEvent.setup(); render(<NewProductProject/>);
-    await screen.findByLabelText('项目名称 *');
-    await user.type(screen.getByLabelText('项目名称 *'), '分类型资料项目');
-    await user.type(screen.getByLabelText('建设目标 *'), '保留设备与背景来源');
-    await user.click(screen.getByRole('button', { name: '开始生成' }));
+    await screen.findByLabelText('设备清单文件');
+    await user.click(screen.getByRole('button', { name: '上传并开始生成' }));
     expect((await screen.findByRole('alert')).textContent).toContain('一份设备清单');
     expect(create).not.toHaveBeenCalled();
     const equipment = new File(['equipment data'], '设备.csv', { type: 'text/csv' });
@@ -345,7 +348,7 @@ describe("product business workbench", () => {
     fireEvent.change(screen.getByLabelText('选择项目资料文件'), { target: { files: [background] } });
     upload.mockReset();
     upload.mockResolvedValueOnce(sampleTask({ version: 2 })).mockResolvedValueOnce(sampleTask({ version: 3, actions: ['queue_blueprint'], blockers: {} }));
-    await user.click(screen.getByRole('button', { name: '开始生成' }));
+    await user.click(screen.getByRole('button', { name: '上传并开始生成' }));
     await waitFor(() => expect(update).toHaveBeenCalled());
     expect(create.mock.calls[0][0].intake_mode).toBe('equipment_background');
     expect(upload.mock.calls.map(call => [call[1].name, call[4]])).toEqual([['设备.csv', 'equipment'], ['调研.txt', 'background']]);
@@ -424,7 +427,7 @@ describe("product business workbench", () => {
     const staleOutputs = (["technical-solution", "feasibility", "presentation"] as const).map((family, index): api.DraftOutput => ({ id: `old-artifact-${index}`, family, version: 1, sha256: String(index + 1).repeat(64), current: false, stale: true, draft: true, approved: false, review_status: "stale", engine: "test", content_version: 1, content_sha256: null, content_approved: false, source_versions: [] }));
     const user = userEvent.setup();
     render(<ProjectStages {...stages(sampleTask(), { outputs: staleOutputs })}/>);
-    for (const name of ["技术方案", "可研报告", "汇报 PPT"]) {
+    for (const name of ["技术方案", "可研报告", "汇报演示文稿"]) {
       const tab = screen.getByRole("tab", { name });
       await user.click(tab);
       await waitFor(() => expect(tab.getAttribute("aria-selected")).toBe("true"));

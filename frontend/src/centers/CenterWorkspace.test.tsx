@@ -105,7 +105,7 @@ describe("CenterWorkspace", () => {
     expect(navigation.textContent).not.toContain("需求准备稿");
     expect(screen.getByRole("link", { name: "全国商机看板" }).getAttribute("href")).toBe("/centers/product/opportunities");
     expect(screen.getByRole("link", { name: "售前数据录入" }).getAttribute("href")).toBe("/centers/product/presales");
-    expect(screen.getByRole("link", { name: "专业工作台" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "生成文档" })).toBeTruthy();
   });
 
   it("模块授权失败时不挂载产品内容", async () => {

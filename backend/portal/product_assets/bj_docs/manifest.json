@@ -68,8 +68,8 @@
     {
       "path": "scripts/ooxml.py",
       "source": "skills/bj-docs/scripts/ooxml.py",
-      "sha256": "9f900bd8c92e6af34916948a938fc3bdfaa431baec186350f176a0cb30b103c4",
-      "bytes": 12569,
+      "sha256": "7802466984ed7a26a2ebe9007bcd38f43028d7c42849adef7a7eb9eab8da251a",
+      "bytes": 21765,
       "source_status": " M skills/bj-docs/scripts/ooxml.py"
     },
     {

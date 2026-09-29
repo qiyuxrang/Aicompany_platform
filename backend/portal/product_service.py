@@ -405,11 +405,10 @@ def input_authorized(task, revision):
     if not all(authorization_current(task, snapshot)["current"] for snapshot in snapshots):
         return False
     knowledge = revision.payload.get("blueprint_knowledge")
-    if (getattr(settings, "PRODUCT_BLUEPRINT_KNOWLEDGE_MODE", "source_only_preview") == "ragflow_required"
-            and isinstance(knowledge, Mapping) and knowledge.get("provider") == "ragflow"):
+    if isinstance(knowledge, Mapping) and knowledge.get("provider") == "ragflow":
         try:
-            from .product_knowledge_service import recheck
-            recheck(task.owner, knowledge.get("authorization"))
+            from .product_blueprint_knowledge import require_blueprint_knowledge
+            require_blueprint_knowledge(revision.payload, task.owner)
         except ProductError:
             return False
     return True

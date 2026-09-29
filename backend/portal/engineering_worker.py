@@ -15,8 +15,8 @@ from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
-from django.db import connection, transaction
-from django.db.models import Q
+from django.db import transaction
+from django.db.models import F, Q
 from django.utils import timezone
 
 from .engineering_models import EngineeringJob
@@ -92,7 +92,6 @@ def _engineering_allowed(user):
             and authorized_modules(user).filter(code="cost", enabled=True).exists())
 
 
-@transaction.atomic
 def claim_job():
     if runtime_state()["status"] != "ready":
         return None
@@ -109,19 +108,24 @@ def claim_job():
         waiting
         & (Q(next_retry_at__isnull=True) | Q(next_retry_at__lte=now))
     ) | expired) & Q(attempt_count__lt=max_attempts())
-    locks = {"skip_locked": True} if connection.features.has_select_for_update_skip_locked else {}
-    job = EngineeringJob.objects.select_for_update(**locks).filter(eligible).order_by("created_at").first()
-    if job is None:
-        return None
-    job.fence += 1
-    job.attempt_count += 1
-    job.status = EngineeringJob.Status.RUNNING
-    job.lease_until = now + timedelta(seconds=timeout_seconds() * 2 + 120)
-    job.next_retry_at = None
-    job.error_code = ""
-    job.error_detail = ""
-    job.save()
-    return job.pk, job.fence
+    while True:
+        candidate = (EngineeringJob.objects.filter(eligible).order_by("created_at")
+                     .values("pk", "fence").first())
+        if candidate is None:
+            return None
+        claimed = (EngineeringJob.objects.filter(pk=candidate["pk"], fence=candidate["fence"])
+                   .filter(eligible).update(
+                       fence=F("fence") + 1,
+                       attempt_count=F("attempt_count") + 1,
+                       status=EngineeringJob.Status.RUNNING,
+                       lease_until=now + timedelta(seconds=timeout_seconds() * 2 + 120),
+                       next_retry_at=None,
+                       error_code="",
+                       error_detail="",
+                       updated_at=now,
+                   ))
+        if claimed:
+            return candidate["pk"], candidate["fence"] + 1
 
 
 def _invoke(config, command, paths, extra=(), webprice_key=""):

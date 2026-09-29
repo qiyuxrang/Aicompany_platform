@@ -119,11 +119,18 @@ def run_product_workflow(
         return {"node": "knowledge_complete"}
 
     def deliverables(state: ProductWorkflowState):
+        from .product_blueprint_knowledge import require_task_generation_knowledge
+
         _record(state, "deliverables")
+        require_task_generation_knowledge(state["task_id"])
         execute_action(state["task_id"], state["fence"], state["attempt_id"])
         return {"node": "deliverables"}
 
     def legacy_action(state: ProductWorkflowState):
+        if state["action"] in {"write", "render", "candidate", "three_drafts", "presentation"}:
+            from .product_blueprint_knowledge import require_task_generation_knowledge
+
+            require_task_generation_knowledge(state["task_id"])
         _record(state, "legacy_action")
         execute_action(state["task_id"], state["fence"], state["attempt_id"])
         return {"node": "legacy_action"}

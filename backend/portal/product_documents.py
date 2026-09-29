@@ -23,8 +23,9 @@ PACK = Path(__file__).resolve().parent / "product_assets" / "bj_docs"
 
 
 class DocumentError(Exception):
-    def __init__(self, code):
+    def __init__(self, code, *, diagnostic=None):
         self.code = code
+        self.diagnostic = diagnostic or {}
         super().__init__(code)
 
 

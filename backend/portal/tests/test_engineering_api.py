@@ -12,9 +12,12 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils import timezone
 
+from portal import engineering_api as api
 from portal.engineering_models import EngineeringJob
-from portal.engineering_storage import private_root
-from portal.engineering_worker import _invoke, claim_job, run_once, runtime_state
+from portal.engineering_storage import (StorageError, persist_result, private_root,
+                                        remove_job as storage_remove_job, work_directory)
+from portal.engineering_worker import (_guard_job, _invoke, claim_job, run_once,
+                                       runtime_state)
 from portal.models import Role
 from .base import PortalTestCase
 
@@ -119,6 +122,118 @@ class EngineeringApiTests(PortalTestCase):
         # 无工程权限的账号一律 403。
         self.login(self.client, self.outsider)
         self.assertEqual(self.client.delete(f"{self.url}{mine['id']}/").status_code, 403)
+
+    def test_delete_loses_to_a_blocked_job_claim_without_removing_files(self):
+        job = EngineeringJob.objects.get(pk=self.create_job(content=b"race source")["id"])
+        EngineeringJob.objects.filter(pk=job.pk).update(
+            status=EngineeringJob.Status.BLOCKED, error_code="worker_unavailable")
+        target = private_root() / str(job.pk)
+        original_owned_job = api._owned_job
+        claims = []
+
+        def owned_then_claim(user, job_id):
+            found = original_owned_job(user, job_id)
+            if not claims:
+                claims.append(claim_job())
+            return found
+
+        with patch.object(api, "_owned_job", side_effect=owned_then_claim):
+            response = self.client.delete(f"{self.url}{job.pk}/")
+
+        self.assertEqual((response.status_code, response.json()["code"]), (409, "job_in_progress"))
+        self.assertEqual(claims, [(job.pk, 1)])
+        job.refresh_from_db()
+        self.assertEqual((job.status, job.fence), (EngineeringJob.Status.RUNNING, 1))
+        self.assertTrue(target.exists())
+
+    def test_delete_cleanup_failure_is_retryable_and_not_claimable(self):
+        job = EngineeringJob.objects.get(pk=self.create_job(content=b"retry source")["id"])
+        EngineeringJob.objects.filter(pk=job.pk).update(
+            status=EngineeringJob.Status.BLOCKED, error_code="worker_unavailable")
+        target = private_root() / str(job.pk)
+
+        with patch.object(api, "remove_job", side_effect=StorageError(
+                "storage_cleanup_failed", "工程私有文件清理失败，需要运维处理。")):
+            response = self.client.delete(f"{self.url}{job.pk}/")
+
+        self.assertEqual((response.status_code, response.json()["code"]),
+                         (503, "storage_cleanup_failed"))
+        job.refresh_from_db()
+        self.assertEqual((job.status, job.error_code),
+                         (EngineeringJob.Status.BLOCKED, "storage_cleanup_failed"))
+        self.assertIsNone(job.lease_until)
+        self.assertIsNone(claim_job())
+        self.assertTrue(target.exists())
+
+        response = self.client.delete(f"{self.url}{job.pk}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(EngineeringJob.objects.filter(pk=job.pk).exists())
+        self.assertFalse(target.exists())
+
+    def test_delete_rechecks_owner_before_claiming_cleanup(self):
+        job = EngineeringJob.objects.get(pk=self.create_job(content=b"owner race")["id"])
+        job.status = EngineeringJob.Status.COMPLETED
+        job.save(update_fields=["status"])
+        target = private_root() / str(job.pk)
+        original_owned_job = api._owned_job
+        reassigned = []
+
+        def owned_then_reassign(user, job_id):
+            found = original_owned_job(user, job_id)
+            if not reassigned:
+                EngineeringJob.objects.filter(pk=job_id).update(owner=self.other)
+                reassigned.append(True)
+            return found
+
+        with patch.object(api, "_owned_job", side_effect=owned_then_reassign):
+            response = self.client.delete(f"{self.url}{job.pk}/")
+
+        self.assertEqual((response.status_code, response.json()["code"]), (404, "not_found"))
+        self.assertTrue(EngineeringJob.objects.filter(pk=job.pk, owner=self.other).exists())
+        self.assertTrue(target.exists())
+
+    def test_delete_does_not_report_success_if_owner_changes_during_cleanup(self):
+        job = EngineeringJob.objects.get(pk=self.create_job(content=b"owner cleanup race")["id"])
+        EngineeringJob.objects.filter(pk=job.pk).update(status=EngineeringJob.Status.COMPLETED)
+        target = private_root() / str(job.pk)
+
+        def reassign_then_remove(identifier):
+            EngineeringJob.objects.filter(pk=identifier).update(owner=self.other)
+            storage_remove_job(identifier)
+
+        with patch.object(api, "remove_job", side_effect=reassign_then_remove):
+            response = self.client.delete(f"{self.url}{job.pk}/")
+
+        self.assertEqual((response.status_code, response.json()["code"]),
+                         (409, "job_state_changed"))
+        self.assertTrue(EngineeringJob.objects.filter(pk=job.pk, owner=self.other).exists())
+        self.assertFalse(target.exists())
+
+    def test_stale_worker_cannot_recreate_deleted_job_root(self):
+        job = EngineeringJob.objects.get(pk=self.create_job(content=b"stale worker source")["id"])
+        EngineeringJob.objects.filter(pk=job.pk).update(
+            status=EngineeringJob.Status.RUNNING,
+            fence=1,
+            attempt_count=1,
+            lease_until=timezone.now() + timedelta(minutes=5),
+        )
+        output = work_directory(job.pk, 1) / "old-worker.xlsx"
+        output.write_bytes(b"old worker result")
+        _guard_job(job.pk, 1)
+
+        EngineeringJob.objects.filter(pk=job.pk).update(
+            status=EngineeringJob.Status.COMPLETED, fence=2, lease_until=None)
+        response = self.client.delete(f"{self.url}{job.pk}/")
+        target = private_root() / str(job.pk)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(target.exists())
+
+        for writer in (lambda: work_directory(job.pk, 1),
+                       lambda: persist_result(job.pk, 1, [output])):
+            with self.subTest(writer=writer), self.assertRaises(StorageError) as caught:
+                writer()
+            self.assertEqual(caught.exception.code, "storage_unavailable")
+            self.assertFalse(target.exists())
 
     def test_upload_count_extension_size_and_unknown_fields_are_rejected(self):
         self.assertEqual(self.client.post(self.url, {}).status_code, 400)

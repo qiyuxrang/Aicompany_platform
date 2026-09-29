@@ -151,7 +151,11 @@ RAGFlow 问答采用原生 `/api/v1/retrieval` 接口，配置与旧的蓝图检
 
 ## 部署与测试
 
+本轮修复、交叉复审、自动化验收与未完成的现场门槛见[部署前加固记录](docs/PREPRODUCTION_HARDENING_20260929.md)。历史测试数量不是当前提交的放行依据。
+
 Docker Compose 包含 PostgreSQL、Web 服务和 HR Worker；HR 文件使用独立持久卷。模型网关使用 `models` profile，产品 Worker 使用 `product` profile。启用对应功能前应完成环境变量、模型路由、私有文件卷和渲染依赖配置。详见[部署说明](docs/DEPLOYMENT.md)，不要将“容器启动成功”当作外部业务联调通过。
+
+已安装锁定依赖的 Windows 环境可执行 `./qa/run_preproduction_checks.ps1`，统一运行后端、迁移、网关、前端测试和构建。结果写入新的 `.runtime/preproduction-checks/` 目录；构建不会覆盖本地正在提供服务的 `frontend/dist`，也不会加载实际业务环境文件或执行生产迁移。
 
 运行不读取现有环境文件的隔离后端测试：
 
