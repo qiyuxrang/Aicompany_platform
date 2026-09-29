@@ -88,6 +88,38 @@ class EngineeringApiTests(PortalTestCase):
         self.assertEqual(response["capabilities"]["cost"]["status"], "not_configured")
         self.assertFalse(response["job"]["result"]["download_available"])
 
+    def test_delete_removes_only_finished_owned_jobs_and_their_private_files(self):
+        created = self.create_job(content=b"source workbook")
+        job = EngineeringJob.objects.get(pk=created["id"])
+        target = Path(self.temporary.name) / "private" / str(job.pk)
+
+        # 处理中的任务不允许删除，避免删掉 Worker 正在使用的输入文件。
+        job.status = EngineeringJob.Status.RUNNING
+        job.save(update_fields=["status"])
+        response = self.client.delete(f"{self.url}{job.pk}/")
+        self.assertEqual((response.status_code, response.json()["code"]), (409, "job_in_progress"))
+        self.assertTrue(EngineeringJob.objects.filter(pk=job.pk).exists())
+
+        # 终态任务可删除，且私有存储目录被一并清理。
+        job.status = EngineeringJob.Status.COMPLETED
+        job.save(update_fields=["status"])
+        self.assertTrue(target.exists())
+        response = self.client.delete(f"{self.url}{job.pk}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(EngineeringJob.objects.filter(pk=job.pk).exists())
+        self.assertFalse(target.exists())
+
+        # 他人任务视为不存在，不得删除。
+        mine = self.create_job(name="mine.xlsx")
+        self.login(self.client, self.other)
+        self.assertEqual(self.client.delete(f"{self.url}{mine['id']}/").status_code, 404)
+        self.login(self.client, self.owner)
+        self.assertTrue(EngineeringJob.objects.filter(pk=mine["id"]).exists())
+
+        # 无工程权限的账号一律 403。
+        self.login(self.client, self.outsider)
+        self.assertEqual(self.client.delete(f"{self.url}{mine['id']}/").status_code, 403)
+
     def test_upload_count_extension_size_and_unknown_fields_are_rejected(self):
         self.assertEqual(self.client.post(self.url, {}).status_code, 400)
         response = self.client.post(self.url, {"files": [SimpleUploadedFile("bad.xls", b"x")]})

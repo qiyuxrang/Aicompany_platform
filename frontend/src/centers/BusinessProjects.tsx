@@ -71,7 +71,9 @@ export default function BusinessProjects({ department, preview = false }: { depa
     return () => window.removeEventListener('popstate', changed);
   }, []);
   useEffect(() => {
-    setList(null); setDetail(null); setError('');
+    setError('');
+    setList(current => !preview && !projectId && current?.department === department ? current : null);
+    setDetail(current => !preview && current?.department === department && current.project.id === projectId ? current : null);
     if (preview) { setLoading(false); return; }
     const controller = new AbortController();
     setLoading(true);
@@ -87,7 +89,10 @@ export default function BusinessProjects({ department, preview = false }: { depa
           setList(result);
         }
       }).catch(caught => {
-        if (!controller.signal.aborted) setError(isApiError(caught) ? caught.message : caught instanceof Error ? caught.message : '项目读取失败，请重试。');
+        if (!controller.signal.aborted) {
+          setList(null); setDetail(null);
+          setError(isApiError(caught) ? caught.message : caught instanceof Error ? caught.message : '项目读取失败，请重试。');
+        }
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [department, preview, projectId, refresh]);
@@ -112,7 +117,7 @@ export default function BusinessProjects({ department, preview = false }: { depa
     </header>
     {preview ? <p className="center-empty">预览不读取项目数据，请使用已授权的总经理账号查看。</p> : <>
       {error && <p className="notice error" role="alert">{error}</p>}
-      {loading && <p className="business-project-loading" role="status">正在读取{projectId ? '项目详情' : '项目列表'}…</p>}
+      {loading && !list && !detail && <p className="business-project-loading" role="status">正在读取{projectId ? '项目详情' : '项目列表'}…</p>}
       {list && <>
         <div className="business-project-toolbar"><label>搜索项目<input type="search" value={search} onChange={event => setSearch(event.target.value)} maxLength={100} placeholder="项目名称、状态或人员" /></label>
           {list.source && <span>{stateLabels[list.source.state || 'published'] || '工作数据'} · {department === 'presales' ? '最新工作版本' : '最新发布版本'}</span>}</div>

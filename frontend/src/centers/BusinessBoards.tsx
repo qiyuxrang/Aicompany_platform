@@ -69,7 +69,8 @@ export function BusinessOverview({ preview = false }: { preview?: boolean }) {
   useEffect(() => {
     if (preview) { setBoards({}); setFailures({}); setLoading(false); return; }
     const controller = new AbortController();
-    setBoards({}); setFailures({}); setLoading(true);
+    // 保留上一份卡片内容，避免刷新时内容塌陷把页面顶回页首。
+    setFailures({}); setLoading(true);
     void Promise.all(departments.map(async ([key]) => {
       try {
         const result = await apiRequest<unknown>(`/api/business/boards/${key}/`, { signal: controller.signal });
@@ -107,7 +108,7 @@ export function BusinessOverview({ preview = false }: { preview?: boolean }) {
       const distribution = board?.distribution ?? [];
       return <article className={`business-overview-card business-overview-${key}`} key={key} aria-label={label}>
         <div className="business-overview-card-head"><h3>{label}</h3><strong>{preview ? '预览' : loading ? '读取中' : failures[key] ? '读取失败' : !board?.available ? key === 'presales' ? '待录入' : '待发布' : key === 'presales' ? board.source?.state === 'published' ? '已发布工作数据' : '未发布工作数据' : '已发布'}</strong></div>
-        {preview ? <p className="business-overview-message">预览不读取业务数据。</p> : loading ? <p className="business-overview-message" role="status">正在读取台账…</p>
+        {preview ? <p className="business-overview-message">预览不读取业务数据。</p>
           : failures[key] ? <p className="business-overview-message" role="alert">{failures[key]}</p>
             : board ? <>
               {board.available ? <>
@@ -116,7 +117,7 @@ export function BusinessOverview({ preview = false }: { preview?: boolean }) {
                 <div className="business-overview-distribution"><p>{key === 'finance' ? '财务条目分布' : key === 'presales' ? '产品条目分布' : '工程条目分布'}</p>{distribution.length ? distribution.map(item => <div className="business-overview-bar" key={item.label}><span>{item.label}</span><meter min={0} max={Math.max(1, board.total, item.count)} value={item.count} aria-label={`${item.label} ${item.count} 项`} /><strong>{item.count}</strong></div>) : <span>暂无分布数据</span>}</div>
                 <SourceStatus board={board} /><p className="business-definition">{explanations[key]}</p><p className="business-scope">{board.scope.replace(/售前(?:部门)?/g, '产品事业部')}</p></>
                 : <p className="business-overview-source">{key === 'presales' ? '暂无产品事业部跟进数据' : '暂无已发布台账'}，未提供的数据以“—”展示。</p>}
-            </> : <p className="business-overview-message">暂无看板数据。</p>}
+            </> : <p className="business-overview-message" role="status">{loading ? '正在读取台账…' : '暂无看板数据。'}</p>}
         <CenterLink href={`/centers/business/${key}`} className="business-overview-link">查看数据明细 <span aria-hidden="true">→</span></CenterLink>
       </article>;
     })}</div>

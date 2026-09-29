@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, apiRequest } from "../api";
@@ -12,6 +12,7 @@ const quotaRoot = "/api/engineering/quota/";
 const capabilities = { cost: { status: "ready", detail: "内部草稿服务可用" }, ragflow: { status: "locked", detail: "工程 RAGFlow 权限尚未解锁/未接入。" } };
 const completed = {
   id: "11111111-1111-4111-8111-111111111111", status: "completed", region: "榆林",
+  files: [{ name: "电力电缆清单.xlsx", size: 100, sha256: "a".repeat(64) }],
   inspection: { ok: true, files: [{ name: "one.xlsx", passed: true, issues: [] }] },
   result: { download_available: true, summary: { online_allowed: false, files: [{ status: "completed", validation_passed: true, preflight_issues: [], validation_issues: [], source_health: { pricing: "healthy" }, pending_confirmations: [] }] } }, error: null,
 };
@@ -45,7 +46,7 @@ describe("EngineeringPendingPage", () => {
     render(<EngineeringPendingPage section="estimate" />);
     await screen.findByText("暂无服务端任务。");
     fireEvent.change(screen.getByLabelText("清单文件"), { target: { files: [new File(["a"], "one.xlsx"), new File(["b"], "two.xlsx")] } });
-    await user.type(screen.getByLabelText("地区"), "榆林");
+    await user.type(screen.getByLabelText("地区（可选）"), "榆林");
     await user.click(screen.getByRole("button", { name: "创建内部成本草稿" }));
     await screen.findByText("当前状态：已完成 · 地区：榆林");
     const post = request.mock.calls.find(([path, init]) => path === root && init?.method === "POST");
@@ -58,9 +59,32 @@ describe("EngineeringPendingPage", () => {
     expect(download.hasAttribute("download")).toBe(true);
   });
 
+  it("submits without a region so the service default applies, and never sends an empty region", async () => {
+    // 后端 region 有默认值「陕西」，为可选字段。此前前端把地区设为必填并禁用按钮，
+    // 导致不填地区的用户完全无法上传。留空时必须仍可提交，且不发送空 region 键。
+    request.mockImplementation(async (path, init) => {
+      if (path === root && init?.method === "POST") return { job: { ...completed, status: "queued" }, capabilities };
+      if (path === `${root}${completed.id}/`) return { job: completed, capabilities };
+      if (path === root) return { jobs: [], capabilities };
+      throw new Error(`Unexpected request ${path}`);
+    });
+    const user = userEvent.setup();
+    render(<EngineeringPendingPage section="estimate" />);
+    await screen.findByText("暂无服务端任务。");
+    fireEvent.change(screen.getByLabelText("清单文件"), { target: { files: [new File(["a"], "one.xlsx")] } });
+    const submit = screen.getByRole("button", { name: "创建内部成本草稿" }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+    await user.click(submit);
+    const post = request.mock.calls.find(([path, init]) => path === root && init?.method === "POST");
+    expect(post).toBeTruthy();
+    const body = post?.[1]?.body as FormData;
+    expect(body.has("region")).toBe(false);
+  });
+
   it("uses backend inspection, result summary, error and capability statuses for review", async () => {
     const failed = {
       id: "22222222-2222-4222-8222-222222222222", status: "failed", region: "榆林",
+      files: [{ name: "清单.xlsx", size: 10, sha256: "c".repeat(64) }],
       inspection: { ok: false, files: [{ name: "清单.xlsx", passed: false, issues: ["缺少设备数量"] }] },
       result: { download_available: false, summary: { files: [{ status: "failed", validation_passed: false, preflight_issues: ["单位不完整"], validation_issues: ["数量无效"], source_health: { price_source: "unavailable" }, pending_confirmations: ["人工核对价格来源"] }] } },
       error: { code: "preflight_failed", detail: "工程清单预检未通过，未执行测算。", retryable: false },
@@ -69,7 +93,7 @@ describe("EngineeringPendingPage", () => {
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="overview" />);
     expect(await screen.findByText(/知识库状态：待解锁 · 尚未授权/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: `失败 · ${failed.id}` }));
+    await user.click(screen.getByRole("button", { name: /^清单 · 成本测算/ }));
     await screen.findByText("任务错误：preflight_failed · 工程清单预检未通过，未执行测算。");
     expect(screen.getAllByText("待复核")).toHaveLength(2);
     expect(screen.getByText("缺少设备数量")).toBeTruthy();
@@ -87,7 +111,7 @@ describe("EngineeringPendingPage", () => {
     request.mockImplementation(async (path) => path === root ? { jobs: [suspicious], capabilities } : { job: suspicious, capabilities });
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="overview" />);
-    await user.click(await screen.findByRole("button", { name: `已完成 · ${suspicious.id}` }));
+    await user.click(await screen.findByRole("button", { name: /^电力电缆清单 · 成本测算/ }));
     expect(screen.getAllByText("待复核")).toHaveLength(2);
     expect(screen.getByText("审计结论：可疑")).toBeTruthy();
     expect(screen.getByText("报价来源待核验")).toBeTruthy();
@@ -159,6 +183,112 @@ describe("EngineeringPendingPage", () => {
     await user.click(screen.getByRole("button", { name: "查询内部候选" }));
     expect(await screen.findByText("候选查询失败：候选服务暂不可用")).toBeTruthy();
     expect(screen.queryByLabelText("内部未审批定额候选结果")).toBeNull();
+  });
+
+  it("polls the job list so a task completed by the worker shows up without a manual reload", async () => {
+    // 任务由后台 Worker 异步处理：此前页面只在进入时拉取一次，
+    // 导致服务端已完成、页面仍停在「排队中/已阻止」，必须手动刷新浏览器。
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let status = "queued";
+      request.mockImplementation(async (path) => path === knowledgeRoot
+        ? { status: "locked", detail: "等待解析" }
+        : { jobs: [{ ...completed, status, result: { ...completed.result, download_available: status === "completed" } }], capabilities });
+      render(<EngineeringPendingPage section="estimate" />);
+      expect(await screen.findByText(/排队中/)).toBeTruthy();
+
+      status = "completed";
+      await act(async () => { vi.advanceTimersByTime(5000); });
+
+      expect(await screen.findByText("已完成")).toBeTruthy();
+      expect(screen.getByText(/电力电缆清单 · 成本测算/)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("manual refresh updates the open task detail instead of leaving it stale", async () => {
+    let status = "queued";
+    const record = () => ({ ...completed, status, region: "榆林", error: null,
+      result: { ...completed.result, download_available: status === "completed" } });
+    request.mockImplementation(async (path) => {
+      if (path === knowledgeRoot) return { status: "locked", detail: "等待解析" };
+      if (path === root) return { jobs: [record()], capabilities };
+      if (path === `${root}${completed.id}/`) return { job: record(), capabilities };
+      throw new Error(`Unexpected request ${path}`);
+    });
+    const user = userEvent.setup();
+    render(<EngineeringPendingPage section="estimate" />);
+    await user.click(await screen.findByRole("button", { name: /排队中/ }));
+    expect(await screen.findByText(/当前状态：排队中/)).toBeTruthy();
+
+    status = "completed";
+    await user.click(screen.getByRole("button", { name: "刷新任务状态" }));
+
+    expect(await screen.findByText(/当前状态：已完成 · 地区：榆林/)).toBeTruthy();
+    expect(await screen.findByRole("link", { name: "下载内部成本草稿" })).toBeTruthy();
+  });
+
+  it("labels each job with the uploaded list name and 成本测算 instead of a bare id", async () => {
+    // 用户此前只能看到 UUID，无法辨认是哪份清单。
+    request.mockImplementation(async (path) => path === knowledgeRoot
+      ? { status: "locked", detail: "等待解析" }
+      : { jobs: [completed], capabilities });
+    render(<EngineeringPendingPage section="estimate" />);
+    expect(await screen.findByText("电力电缆清单 · 成本测算")).toBeTruthy();
+    // UUID 不再作为主标识露出，仅保留在按钮 title 中供排查。
+    expect(screen.queryByText(new RegExp(completed.id))).toBeNull();
+  });
+
+  it("summarises multiple uploaded lists in the job label", async () => {
+    request.mockImplementation(async (path) => path === knowledgeRoot
+      ? { status: "locked", detail: "等待解析" }
+      : { jobs: [{ ...completed, files: [
+          { name: "弱电清单.xlsx", size: 1, sha256: "a".repeat(64) },
+          { name: "给排水清单.xlsx", size: 1, sha256: "b".repeat(64) },
+        ] }], capabilities });
+    render(<EngineeringPendingPage section="estimate" />);
+    expect(await screen.findByText("弱电清单 等 2 份清单 · 成本测算")).toBeTruthy();
+  });
+
+  it("deletes a finished job after confirmation and drops it from the list", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    request.mockImplementation(async (path, init) => {
+      if (path === knowledgeRoot) return { status: "locked", detail: "等待解析" };
+      if (path === `${root}${completed.id}/` && init?.method === "DELETE") return undefined;
+      if (path === root) return { jobs: [completed], capabilities };
+      throw new Error(`Unexpected request ${path}`);
+    });
+    const user = userEvent.setup();
+    render(<EngineeringPendingPage section="estimate" />);
+    await user.click(await screen.findByRole("button", { name: "删除：电力电缆清单 · 成本测算" }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("不可恢复"));
+    await waitFor(() => expect(screen.queryByText(/电力电缆清单/)).toBeNull());
+    const call = request.mock.calls.find(([path, init]) => path === `${root}${completed.id}/` && init?.method === "DELETE");
+    expect(call?.[0]).toBe(`${root}${completed.id}/`);
+    confirm.mockRestore();
+  });
+
+  it("does not delete when the confirmation is dismissed", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    request.mockImplementation(async (path) => path === knowledgeRoot
+      ? { status: "locked", detail: "等待解析" }
+      : { jobs: [completed], capabilities });
+    const user = userEvent.setup();
+    render(<EngineeringPendingPage section="estimate" />);
+    await user.click(await screen.findByRole("button", { name: "删除：电力电缆清单 · 成本测算" }));
+    expect(request.mock.calls.filter(([, init]) => init?.method === "DELETE")).toHaveLength(0);
+    expect(screen.getByText(/电力电缆清单 · 成本测算/)).toBeTruthy();
+    confirm.mockRestore();
+  });
+
+  it("disables the delete control while a job is still being processed", async () => {
+    request.mockImplementation(async (path) => path === knowledgeRoot
+      ? { status: "locked", detail: "等待解析" }
+      : { jobs: [{ ...completed, status: "running", result: { ...completed.result, download_available: false } }], capabilities });
+    render(<EngineeringPendingPage section="estimate" />);
+    const remove = await screen.findByRole("button", { name: "删除：电力电缆清单 · 成本测算" }) as HTMLButtonElement;
+    expect(remove.disabled).toBe(true);
   });
 
   it("refreshes from locked to ready after the worker completes without reloading jobs", async () => {

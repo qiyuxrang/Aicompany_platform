@@ -156,12 +156,26 @@ def jobs(request):
     return Response({"job": _job_data(job), "capabilities": _capabilities()}, status=201)
 
 
-@api_view(["GET"])
+@api_view(["GET", "DELETE"])
 @engineering_endpoint
 def job_detail(request, job_id):
     _require_engineering(request)
-    return Response({"job": _job_data(_owned_job(request.user, job_id)),
-                     "capabilities": _capabilities()})
+    job = _owned_job(request.user, job_id)
+    if request.method == "DELETE":
+        # 仅允许删除终态任务（已完成/失败/阻塞），避免删除正在处理的任务
+        # 造成 Worker 的输入文件被移除、产生悬空执行。
+        if job.status in (EngineeringJob.Status.QUEUED, EngineeringJob.Status.RUNNING):
+            raise EngineeringError("job_in_progress", "任务正在处理中，请等待结束后再删除。", 409)
+        identifier = job.pk
+        # 先清理私有存储，再删记录：文件清理失败时保留记录以便运维重试。
+        try:
+            remove_job(identifier)
+        except StorageError as error:
+            raise EngineeringError(error.code, error.detail, 503) from error
+        job.delete()
+        audit(request.user, "engineering_job_delete", identifier, changes=[job.status])
+        return Response(status=204)
+    return Response({"job": _job_data(job), "capabilities": _capabilities()})
 
 
 @api_view(["GET"])

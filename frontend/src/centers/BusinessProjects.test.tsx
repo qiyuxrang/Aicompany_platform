@@ -102,6 +102,20 @@ it('preview never fetches projects or details', () => {
   expect(screen.getByText(/预览不读取项目数据/)).toBeTruthy();
 });
 
+it.each([false, true])('refresh retains the current project view: detail=%s', async showDetail => {
+  window.history.replaceState({}, '', `/centers/business/presales${showDetail ? '?project=P1' : ''}`);
+  render(<BusinessBoards initial="presales" />);
+  const content = showDetail
+    ? await screen.findByRole('heading', { name: '当前状态与项目进度' })
+    : await screen.findByRole('link', { name: /园区项目/ });
+  let resolveRefresh!: (value: unknown) => void;
+  api.apiRequest.mockReturnValueOnce(new Promise(resolve => { resolveRefresh = resolve; }));
+  await userEvent.click(screen.getByRole('button', { name: '刷新项目' }));
+  expect(document.body.contains(content)).toBe(true);
+  expect(screen.queryByText(/正在读取项目/)).toBeNull();
+  await act(async () => resolveRefresh(showDetail ? detail() : list()));
+});
+
 it('refresh failure removes previously visible project details', async () => {
   window.history.replaceState({}, '', '/centers/business/presales?project=P1');
   render(<BusinessBoards initial="presales" />);

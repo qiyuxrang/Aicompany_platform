@@ -61,6 +61,17 @@ it('overview clears prior values after a refresh fails', async () => {
   expect(await screen.findAllByText('访问已撤销')).toHaveLength(3);
   expect(screen.queryAllByText('1')).toHaveLength(0);
 });
+it('overview refresh keeps existing cards visible until fresh data arrives', async () => {
+  api.apiRequest.mockImplementation((url: string) => Promise.resolve(fixture(url.includes('/finance/') ? 'finance' : url.includes('/presales/') ? 'presales' : 'engineering')));
+  render(<BusinessOverview />);
+  await waitFor(() => expect(screen.getAllByRole('meter', { name: '实施中 1 项' })).toHaveLength(3));
+  const pending: { url: string; resolve: (value: unknown) => void }[] = [];
+  api.apiRequest.mockImplementation((url: string) => new Promise(resolve => { pending.push({ url, resolve }); }));
+  await userEvent.click(screen.getByRole('button', { name: '刷新数据' }));
+  expect(screen.getAllByRole('meter', { name: '实施中 1 项' })).toHaveLength(3);
+  expect(screen.getAllByRole('link', { name: /查看数据明细/ })).toHaveLength(3);
+  await act(async () => pending.forEach(({ url, resolve }) => resolve(fixture(url.includes('/finance/') ? 'finance' : url.includes('/presales/') ? 'presales' : 'engineering'))));
+});
 it('money display does not round away cents in large aggregates', async () => {
   const data = { ...fixture('finance'), metrics: [{ key: 'contract', label: '合同金额', value: '1999999999999999.99', unit: '元' }] };
   api.apiRequest.mockImplementation((url: string) => Promise.resolve(url.includes('/finance/') ? data : fixture(url.includes('/presales/') ? 'presales' : 'engineering', false)));
