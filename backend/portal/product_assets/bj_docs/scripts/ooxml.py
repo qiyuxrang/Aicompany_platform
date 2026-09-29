@@ -1,8 +1,11 @@
 """Small, fail-closed OOXML package primitives. No document text is executable."""
 from pathlib import Path, PurePosixPath
-from zipfile import ZipFile, ZIP_DEFLATED, BadZipFile
+from zipfile import ZipFile, ZIP_DEFLATED, ZIP_STORED, BadZipFile
 from copy import deepcopy
 from contextlib import contextmanager
+from io import BytesIO
+from urllib.parse import unquote, urlsplit
+import posixpath
 import os
 import tempfile
 import hashlib, json, re
@@ -13,6 +16,14 @@ NS = {'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
       's':'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
       'rel':'http://schemas.openxmlformats.org/package/2006/relationships'}
 ROOT = Path(__file__).resolve().parents[1]
+MAX_ZIP_ENTRIES=10000
+MAX_PACKAGE_UNCOMPRESSED=256*1024*1024
+MAX_COMPRESSION_RATIO=100
+CHART_CONTENT_TYPE='application/vnd.openxmlformats-officedocument.drawingml.chart+xml'
+EMBEDDED_XLSX_CONTENT_TYPE='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+WORKBOOK_CONTENT_TYPE='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'
+CHART_RELATIONSHIPS={'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart','http://purl.oclc.org/ooxml/officeDocument/relationships/chart'}
+PACKAGE_RELATIONSHIPS={'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package','http://purl.oclc.org/ooxml/officeDocument/relationships/package'}
 def q(name):
     prefix, local = name.split(':'); return '{'+NS[prefix]+'}'+local
 def xml(data):
@@ -27,20 +38,28 @@ def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def jwrite(path, data):
     path=Path(path); path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-def load_package(path):
+def load_package(path, **limits):
     try:
-        return read_package(path)
+        return read_package(path, **limits)
     except BadZipFile as error:
         raise ValueError('INVALID_PACKAGE_ZIP: '+str(error)) from error
 
-def read_package(path):
+def read_package(path, max_entries=None, max_uncompressed=None):
+    max_entries=MAX_ZIP_ENTRIES if max_entries is None else min(max_entries,MAX_ZIP_ENTRIES)
+    max_uncompressed=MAX_PACKAGE_UNCOMPRESSED if max_uncompressed is None else min(max_uncompressed,MAX_PACKAGE_UNCOMPRESSED)
     with ZipFile(path) as z:
-        names=z.namelist()
-        if len(names)!=len(set(names)) or len(names)>10000: raise ValueError('duplicate/excessive ZIP entries')
-        if sum(i.file_size for i in z.infolist())>256*1024*1024: raise ValueError('package too large')
-        for n in names:
+        infos=z.infolist(); names=[info.filename for info in infos]
+        if len(names)!=len(set(names)) or len(names)!=len({name.casefold() for name in names}) or len(names)>max_entries:
+            raise ValueError('duplicate/excessive ZIP entries')
+        if sum(info.file_size for info in infos)>max_uncompressed: raise ValueError('package too large')
+        for info in infos:
+            n=info.filename
             if '\\' in n or ':' in n or PurePosixPath(n).is_absolute() or '..' in PurePosixPath(n).parts:
                 raise ValueError('ZIP traversal')
+            if info.flag_bits&1 or info.compress_type not in (ZIP_STORED,ZIP_DEFLATED):
+                raise ValueError('unsupported ZIP entry: '+n)
+            if info.file_size>max(info.compress_size,1)*MAX_COMPRESSION_RATIO:
+                raise ValueError('suspicious ZIP compression ratio: '+n)
         data={n:z.read(n) for n in names}
         for n,b in data.items():
             if n.endswith(('.xml','.rels')): xml(b)
@@ -186,26 +205,147 @@ def check_field(instruction):
             raise ValueError('only internal bookmark hyperlinks are allowed')
     elif name not in ALLOWED_FIELDS: raise ValueError('unsafe field: '+instruction)
 
-def audit_package(parts, kind='word'):
+def _content_types(parts):
+    if '[Content_Types].xml' not in parts: raise ValueError('missing content types')
+    defaults={}; overrides={}
+    for item in xml(parts['[Content_Types].xml']):
+        local=E.QName(item).localname
+        if local=='Default': target,key=defaults,item.get('Extension','').lower()
+        elif local=='Override': target,key=overrides,item.get('PartName','').lstrip('/')
+        else: continue
+        if not key or key in target: raise ValueError('duplicate/invalid content type')
+        target[key]=item.get('ContentType','')
+    return defaults,overrides
+
+def _part_content_type(content_types, name):
+    defaults,overrides=content_types
+    return overrides.get(name,defaults.get(PurePosixPath(name).suffix.lstrip('.').lower(),''))
+
+def _relationship_source(name):
+    if name=='_rels/.rels': return ''
+    if '/_rels/' not in name or not name.endswith('.rels'): return None
+    parent,leaf=name.rsplit('/_rels/',1)
+    return posixpath.join(parent,leaf[:-5])
+
+def _internal_target(source, target):
+    parsed=urlsplit(target)
+    if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
+        raise ValueError('unsafe relationship target')
+    target=unquote(parsed.path)
+    if not target or '\\' in target or '\x00' in target: raise ValueError('unsafe relationship target')
+    resolved=posixpath.normpath(target.lstrip('/') if target.startswith('/') else posixpath.join(posixpath.dirname(source),target))
+    if resolved=='..' or resolved.startswith('../') or resolved.startswith('/'):
+        raise ValueError('unsafe relationship target')
+    return resolved
+
+def _is_xml_content_type(content_type):
+    content_type=content_type.lower()
+    return content_type in ('application/xml','text/xml','application/vnd.openxmlformats-package.relationships+xml') or content_type.endswith('+xml')
+
+def _check_active_content_types(content_types):
+    markers=('macroenabled','vbaproject','activex','oleobject','externallink','connections','controlproperties')
+    if any(any(marker in content_type.lower() for marker in markers)
+           for content_type in (*content_types[0].values(),*content_types[1].values())):
+        raise ValueError('unsafe active content type')
+
+def _is_active_relationship(relation_type, kind):
+    low=relation_type.lower().rstrip('/')
+    markers=('/vbaproject','/activex','/oleobject','/attachedtemplate','/externallink','/connections','/ctrlprop','/control')
+    return any(marker in low for marker in markers) or (low.endswith('/package') and kind!='presentation')
+
+def _presentation_chart_workbooks(parts, content_types):
+    embeddings={name for name in parts if 'embeddings/' in name.lower()}
+    relationships=[]
+    for name,payload in parts.items():
+        if not name.endswith('.rels'): continue
+        source=_relationship_source(name)
+        for relation in xml(payload):
+            if relation.get('TargetMode','').lower()=='external': raise ValueError('external relationship')
+            relation_type=relation.get('Type',''); raw_target=relation.get('Target','')
+            relevant=relation_type in CHART_RELATIONSHIPS|PACKAGE_RELATIONSHIPS or 'embeddings/' in raw_target.lower()
+            if source is None:
+                if relevant: raise ValueError('unsafe presentation embedded package')
+                continue
+            try: target=_internal_target(source,raw_target)
+            except ValueError:
+                if relevant: raise
+                continue
+            relationships.append((source,relation_type,target))
+    reachable={''}; pending=['']
+    while pending:
+        source=pending.pop()
+        for owner,_,target in relationships:
+            if owner==source and target in parts and target not in reachable:
+                reachable.add(target); pending.append(target)
+    chart_parts={target for source,relation_type,target in relationships
+                 if relation_type in CHART_RELATIONSHIPS and source and source in reachable and target in reachable
+                 and _part_content_type(content_types,target)==CHART_CONTENT_TYPE}
+    package_links=[link for link in relationships if link[1] in PACKAGE_RELATIONSHIPS or link[2] in embeddings]
+    allowed=set()
+    for source,relation_type,target in package_links:
+        target_path=PurePosixPath(target)
+        valid=(relation_type in PACKAGE_RELATIONSHIPS and source in chart_parts
+               and source.startswith('ppt/charts/') and _part_content_type(content_types,source)==CHART_CONTENT_TYPE
+               and target in embeddings and target_path.parts[:2]==('ppt','embeddings') and len(target_path.parts)==3
+               and target_path.suffix.lower()=='.xlsx' and _part_content_type(content_types,target)==EMBEDDED_XLSX_CONTENT_TYPE)
+        if not valid: raise ValueError('unsafe presentation embedded package')
+        allowed.add(target)
+    if embeddings!=allowed:
+        raise ValueError('unsafe package part: '+sorted(embeddings-allowed)[0])
+    return allowed
+
+def _check_embedded_workbook(parts, content_types):
+    if '_rels/.rels' not in parts: raise ValueError('missing workbook root relationship')
+    workbooks=[]
+    for relation in xml(parts['_rels/.rels']):
+        if relation.get('TargetMode','').lower()=='external': raise ValueError('external relationship')
+        if relation.get('Type','').rstrip('/').endswith('/officeDocument'):
+            workbooks.append(_internal_target('',relation.get('Target','')))
+    if len(workbooks)!=1 or workbooks[0] not in parts or _part_content_type(content_types,workbooks[0])!=WORKBOOK_CONTENT_TYPE:
+        raise ValueError('embedded workbook is not macro-free xlsx')
+
+def audit_package(parts, kind='word', _budget=None):
+    package_size=sum(len(payload) for payload in parts.values())
+    if len(parts)>MAX_ZIP_ENTRIES or package_size>MAX_PACKAGE_UNCOMPRESSED: raise ValueError('package too large')
+    if _budget is None:
+        _budget={'entries':MAX_ZIP_ENTRIES-len(parts),'bytes':MAX_PACKAGE_UNCOMPRESSED-package_size}
+    content_types=_content_types(parts); _check_active_content_types(content_types)
+    allowed_embeddings=_presentation_chart_workbooks(parts,content_types) if kind=='presentation' else set()
+    if kind=='embedded_sheet': _check_embedded_workbook(parts,content_types)
     for name,b in parts.items():
         low=name.lower()
-        if any(s in low for s in ('vbaproject','embeddings/','externallink','connections.xml','customxml/','comments','activex/')):
+        if any(s in low for s in ('vbaproject','externallink','connections.xml','customxml/','comments','activex/')):
             raise ValueError('unsafe package part: '+name)
-        if not name.endswith(('.xml','.rels')): continue
+        if 'embeddings/' in low and name not in allowed_embeddings:
+            raise ValueError('unsafe package part: '+name)
+        content_type=_part_content_type(content_types,name)
+        relationship_part=name.endswith('.rels') or content_type.lower()=='application/vnd.openxmlformats-package.relationships+xml'
+        if not name.endswith(('.xml','.rels')) and not _is_xml_content_type(content_type): continue
         root=xml(b)
-        if name.endswith('.rels'):
+        if relationship_part:
+            source=_relationship_source(name)
+            if source is None: raise ValueError('unsafe relationship target')
             for rel in root:
-                if rel.get('TargetMode')=='External': raise ValueError('external relationship')
+                if rel.get('TargetMode','').lower()=='external': raise ValueError('external relationship')
                 target=rel.get('Target','')
                 if re.match(r'^[a-z]+:',target,re.I) or '\\' in target: raise ValueError('unsafe relationship target')
+                if _is_active_relationship(rel.get('Type',''),kind): raise ValueError('unsafe active relationship')
+                if kind=='embedded_sheet':
+                    if _internal_target(source,target) not in parts: raise ValueError('unsafe relationship target')
         if kind=='sheet':
-            from formulas import validate_formula
-            for formula in root.iter(q('s:f')):
+            formulas=list(root.iter(q('s:f')))
+            if formulas: from formulas import validate_formula
+            for formula in formulas:
                 if formula.attrib: raise ValueError('unsupported shared/array formula; normalize before rendering')
                 validate_formula(formula.text)
             for formula in root.iter(q('s:definedName')):
                 if formula.get('name') not in ('_xlnm.Print_Area','_xlnm.Print_Titles'):
                     raise ValueError('unsupported workbook defined name')
+        if kind=='embedded_sheet':
+            for item in root.iter():
+                item_name=E.QName(item)
+                if item_name.localname=='definedName' or item_name.localname=='f' or 'formula' in item_name.localname.lower():
+                    raise ValueError('formula forbidden in embedded chart workbook')
         if kind=='word':
             # Fields may be split across runs. Inspect complete fields, not first fragment only.
             stack=[]
@@ -226,6 +366,11 @@ def audit_package(parts, kind='word'):
                 elif E.QName(el).localname in ('altChunk','object','oleObject','attachedTemplate'):
                     raise ValueError('unsafe active content')
             if stack: raise ValueError('unclosed field')
+    if kind=='presentation':
+        for name in sorted(allowed_embeddings):
+            nested=load_package(BytesIO(parts[name]),max_entries=_budget['entries'],max_uncompressed=_budget['bytes'])
+            _budget['entries']-=len(nested); _budget['bytes']-=sum(len(payload) for payload in nested.values())
+            audit_package(nested,'embedded_sheet',_budget)
     return True
 
 def prune_parts(parts, allowed):

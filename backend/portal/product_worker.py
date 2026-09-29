@@ -27,12 +27,21 @@ class ExecutionError(Exception):
 
 
 def _failure_diagnostic(error):
-    return {
+    diagnostic = {
         "exception_type": type(error).__name__,
         "frames": [{"file": Path(frame.filename).name, "function": frame.name, "line": frame.lineno}
                    for frame in traceback.extract_tb(error.__traceback__)[-8:]],
         "updated_at": timezone.now().isoformat(),
     }
+    details = getattr(error, "diagnostic", {})
+    if isinstance(details, dict):
+        if isinstance(details.get("stage"), str) and details["stage"] in {"presentation_source", "presentation_runtime", "presentation_render", "presentation_manifest", "presentation_quality"}:
+            diagnostic["stage"] = details["stage"]
+        if isinstance(details.get("reason"), str) and details["reason"] in {"invalid_source", "source_limit", "runtime_missing", "timeout", "launch_failed", "process_failed", "missing_output", "invalid_manifest", "quality_failed"}:
+            diagnostic["reason"] = details["reason"]
+        if type(details.get("returncode")) is int:
+            diagnostic["returncode"] = details["returncode"]
+    return diagnostic
 
 
 def _unique_object(pairs):
@@ -745,7 +754,7 @@ def execute_claim(task_id, fence, attempt_id):
         code = getattr(error, "code", "execution_failed")
         if code not in {
             "lease_lost", "input_required", "source_snapshot_changed",
-            "web_search_unconfigured",
+            "web_search_unconfigured", "ragflow_required",
             "disabled", "unconfigured", "forbidden", "scope_revoked",
             "unavailable", "invalid_response", "execution_failed",
         }:
@@ -756,7 +765,7 @@ def execute_claim(task_id, fence, attempt_id):
         state = "WAITING_INPUT" if code in {
             "input_required", "source_snapshot_changed", "ragflow_disabled",
             "ragflow_unconfigured", "ragflow_forbidden", "ragflow_scope_revoked",
-            "web_search_unconfigured",
+            "web_search_unconfigured", "ragflow_required",
         } else "FAILED"
         _finish(task_id, fence, attempt_id, state, task.stage, code, failure=_failure_diagnostic(error))
         return None

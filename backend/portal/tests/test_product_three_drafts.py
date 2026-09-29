@@ -57,8 +57,10 @@ class ThreeDraftFlowTests(PortalTestCase):
             self.assertLessEqual(evidence["dominant_layout_ratio"], 0.25)
             self.assertEqual(evidence["native_charts"], 1)
             self.assertGreaterEqual(evidence["editable_data_visuals"], 4)
-            self.assertEqual(evidence["source_block_coverage"]["total"],
-                             evidence["source_block_coverage"]["mapped"])
+            self.assertGreaterEqual(evidence["source_block_coverage"]["total"],
+                                    evidence["source_block_coverage"]["mapped"])
+            self.assertEqual(evidence["source_mapping_scope"], "selected_summary_blocks")
+            self.assertEqual(evidence["content_review"], "not_run")
             with ZipFile(target) as archive:
                 names = archive.namelist()
                 self.assertTrue(any(name.startswith("ppt/media/") for name in names))

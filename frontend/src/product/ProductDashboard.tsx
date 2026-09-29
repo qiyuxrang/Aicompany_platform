@@ -19,7 +19,8 @@ function nextAction(task: TaskSummary) {
   if (task.state === "FAILED") return "查看失败原因";
   if (task.state === "CANCELLED") return "查看项目记录";
   if (task.state === "COMPLETED") return "查看项目成果";
-  if (["DRAFT", "WAITING_INPUT"].includes(task.state)) return "补充项目资料";
+  if (task.state === "WAITING_REVIEW") return "查看待确认项目蓝图";
+  if (["DRAFT", "WAITING_INPUT"].includes(task.state)) return "查看资料缺口";
   if (["QUEUED", "RUNNING"].includes(task.state) && task.pending_action && pendingActionNames[task.pending_action]) return pendingActionNames[task.pending_action];
   return "继续项目";
 }
@@ -27,6 +28,8 @@ function nextAction(task: TaskSummary) {
 function ProjectStatus({ state }: Pick<TaskSummary, "state">) {
   if (state === "COMPLETED") return <span className="pd-badge good">已完成</span>;
   if (state === "CANCELLED") return <span className="pd-badge neutral">已取消</span>;
+  if (state === "WAITING_REVIEW") return <span className="pd-badge warning">待确认</span>;
+  if (["FAILED", "WAITING_INPUT"].includes(state)) return <span className="pd-badge warning">{state === "FAILED" ? "处理失败" : "待处理"}</span>;
   return <span className="pd-badge info">进行中</span>;
 }
 
@@ -36,6 +39,7 @@ export default function ProductDashboard({ preview = false }: { preview?: boolea
   const counts = data ? [
     { label: "全部项目", value: data.metrics.all ?? data.pagination.total, filter: "all" },
     { label: "进行中", value: data.metrics.active, filter: "active" },
+    { label: "待确认", value: data.metrics.review, filter: "review" },
     { label: "已完成", value: data.metrics.completed ?? "—", filter: "completed" },
     { label: "本月完成", value: data.metrics.completed_month, filter: "completed_month" },
   ] : [];
@@ -60,6 +64,7 @@ export default function ProductDashboard({ preview = false }: { preview?: boolea
         {counts.map(item => <CenterLink key={item.filter} href={`/centers/product/projects?filter=${item.filter}`}><span>{item.label}</span><strong aria-label={`${item.label}项目数量`}>{item.value}</strong></CenterLink>)}
       </nav>
 
+      <div className="ph-columns">
       <section className="ph-section" aria-labelledby="recent-projects-title">
         <div className="ph-section-heading"><div><span className="ph-section-label">项目</span><h2 id="recent-projects-title">最近项目</h2></div><CenterLink href="/centers/product/projects">查看历史项目</CenterLink></div>
         {data.recent_projects.length ? <div className="ph-project-list">{data.recent_projects.map(task => <CenterLink href={projectUrl(task.id)} className="ph-project-row" key={task.id}>
@@ -70,6 +75,16 @@ export default function ProductDashboard({ preview = false }: { preview?: boolea
           <ProductIcon name="arrow"/>
         </CenterLink>)}</div> : <EmptyState title="暂无最近项目" detail="上传项目资料后，可从这里继续处理。" create/>}
       </section>
+
+      <section className="ph-section" aria-labelledby="todos-title">
+        <div className="ph-section-heading"><div><span className="ph-section-label">待办</span><h2 id="todos-title">待处理事项</h2></div><CenterLink href="/centers/product/projects?filter=review">查看待确认</CenterLink></div>
+        {data.todos.length ? <div className="ph-todo-list">{data.todos.map(task => <CenterLink href={projectUrl(task.id)} key={task.id}>
+          <span className={`ph-status-dot ${task.state === "WAITING_REVIEW" ? "review" : "attention"}`} aria-hidden="true" />
+          <span><strong>{task.title}</strong><small>{task.state === "WAITING_REVIEW" ? `${stageNames[task.stage] || "项目"}待确认` : task.state === "FAILED" ? "执行未完成，请查看原因并重试" : "需要补充资料、授权或修改依据"}</small></span>
+          <span>{nextAction(task)}</span><ProductIcon name="arrow" />
+        </CenterLink>)}</div> : <EmptyState title="暂无待处理事项" detail="需要补充或审核的项目会显示在这里。"/>}
+      </section>
+      </div>
 
       <section className="ph-section" aria-labelledby="recent-outputs-title">
         <div className="ph-section-heading"><div><span className="ph-section-label">成果</span><h2 id="recent-outputs-title">最近生成成果</h2></div><CenterLink href="/centers/product/outputs">查看历史成果</CenterLink></div>

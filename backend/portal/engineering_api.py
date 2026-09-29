@@ -1,12 +1,15 @@
 import json
 import math
 import subprocess
+from datetime import timedelta
 from functools import wraps
 from collections.abc import Mapping
 
 from django.db import transaction
+from django.db.models import F
 from django.http import FileResponse
 from django.urls import path
+from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
@@ -18,6 +21,9 @@ from .engineering_storage import (StorageError, read_upload, remove_job, save_in
                                   verified_result)
 from .engineering_worker import WorkerUnavailable, max_attempts, runtime_state
 from .security import audit, authorized_modules
+
+
+DELETE_PENDING_ERROR = "storage_cleanup_pending"
 
 
 class EngineeringError(Exception):
@@ -162,17 +168,47 @@ def job_detail(request, job_id):
     _require_engineering(request)
     job = _owned_job(request.user, job_id)
     if request.method == "DELETE":
-        # 仅允许删除终态任务（已完成/失败/阻塞），避免删除正在处理的任务
-        # 造成 Worker 的输入文件被移除、产生悬空执行。
-        if job.status in (EngineeringJob.Status.QUEUED, EngineeringJob.Status.RUNNING):
+        deletable = (EngineeringJob.Status.COMPLETED, EngineeringJob.Status.FAILED,
+                     EngineeringJob.Status.BLOCKED)
+        now = timezone.now()
+        if job.status not in deletable:
             raise EngineeringError("job_in_progress", "任务正在处理中，请等待结束后再删除。", 409)
+        if (job.error_code == DELETE_PENDING_ERROR and job.lease_until
+                and job.lease_until > now):
+            raise EngineeringError("job_delete_in_progress", "任务文件正在清理，请稍后重试。", 409)
         identifier = job.pk
-        # 先清理私有存储，再删记录：文件清理失败时保留记录以便运维重试。
+        deletion_fence = job.fence + 1
+        claimed = EngineeringJob.objects.filter(
+            pk=identifier, owner=request.user, fence=job.fence, status__in=deletable,
+        ).update(
+            status=EngineeringJob.Status.BLOCKED,
+            error_code=DELETE_PENDING_ERROR,
+            error_detail="工程私有文件正在清理。",
+            fence=F("fence") + 1,
+            lease_until=now + timedelta(minutes=5),
+            next_retry_at=None,
+            updated_at=now,
+        )
+        if not claimed:
+            current = _owned_job(request.user, identifier)
+            if current.status in (EngineeringJob.Status.QUEUED, EngineeringJob.Status.RUNNING):
+                raise EngineeringError("job_in_progress", "任务正在处理中，请等待结束后再删除。", 409)
+            raise EngineeringError("job_state_changed", "任务状态已变化，请重试。", 409)
         try:
             remove_job(identifier)
         except StorageError as error:
+            EngineeringJob.objects.filter(
+                pk=identifier, owner=request.user, fence=deletion_fence,
+                status=EngineeringJob.Status.BLOCKED, error_code=DELETE_PENDING_ERROR,
+            ).update(error_code=error.code, error_detail=error.detail, lease_until=None,
+                     updated_at=timezone.now())
             raise EngineeringError(error.code, error.detail, 503) from error
-        job.delete()
+        deleted, _ = EngineeringJob.objects.filter(
+            pk=identifier, owner=request.user, fence=deletion_fence,
+            status=EngineeringJob.Status.BLOCKED, error_code=DELETE_PENDING_ERROR,
+        ).delete()
+        if not deleted and EngineeringJob.objects.filter(pk=identifier).exists():
+            raise EngineeringError("job_state_changed", "任务状态已变化，请重试。", 409)
         audit(request.user, "engineering_job_delete", identifier, changes=[job.status])
         return Response(status=204)
     return Response({"job": _job_data(job), "capabilities": _capabilities()})

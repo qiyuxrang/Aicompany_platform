@@ -30,7 +30,7 @@ from .security import audit
 from .models import User
 from .product_intake import summary as extraction_summary
 from .product_service import require_project_materials
-from .product_blueprint_knowledge import blueprint_knowledge_status
+from .product_blueprint_knowledge import blueprint_knowledge_status, require_generation_knowledge
 
 
 def product_endpoint(function):
@@ -137,6 +137,13 @@ def _blueprint_revision(task):
     return task.revisions.filter(kind=DocumentRevision.Kind.BLUEPRINT, version=task.blueprint_version).first()
 
 
+def _require_generation_knowledge(task):
+    input_revision = _input_revision(task)
+    if input_revision is None:
+        raise ProductError("input_required", "请先保存输入。", 409)
+    return require_generation_knowledge(input_revision.payload, task.owner)
+
+
 def _revision_data(revision):
     if revision is None:
         return None
@@ -229,13 +236,21 @@ def _task_blockers(actions, input_revision=None):
                 "code": "model_authorization_required",
                 "detail": "D-01 尚未批准真实模型调用与资料外发，当前不能执行模型生成。",
             }
-    if "queue_blueprint" in actions and input_revision is not None:
+    if input_revision is not None:
         knowledge = blueprint_knowledge_status(input_revision.payload)
-        if knowledge["required"] and knowledge["status"] != "ready":
-            blockers["queue_blueprint"] = {
+        if knowledge["required"] and (knowledge["status"] != "ready" or knowledge["source_count"] == 0):
+            blocker = {
                 "code": "ragflow_required",
                 "detail": knowledge["detail"],
             }
+            if knowledge["status"] == "ready":
+                blocker = {
+                    "code": "web_search_unconfigured",
+                    "detail": "知识库未命中且联网搜索服务尚未接入，请补充知识库资料后重新检索。",
+                }
+            for action in ("save_blueprint", "confirm_blueprint", "queue_blueprint"):
+                if action in actions:
+                    blockers[action] = blocker
     if "queue_render" in actions and not getattr(settings, "PRODUCT_TEMPLATE_APPROVAL", {}):
         blockers["queue_render"] = {
             "code": "template_approval_required",
@@ -700,6 +715,7 @@ def blueprint(request, task_id):
         input_revision = _input_revision(task)
         if input_revision is None:
             raise ProductError("input_required", "请先保存输入。", 409)
+        _require_generation_knowledge(task)
         payload = validate_blueprint(body["payload"], input_revision.payload)
         source_ids = [source_id for chapter in payload["chapters"] for source_id in chapter["source_ids"]]
         if not source_ids_belong(task, source_ids):
@@ -733,9 +749,8 @@ def _queue(task, action):
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
         if action == "blueprint":
             require_project_materials(task)
-            from .product_blueprint_knowledge import require_blueprint_knowledge
             if not start_workflow:
-                require_blueprint_knowledge(_input_revision(task).payload)
+                _require_generation_knowledge(task)
             task.checkpoint = {**task.checkpoint, "analysis_progress": {}}
         elif action == "knowledge":
             require_project_materials(task)
@@ -745,6 +760,7 @@ def _queue(task, action):
         blueprint_revision = approved_blueprint(task)
         if blueprint_revision is None:
             raise ProductError("blueprint_approval_required", "当前蓝图尚未获有效批准。", 409)
+        _require_generation_knowledge(task)
         task.stage = DocumentTask.Stage.WRITING if action == "write" else DocumentTask.Stage.RENDER
         if action in {"render", "candidate"}:
             input_revision = _input_revision(task)
@@ -832,12 +848,16 @@ def decisions(request, task_id):
                 raise ProductError("decision_superseded", "该审核决定已被后续决定取代，必须提交新版本。", 409)
             if existing.decision == "approve" and not approval_current(task, existing):
                 raise ProductError("approval_authorization_changed", "授权已变化，请提交新版本后重新批准。", 409)
+            if body["target"] == "blueprint":
+                _require_generation_knowledge(task)
             _audit(request, "product_decision_replay", task, target=existing.pk)
             return Response({"approval_id": str(existing.pk), "task": _task_detail(task, request.user)})
         require_version(task, _expected(body["expected_version"]))
         expected_stage = DocumentTask.Stage.BLUEPRINT if body["target"] == "blueprint" else DocumentTask.Stage.FINAL_REVIEW
         if task.state != DocumentTask.State.WAITING_REVIEW or task.stage != expected_stage or task.lease_until is not None:
             raise ProductError("invalid_state", "任务当前不处于可审核状态。", 409)
+        if body["target"] == "blueprint":
+            _require_generation_knowledge(task)
         if body["target"] == "artifact" and body["decision"] == DocumentApproval.Decision.APPROVE and not artifact_releasable(target):
             raise ProductError("formal_release_blocked", "缺少正式发布许可、渲染证据或通过的内容审查。", 409)
         if body["decision"] == DocumentApproval.Decision.REVISE:
@@ -945,6 +965,8 @@ def retry(request, task_id):
             raise ProductError("attempt_limit", "已达到隔离环境安全重试上限。", 409)
         if task.pending_action not in {"knowledge", "blueprint", "write", "render", "three_drafts", "presentation", "generate_outputs"}:
             raise ProductError("invalid_action", "没有可重试的持久动作。", 409)
+        if task.pending_action in {"write", "render", "three_drafts", "presentation", "generate_outputs"}:
+            _require_generation_knowledge(task)
         blocked = task.pending_action in {"blueprint", "write", "generate_outputs"} and not getattr(settings, "PRODUCT_MODEL_CALLS_ALLOWED", False)
         task.state = DocumentTask.State.WAITING_INPUT if blocked else DocumentTask.State.QUEUED
         task.error_code = "model_authorization_required" if blocked else ""

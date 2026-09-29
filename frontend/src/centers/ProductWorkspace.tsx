@@ -15,11 +15,13 @@ export default function ProductWorkspace({ section }: WorkspaceProps) {
   const preview = window.location.pathname.startsWith("/preview/");
   if (section === "overview") return <ProductDashboard preview={preview}/>;
   if (preview) return <section className="pd-panel"><h2>产品事业部页面预览</h2><p>此页面不读取业务数据。平台管理员不会自动获得业务权限。</p><CenterLink href="/centers/product" className="button secondary">返回工作台预览</CenterLink></section>;
-  if (section === "documents") return <NewProductProject />;
+  const params = new URLSearchParams(window.location.search);
+  const task = params.get("task");
+  const artifact = params.get("artifact") || "";
+  if (section === "documents") return task ? <ProductProjectDetail key={`${task}-${artifact}`} id={task} artifact={artifact}/> : <NewProductProject />;
   if (section === "outputs") return <ProductOutputs />;
   if (section === "opportunities") return <TenderOpportunities/>;
   if (section === "new") return <NewProductProject/>;
-  const task = new URLSearchParams(window.location.search).get("task");
   if (section === "projects" && task) return <ProductProjectDetail key={task} id={task}/>;
   if (section === "sources") return <KnowledgeMaterials/>;
   if (section === "projects" || section === "history") return <ProductProjects key={`${section}-${window.location.search}`} view={section}/>;

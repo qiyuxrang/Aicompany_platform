@@ -62,9 +62,8 @@ it('终态批次开始新筛选会清空当前任务和待上传文件', async (
   fireEvent.change(screen.getByLabelText('批量上传简历（TXT、DOCX、PDF）'), { target: { files: [new File(['resume'], '待上传.txt')] } });
   expect(screen.getByText('待上传.txt')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: '刷新进度' }));
-  const startNew = await screen.findByRole('button', { name: '开始新的筛选' });
-  await waitFor(() => expect((startNew as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(startNew);
+  await waitFor(() => expect((screen.getByRole('button', { name: '开始新的筛选' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: '开始新的筛选' }));
   expect(screen.queryByText('待上传.txt')).toBeNull();
   expect(screen.queryByRole('heading', { name: '处理进度' })).toBeNull();
 });
@@ -105,9 +104,8 @@ it('上传 JD 自动确认并省略模型选择创建批次', async () => {
   fireEvent.click(screen.getByRole('button', { name: '进行筛选' }));
   await waitFor(() => expect(api.apiRequest).toHaveBeenCalledWith('/api/hr/recruitment/batches/', expect.objectContaining({ body: JSON.stringify({ jd_version_id: 'jd-import' }) })));
   expect(api.apiRequest.mock.calls.some(([path]) => path.includes('/api/models/routes/'))).toBe(false);
-  const startNew = await screen.findByRole('button', { name: '开始新的筛选' });
-  await waitFor(() => expect((startNew as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(startNew);
+  await waitFor(() => expect((screen.getByRole('button', { name: '开始新的筛选' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: '开始新的筛选' }));
   expect(screen.queryByText('jd.docx')).toBeNull();
   expect(screen.queryByRole('heading', { name: '处理进度' })).toBeNull();
   expect((screen.getByLabelText('上传 JD 文件（TXT、DOCX、PDF）') as HTMLInputElement).disabled).toBe(false);

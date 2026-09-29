@@ -4,7 +4,7 @@ import { EmptyState, formatDate, goProduct, LoadState, ProductIcon, projectUrl, 
 import "./project-workbench.css";
 import "./product-clean-layout.css";
 
-const filters = [{ code: "all", label: "全部项目" }, { code: "active", label: "进行中" }, { code: "completed", label: "已完成" }, { code: "completed_month", label: "本月完成" }];
+const filters = [{ code: "all", label: "全部项目" }, { code: "active", label: "进行中" }, { code: "review", label: "待确认" }, { code: "completed", label: "已完成" }, { code: "completed_month", label: "本月完成" }];
 const views = {
   projects: { title: "历史项目", description: "继续处理项目或查看成果。", action: "查看详情", tab: "blueprint" },
   sources: { title: "项目资料", description: "按项目查看上传资料。", action: "查看资料", tab: "sources" },

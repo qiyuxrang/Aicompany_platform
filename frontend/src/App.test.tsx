@@ -103,7 +103,7 @@ describe("portal routing", () => {
     vi.unstubAllGlobals();
   });
 
-  it("总经理从个人工作台入口直接进入企业台账首页", async () => {
+  it("总经理从个人工作台入口直接进入企业经营分析首页", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/me/") return Promise.resolve(json({ ...baseUser, roles: [{ code: "general_manager", name: "总经理" }] }));
@@ -115,7 +115,7 @@ describe("portal routing", () => {
     render(<App />);
 
     await waitFor(() => expect(window.location.pathname).toBe("/centers/business"));
-    expect(await screen.findByRole("link", { name: /企业台账/ })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "数据分析首页", level: 1 })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "工作摘要" })).toBeNull();
   });
 
@@ -336,6 +336,8 @@ describe("portal routing", () => {
       id, title, state: "DRAFT", stage: "INTAKE", version: 1, input_version: 1, blueprint_version: 0,
       input: { project: title, requirements: "需求", background: "", items: [], conditions: [] }, blueprint: null,
       chapters: [], artifacts: [], sources: [], approvals: [], issues: [], error_code: "", actions: [], blockers: {}, reviewer_id: null, owner_id: 1, input_issues: [], impact: {},
+      blueprint_review: { revision_count: 0, revision_limit: 3, revisions_remaining: 3 },
+      blueprint_knowledge: { mode: "source_only_preview", required: false, status: "source_only_preview", ragflow_used: false, source_count: 0, detail: "仅使用项目资料。" },
     });
     window.history.replaceState({}, "", "/centers/product/documents?task=one");
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
@@ -343,19 +345,18 @@ describe("portal routing", () => {
       if (path === "/api/me/") return Promise.resolve(json(baseUser));
       if (path === "/api/modules/product/") return Promise.resolve(json({ code: "product", name: "产品", description: "", status: "verified", enabled: true }));
       if (path === "/api/modules/") return Promise.resolve(json([{ code: "product", name: "产品", description: "", status: "verified", enabled: true }]));
-      if (path === "/api/product/tasks/") return Promise.resolve(json([{ id: "one", title: "第一任务", state: "DRAFT", stage: "INTAKE", version: 1 }, { id: "two", title: "第二任务", state: "DRAFT", stage: "INTAKE", version: 1 }]));
-      if (path === "/api/product/tasks/one/") return Promise.resolve(json(details("one", "第一任务")));
-      if (path === "/api/product/tasks/two/") return Promise.resolve(json(details("two", "第二任务")));
+       if (path === "/api/product/tasks/one/") return Promise.resolve(json(details("one", "第一任务")));
+       if (path === "/api/product/tasks/two/") return Promise.resolve(json(details("two", "第二任务")));
       return Promise.resolve(json({ detail: "未找到" }, 404));
     }));
     render(<App />);
-    expect((await screen.findByLabelText("草稿标题") as HTMLInputElement).value).toBe("第一任务");
-    window.history.pushState({}, "", "/centers/product/documents?task=two");
+    expect(await screen.findByRole("heading", { level: 1, name: "第一任务" })).toBeTruthy();
+    window.history.pushState({}, "", "/centers/product/projects?task=two&tab=blueprint");
     window.dispatchEvent(new PopStateEvent("popstate"));
-    await waitFor(() => expect((screen.getByLabelText("草稿标题") as HTMLInputElement).value).toBe("第二任务"));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "第二任务" })).toBeTruthy());
     window.history.replaceState({}, "", "/centers/product/documents?task=one");
     window.dispatchEvent(new PopStateEvent("popstate"));
-    await waitFor(() => expect((screen.getByLabelText("草稿标题") as HTMLInputElement).value).toBe("第一任务"));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "第一任务" })).toBeTruthy());
   });
 
   it("历史 JD 入口只读，保留原版本正文", async () => {

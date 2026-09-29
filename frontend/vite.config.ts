@@ -5,6 +5,7 @@ const backend = "http://127.0.0.1:8100";
 
 export default defineConfig({
   plugins: [react()],
+  envDir: process.env.PORTAL_FRONTEND_ENV_DIR,
   server: {
     port: 5178,
     strictPort: true,

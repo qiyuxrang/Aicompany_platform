@@ -70,11 +70,38 @@ def blueprint_knowledge_status(input_payload):
     }
 
 
-def require_blueprint_knowledge(input_payload):
+def require_blueprint_knowledge(input_payload, owner=None):
     status = blueprint_knowledge_status(input_payload)
+    snapshot = _ragflow_snapshot(input_payload)
     if status["required"] and status["status"] != "ready":
         raise ProductError("ragflow_required", status["detail"], 409)
+    if snapshot is not None and owner is not None:
+        from .product_knowledge_service import recheck
+
+        recheck(owner, snapshot.get("authorization"))
     return status
+
+
+def require_generation_knowledge(input_payload, owner=None):
+    status = require_blueprint_knowledge(input_payload, owner)
+    if status["required"] and status["source_count"] == 0:
+        raise ProductError(
+            "web_search_unconfigured",
+            "知识库未命中且联网搜索服务尚未接入，请补充知识库资料后重新检索。",
+            409,
+        )
+    return status
+
+
+def require_task_generation_knowledge(task_id):
+    from .product_models import DocumentTask
+    from .product_service import current_revision
+
+    task = DocumentTask.objects.select_related("owner").get(pk=task_id)
+    revision = current_revision(task, "input")
+    if revision is None:
+        raise ProductError("input_required", "请先保存输入。", 409)
+    return require_generation_knowledge(revision.payload, task.owner)
 
 
 def _query(payload):

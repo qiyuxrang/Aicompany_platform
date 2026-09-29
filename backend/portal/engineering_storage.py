@@ -48,6 +48,13 @@ def _job_root(job_id):
     return target
 
 
+def _existing_job_root(job_id):
+    target = _job_root(job_id)
+    if not target.is_dir():
+        raise StorageError("storage_unavailable", "工程任务存储根目录不可用。")
+    return target
+
+
 def _resolve_relative(relative):
     if not isinstance(relative, str) or not relative or "\x00" in relative:
         raise StorageError("invalid_path", "工程任务文件路径无效。")
@@ -144,10 +151,15 @@ def verified_input(item):
 
 
 def work_directory(job_id, fence):
-    job_root = _job_root(job_id)
-    target = job_root / "work" / str(fence)
+    job_root = _existing_job_root(job_id)
+    work_root = job_root / "work"
     try:
-        target.mkdir(parents=True, exist_ok=True)
+        work_root.mkdir(exist_ok=True)
+        work_root = work_root.resolve()
+        if not work_root.is_relative_to(job_root):
+            raise StorageError("invalid_path", "工程任务工作目录无效。")
+        target = work_root / str(fence)
+        target.mkdir(exist_ok=True)
     except OSError as error:
         raise StorageError("storage_unavailable", "工程任务工作目录不可用。") from error
     resolved = target.resolve()
@@ -182,10 +194,10 @@ def verified_cli_output(raw_path, expected_hash, work_root):
 def persist_result(job_id, fence, sources):
     if not 1 <= len(sources) <= 2:
         raise StorageError("invalid_result", "测算成果数量与输入不一致。")
-    job_root = _job_root(job_id)
+    job_root = _existing_job_root(job_id)
     result_dir = job_root / "results"
     try:
-        result_dir.mkdir(parents=True, exist_ok=True)
+        result_dir.mkdir(exist_ok=True)
         result_dir = result_dir.resolve()
         if not result_dir.is_relative_to(job_root):
             raise StorageError("invalid_path", "测算成果存储路径无效。")
