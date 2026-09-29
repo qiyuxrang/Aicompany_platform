@@ -129,6 +129,48 @@ print(json.dumps(generator.source_mapping(
 
 
 class PresentationSourceManifestTests(PresentationGeneratorTestCase):
+    def test_many_chapters_keep_body_content_and_fallback_text_does_not_overlap(self):
+        blocks = []
+        for family in ("technical-solution", "feasibility"):
+            for index in range(6):
+                blocks.extend([
+                    {"ref": f"{family}:H{index}", "type": "heading", "level": 1, "text": f"章节{index}"},
+                    {"ref": f"{family}:P{index}", "type": "paragraph", "text": f"{family} 正文结论{index}。"},
+                ])
+        with tempfile.TemporaryDirectory() as directory:
+            source = self.write_source(directory, source_data(blocks))
+            target = Path(directory) / "summary.pptx"
+            completed = subprocess.run([str(RUNTIME), "-B", str(SCRIPT), str(source), str(target)],
+                                       cwd=BACKEND, capture_output=True, text=True, timeout=60)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            manifest = json.loads(target.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+            mapped = set(manifest["mapped_source_refs"])
+            self.assertEqual(manifest["quality_gate"]["status"], "pass")
+            for family in ("technical-solution", "feasibility"):
+                self.assertIn(f"{family}:P0", mapped)
+                self.assertIn(f"{family}:P3", mapped)
+                self.assertGreater(manifest["body_coverage"][family]["mapped"], 0)
+            with ZipFile(target) as archive:
+                ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+                      "p": "http://schemas.openxmlformats.org/presentationml/2006/main"}
+                for page in (3, 5):
+                    root = ET.fromstring(archive.read(f"ppt/slides/slide{page}.xml"))
+                    boxes = []
+                    for shape in root.findall(".//p:sp", ns):
+                        if not "".join(_root_text(shape)).strip():
+                            continue
+                        transform = shape.find("p:spPr/a:xfrm", ns)
+                        if transform is None:
+                            continue
+                        offset, extent = transform.find("a:off", ns), transform.find("a:ext", ns)
+                        boxes.append(tuple(int(value) for value in (
+                            offset.get("x"), offset.get("y"), extent.get("cx"), extent.get("cy"))))
+                    for index, (x, y, w, h) in enumerate(boxes):
+                        for bx, by, bw, bh in boxes[index + 1:]:
+                            self.assertFalse(min(x + w, bx + bw) > max(x, bx)
+                                             and min(y + h, by + bh) > max(y, by),
+                                             f"overlapping text on slide {page}")
+
     def test_five_page_summary_uses_real_content_counts_and_refs(self):
         blocks = []
         for family, title, prefix in (

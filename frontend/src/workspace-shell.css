@@ -48,10 +48,10 @@
 .workspace-menu-toggle { display:none; }
 .workspace-sidebar-body { display:flex; flex-direction:column; gap:24px; flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
 .workspace-sidebar :is(.center-navigation,.ops-navigation) { display:grid; gap:5px; overflow:visible; }
-.workspace-sidebar :is(.center-navigation,.ops-navigation) a { display:flex; gap:11px; align-items:center; min-height:44px; margin:0; padding:10px 11px; border:1px solid transparent; border-radius:8px; color:var(--muted); font-size:13px; text-decoration:none; white-space:normal; }
-.workspace-sidebar :is(.center-navigation,.ops-navigation) a:hover { background:var(--raised); color:var(--ink); }
-.workspace-sidebar :is(.center-navigation,.ops-navigation) a.active { background:var(--soft); border-color:var(--info-border); color:var(--accent); box-shadow:none; }
-.workspace-sidebar .ops-navigation a > span { border:0; color:inherit; }
+.unified-app-shell .workspace-sidebar :is(.center-navigation,.ops-navigation) a { display:flex; gap:11px; align-items:center; min-height:44px; margin:0; padding:10px 11px; border:1px solid transparent; border-radius:8px; color:var(--muted); font-size:13px; text-decoration:none; white-space:normal; }
+.unified-app-shell .workspace-sidebar :is(.center-navigation,.ops-navigation) a:hover { background:var(--raised); color:var(--ink); }
+.unified-app-shell .workspace-sidebar :is(.center-navigation,.ops-navigation) a.active { background:var(--soft); border-color:var(--info-border); color:var(--accent); box-shadow:none; }
+.unified-app-shell .workspace-sidebar .ops-navigation a > span { border:0; color:inherit; }
 .workspace-switcher { display:grid; gap:4px; padding:16px 4px 0; border-top:1px solid var(--line); }
 .workspace-switcher p { margin:0 0 8px; color:var(--muted); font-size:12px; }
 .workspace-switcher a { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:38px; padding:7px 9px; color:var(--muted); font-size:13px; border-radius:6px; text-decoration:none; }

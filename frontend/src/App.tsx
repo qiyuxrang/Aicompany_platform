@@ -1,4 +1,4 @@
-import { type AnchorHTMLAttributes, FormEvent, MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { type AnchorHTMLAttributes, FormEvent, lazy, MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   BusinessSummary,
@@ -22,16 +22,18 @@ import {
   passwordChangeRequiredEvent,
   unauthorizedEvent,
 } from "./api";
-import OpsWorkspace from "./ops/OpsWorkspace";
+import WorkspaceBoundary from "./WorkspaceBoundary";
 import ThemeSwitch from "./ThemeSwitch";
 import './password-dialog.css';
-import CenterWorkspace from "./centers/CenterWorkspace";
 import HrHeaderTools from './hr/HrHeaderTools';
 import { centers, isCenterCode } from "./centers/config";
 import CompanyIdentity from "./CompanyIdentity";
 import "./workspace-shell.css";
 import Icon from "./Icon";
 import "./login-page.css";
+
+const OpsWorkspace = lazy(() => import("./ops/OpsWorkspace"));
+const CenterWorkspace = lazy(() => import("./centers/CenterWorkspace"));
 
 const statusMeta = {
   pending: { label: "待接入", tone: "warning" },
@@ -923,6 +925,16 @@ export default function App() {
     if (requiredPath) navigate(requiredPath, true);
   }, [requiredPath]);
 
+  useEffect(() => {
+    const match = pathname.match(/^\/(?:centers|preview)\/([^/]+)(?:\/([^/]+))?/);
+    const config = match && isCenterCode(match[1]) ? centers[match[1]] : null;
+    const section = config?.sections.find(item => item.code === (match?.[2] || "overview"));
+    const title = config ? `${section?.title || "工作台"} · ${config.name}`
+      : pathname === "/login" ? "登录" : pathname === "/password" ? "修改密码"
+      : pathname.startsWith("/ops") ? "平台运维" : "我的工作台";
+    document.title = `${title} · 企业统一门户`;
+  }, [pathname]);
+
   if (phase === "loading" || requiredPath) return <PageLoading />;
   if (phase === "error") return <ErrorPage message={bootstrapError} onRetry={() => void bootstrap()} />;
 
@@ -980,5 +992,5 @@ export default function App() {
   }
   else content = <NotFoundPage />;
 
-  return <AppShell user={user} onLogout={handleLogout}>{content}</AppShell>;
+  return <AppShell user={user} onLogout={handleLogout}><WorkspaceBoundary resetKey={pathname}>{content}</WorkspaceBoundary></AppShell>;
 }

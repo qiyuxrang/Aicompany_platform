@@ -19,7 +19,7 @@ function nextAction(task: TaskSummary) {
   if (task.state === "FAILED") return "查看失败原因";
   if (task.state === "CANCELLED") return "查看项目记录";
   if (task.state === "COMPLETED") return "查看项目成果";
-  if (task.state === "WAITING_REVIEW") return "查看待确认项目蓝图";
+  if (task.state === "WAITING_REVIEW") return task.stage === "BLUEPRINT" ? "查看待确认项目蓝图" : "查看待审核项目成果";
   if (["DRAFT", "WAITING_INPUT"].includes(task.state)) return "查看资料缺口";
   if (["QUEUED", "RUNNING"].includes(task.state) && task.pending_action && pendingActionNames[task.pending_action]) return pendingActionNames[task.pending_action];
   return "继续项目";

@@ -131,6 +131,13 @@ describe("product business workbench", () => {
     expect((await screen.findAllByText("查看成果生成进度")).length).toBeGreaterThan(0);
     expect(screen.queryByText("generate_outputs")).toBeNull();
   });
+  it("distinguishes final artifact review from blueprint confirmation", async () => {
+    const task = sampleTask({ state: "WAITING_REVIEW", stage: "FINAL_REVIEW" });
+    overview.mockResolvedValueOnce({ ...sampleOverview(), recent_projects: [task], todos: [task] });
+    render(<ProductDashboard/>);
+    expect((await screen.findAllByText("查看待审核项目成果")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("查看待确认项目蓝图")).toBeNull();
+  });
   it("preview never reads project data", () => {
     render(<ProductDashboard preview/>); expect(overview).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "产品事业部工作台" })).toBeTruthy();

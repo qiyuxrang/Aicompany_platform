@@ -1,14 +1,16 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { lazy, ReactNode, useEffect, useRef, useState } from "react";
 import { CurrentUser, getMe, getModule, getModules, isApiError, opsPermissionRevokedEvent, PortalModule } from "../api";
 import Icon from "../Icon";
 import WorkspaceSidebar from "../WorkspaceSidebar";
 import NetworkNotice from "../NetworkNotice";
 import { centers, CenterCode, isCenterCode } from "./config";
 import { CenterLink } from "./shared";
-import ProductWorkspace from "./ProductWorkspace";
-import EngineeringPendingPage from "./EngineeringPendingPage";
-import HrWorkspace from "./HrWorkspace";
-import ManagerWorkspace from "./ManagerWorkspace";
+import WorkspaceBoundary from "../WorkspaceBoundary";
+
+const ProductWorkspace = lazy(() => import("./ProductWorkspace"));
+const EngineeringPendingPage = lazy(() => import("./EngineeringPendingPage"));
+const HrWorkspace = lazy(() => import("./HrWorkspace"));
+const ManagerWorkspace = lazy(() => import("./ManagerWorkspace"));
 
 import "./centers.css";
 import { CompanyMark, ProductIcon, type ProductIconName } from "../product/workbench-shared";
@@ -173,7 +175,7 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
       {!(code === "product" && activeSection === "opportunities" && !preview) && <nav className="center-breadcrumb" aria-label="当前位置"><CenterLink href={`${base}/${code}`}>{config.name}</CenterLink><span aria-hidden="true">/</span><span>{selected?.title || "未找到页面"}</span></nav>}
       {!pageOwnsHeading && <header className="center-page-head"><div><h1 ref={heading} tabIndex={-1}>{selected?.title || "未找到页面"}</h1></div></header>}
       {preview && <div className="center-preview-banner" role="note"><strong>仅预览前端页面</strong><span>不读取部门业务数据，不启动旧系统，不代表已获业务授权。请使用已授权的部门账号执行真实业务操作。</span></div>}
-      <div className="center-body">{content}</div>
+      <div className="center-body"><WorkspaceBoundary resetKey={activeSection}>{content}</WorkspaceBoundary></div>
     </main>
   </div></>;
 }

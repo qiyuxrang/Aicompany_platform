@@ -107,7 +107,7 @@ class PresentationDiagnosticTests(SimpleTestCase):
         manifest = {"engine": "business-tech-pptx", "engine_version": "v3", "design_profile": "dark",
                     "fact_boundary": "source-bound", "slides": 5, "diagram_slides": 4, "native_charts": 1,
                     "editable_data_visuals": 4, "visual_asset_count": 1, "source_blocks": 4,
-                    "source_blocks_mapped": 1, "mapped_source_refs": refs[:1], "omitted_source_refs": refs[1:],
+                    "source_blocks_mapped": 2, "mapped_source_refs": [refs[1], refs[3]], "omitted_source_refs": [refs[0], refs[2]],
                     "missing_source_refs": [], "quality_gate": {"status": "pass"},
                     "layout_inventory": {"cover": 1, "summary": 4}, "dominant_layout_ratio": 0.8,
                     "source_mapping_scope": "selected_summary_blocks", "content_review": "not_run"}
@@ -118,6 +118,9 @@ class PresentationDiagnosticTests(SimpleTestCase):
                            ("content_review", "passed"), ("layout_inventory", {"cover": 3})]:
             with self.subTest(key=key, value=value):
                 self.assertFalse(_valid_manifest({**manifest, key: value}, pair))
+        self.assertFalse(_valid_manifest({**manifest, "source_blocks_mapped": 2,
+                                         "mapped_source_refs": [refs[0], refs[2]],
+                                         "omitted_source_refs": [refs[1], refs[3]]}, pair))
 
 
 class PresentationRuntimeRecoveryTests(SimpleTestCase):

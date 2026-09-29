@@ -50,7 +50,7 @@ class ThreeDraftFlowTests(PortalTestCase):
             target = Path(storage) / rendered["path"]
             evidence = rendered["render_evidence"]
             self.assertEqual(evidence["engine"], "business-tech-pptx")
-            self.assertEqual(evidence["engine_version"], "v3")
+            self.assertEqual(evidence["engine_version"], "v4")
             self.assertEqual(evidence["quality_gate"]["status"], "pass")
             self.assertEqual(evidence["slides"], 5)
             self.assertGreaterEqual(evidence["diagram_slides"], 4)

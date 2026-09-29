@@ -7,7 +7,18 @@ $python = Join-Path $root '.venv/Scripts/python.exe'
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
     throw '请先在项目根目录运行 uv sync --frozen。'
 }
-Get-Command corepack -ErrorAction Stop | Out-Null
+$node = (Get-Command node -ErrorAction Stop).Source
+$frontend = Join-Path $root 'frontend'
+$frontendTools = @{
+    test = Join-Path $frontend 'node_modules/vitest/vitest.mjs'
+    typecheck = Join-Path $frontend 'node_modules/typescript/bin/tsc'
+    build = Join-Path $frontend 'node_modules/vite/bin/vite.js'
+}
+foreach ($tool in $frontendTools.Values) {
+    if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) {
+        throw '前端依赖未安装完整，请先在 frontend 运行 pnpm install --frozen-lockfile。'
+    }
+}
 $runName = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $output = Join-Path $root ".runtime/preproduction-checks/$runName"
 New-Item -ItemType Directory -Path $output | Out-Null
@@ -45,10 +56,9 @@ try {
     Invoke-Check 'backend' $python @('qa/run_prd_tests.py', '--fast-passwords', 'portal.tests') $root
     Invoke-Check 'schema' $python @('qa/run_prd_tests.py', '--check-schema') $root
     Invoke-Check 'gateway' $python @('-m', 'unittest', 'discover', '-s', 'model_gateway/tests') $root
-    $frontend = Join-Path $root 'frontend'
-    Invoke-Check 'frontend' 'corepack' @('pnpm', 'test') $frontend
-    Invoke-Check 'typecheck' 'corepack' @('pnpm', 'typecheck') $frontend
-    Invoke-Check 'build' 'corepack' @('pnpm', 'exec', 'vite', 'build', '--outDir', (Join-Path $output 'frontend-dist')) $frontend
+    Invoke-Check 'frontend' $node @($frontendTools.test, 'run') $frontend
+    Invoke-Check 'typecheck' $node @($frontendTools.typecheck, '--noEmit') $frontend
+    Invoke-Check 'build' $node @($frontendTools.build, 'build', '--outDir', (Join-Path $output 'frontend-dist')) $frontend
 } finally {
     foreach ($entry in Get-ChildItem Env:) {
         if (-not $originalEnvironment.ContainsKey($entry.Name)) {

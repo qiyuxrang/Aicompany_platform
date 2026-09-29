@@ -1,4 +1,4 @@
-.ph-workspace { width:100%; max-width:1440px; margin-inline:auto; gap:24px; }
+.ph-workspace { width:100%; max-width:1440px; margin-inline:auto; gap:24px; container-type:inline-size; }
 .ph-header { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; padding-block:8px; }
 .ph-workspace .ph-header h1 { margin:0; color:var(--ink); font-size:clamp(26px,2.4vw,32px); line-height:1.2; }
 .ph-resume { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:32px; border:1px solid var(--line); border-radius:14px; padding:28px 30px; background:linear-gradient(115deg,var(--surface),color-mix(in srgb,var(--surface) 86%,var(--accent))); }
@@ -49,6 +49,8 @@
 .ph-inline-empty p { margin:3px 0 0; }
 .ph-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; color:var(--muted); font-size:12px; }
 .ph-footer .text-button { min-height:44px; }
+/* Use the actual desktop content width after the sidebar, not the viewport. */
+@container (max-width:1100px) { .ph-columns { grid-template-columns:1fr; } }
 @media(max-width:1250px) { .ph-columns { grid-template-columns:1fr; } .ph-output-list { grid-template-columns:1fr; } }
 @media(max-width:760px) { .ph-workspace { gap:20px; } .ph-header { align-items:flex-start; flex-direction:column; } .ph-header .pd-actions,.ph-header .button { width:100%; } .ph-resume { grid-template-columns:1fr; gap:20px; padding:22px; } .ph-resume > .button { width:100%; } .ph-resume-title { flex-direction:column; } .ph-counts { justify-content:space-between; gap:6px 12px; } .ph-project-row { grid-template-columns:auto minmax(0,1fr) auto; } .ph-project-state { justify-items:end; } .ph-project-next { grid-column:2 / -1; padding-top:3px; } .ph-project-row > svg { grid-column:3; grid-row:2; } .ph-todo-list a { grid-template-columns:auto minmax(0,1fr) auto; } .ph-todo-list a > span:nth-child(3) { display:none; } .ph-footer { align-items:flex-start; } }
 @media(max-width:420px) { .ph-counts a { width:calc(50% - 8px); justify-content:space-between; } .ph-project-state small { display:none; } }

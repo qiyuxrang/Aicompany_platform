@@ -36,7 +36,8 @@ export function useProductOverview(query = "", enabled = true) {
     if (!enabled) return;
     const check = () => { if (!document.hidden) setRefresh(value => value + 1); };
     window.addEventListener("focus", check);
-    return () => window.removeEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => { window.removeEventListener("focus", check); document.removeEventListener("visibilitychange", check); };
   }, [enabled]);
   return { data, error, reload: () => setRefresh(value => value + 1) };
 }

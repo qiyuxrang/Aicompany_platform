@@ -16,6 +16,10 @@ from .product_storage import private_root
 SCRIPT = Path(__file__).resolve().parent / "product_assets" / "simple_presentation.py"
 
 
+def presentation_renderer_hash():
+    return hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
+
+
 def _valid_manifest(quality, pair):
     if not isinstance(quality, dict):
         return False
@@ -45,6 +49,12 @@ def _valid_manifest(quality, pair):
                 if block.get("type") in {"heading", "paragraph", "table", "figure"}
                 and not block["ref"].split(":", 1)[-1].startswith(("DRAFT_NOTICE", "PENDING_"))}
     mapped = set(quality["mapped_source_refs"])
+    for family in ("technical-solution", "feasibility"):
+        body = {block["ref"] for block in pair["blocks"]
+                if block["ref"] in eligible and block["ref"].startswith(family + ":")
+                and block.get("type") in {"paragraph", "table"}}
+        if body and not body & mapped:
+            return False
     return (quality["source_blocks"] == len(eligible)
             and quality["source_blocks_mapped"] == len(eligible & mapped)
             and set(quality["omitted_source_refs"]) == eligible - mapped
@@ -98,7 +108,7 @@ def render_presentation_draft(task, pair):
     if quality["quality_gate"].get("status") != "pass" or quality["missing_source_refs"]:
         raise DocumentError("presentation_unavailable", diagnostic={"stage": "presentation_quality", "reason": "quality_failed"})
     return {"path": output.relative_to(root).as_posix(), "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
-            "template_hash": hashlib.sha256(SCRIPT.read_bytes()).hexdigest(),
+            "template_hash": presentation_renderer_hash(),
             "render_evidence": {"kind": "draft", "status": "draft_unverified", "engine": quality["engine"],
                                 "engine_version": quality["engine_version"], "design_profile": quality["design_profile"],
                                 "quality_gate": quality["quality_gate"], "slides": quality["slides"],

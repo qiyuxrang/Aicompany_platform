@@ -58,13 +58,14 @@ def generate_report_drafts(task, fence, attempt_id, input_revision, blueprint):
 
 
 def generate_presentation_artifact(task, fence, attempt_id, input_revision, blueprint):
-    from .product_presentation import render_presentation_draft
+    from .product_presentation import presentation_renderer_hash, render_presentation_draft
     from .product_worker import _analysis_progress, _guard, _renew
 
     _renew(task.pk, fence)
     _analysis_progress(task.pk, fence, 'presentation', 'running', detail='正在根据两份报告制作汇报PPT')
     pair = pair_snapshot(task)
-    generation_hash = digest({"kind": "presentation", "pair": pair["sha256"], "title": task.title})
+    generation_hash = digest({"kind": "presentation", "pair": pair["sha256"], "title": task.title,
+                              "renderer": presentation_renderer_hash()})
     existing = DocumentArtifact.objects.filter(task=task, generation_hash=generation_hash).first()
     if existing:
         verified_artifact(existing)

@@ -1,17 +1,24 @@
+import { lazy } from "react";
+import WorkspaceBoundary from "../WorkspaceBoundary";
 import ProductOutputs from "../product/ProductOutputs";
 import ProductDashboard from "../product/ProductDashboard";
 import NewProductProject from "../product/NewProductProject";
 import ProductProjects from "../product/ProductProjects";
-import ProductProjectDetail from "../product/ProductProjectDetail";
 import ProductTemplates from "../product/ProductTemplates";
-import ProductKnowledge from "../product/ProductKnowledge";
-import KnowledgeMaterials from "../product/KnowledgeMaterials";
-import TenderOpportunities from "../product/TenderOpportunities";
-import BusinessLedgerWorkspace from "./BusinessLedgerWorkspace";
 import "../product/product-division.css";
 import { CenterLink, SectionHeader, WorkspaceProps } from "./shared";
 
+const ProductProjectDetail = lazy(() => import("../product/ProductProjectDetail"));
+const ProductKnowledge = lazy(() => import("../product/ProductKnowledge"));
+const KnowledgeMaterials = lazy(() => import("../product/KnowledgeMaterials"));
+const TenderOpportunities = lazy(() => import("../product/TenderOpportunities"));
+const BusinessLedgerWorkspace = lazy(() => import("./BusinessLedgerWorkspace"));
+
 export default function ProductWorkspace({ section }: WorkspaceProps) {
+  return <WorkspaceBoundary resetKey={`${section}-${window.location.search}`}><ProductPage section={section}/></WorkspaceBoundary>;
+}
+
+function ProductPage({ section }: WorkspaceProps) {
   const preview = window.location.pathname.startsWith("/preview/");
   if (section === "overview") return <ProductDashboard preview={preview}/>;
   if (preview) return <section className="pd-panel"><h2>产品事业部页面预览</h2><p>此页面不读取业务数据。平台管理员不会自动获得业务权限。</p><CenterLink href="/centers/product" className="button secondary">返回工作台预览</CenterLink></section>;

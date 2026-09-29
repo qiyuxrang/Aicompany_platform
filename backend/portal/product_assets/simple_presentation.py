@@ -81,17 +81,33 @@ def select_summary_blocks(blocks, family, limit, *, types=None, excluded=()):
     candidates = source_blocks(blocks, family, types)
     excluded = set(excluded)
     selected = []
-    priorities = (
-        lambda block: block.get("type") == "heading" and block.get("level") == 1,
-        lambda block: block.get("type") == "paragraph",
-        lambda block: block.get("type") == "table",
-        lambda block: block.get("type") == "heading",
-        lambda block: True,
-    )
+    # Round-robin chapter content before filling remaining slots with headings.
+    # A long table of contents must not displace every substantive conclusion.
+    chapters = {}
+    current = {}
+    for block in candidates:
+        block_family = block["ref"].split(":", 1)[0]
+        if block.get("type") == "heading" and block.get("level", 1) == 1:
+            current[block_family] = block["ref"]
+        key = (block_family, current.get(block_family, "intro"))
+        if block.get("type") in {"paragraph", "table"} and block["ref"] not in excluded:
+            chapters.setdefault(key, []).append(block)
+    depth = 0
+    while any(depth < len(values) for values in chapters.values()):
+        for values in chapters.values():
+            if depth < len(values):
+                selected.append(values[depth])
+                if len(selected) == limit:
+                    return selected
+        depth += 1
+    selected_refs = {block["ref"] for block in selected}
+    priorities = (lambda block: block.get("type") == "heading" and block.get("level") == 1,
+                  lambda block: True)
     for priority in priorities:
         for block in candidates:
-            if block["ref"] not in excluded and block not in selected and priority(block):
+            if block["ref"] not in excluded and block["ref"] not in selected_refs and priority(block):
                 selected.append(block)
+                selected_refs.add(block["ref"])
                 if len(selected) == limit:
                     return selected
     return selected
@@ -349,7 +365,7 @@ def technical_visual_slide(prs, blocks, page, preferred=None):
     if preferred:
         add_visual_panel(slide, preferred, 0.7, 1.25, 7.7, 5.35)
     else:
-        architecture_layout(slide, [block_text(block) for block in summaries])
+        summary_panel(slide, summaries, 0.7, 1.25, 7.7, 5.35)
     for index, block in enumerate(summaries):
         y = 1.38 + index * 1.28
         color = (COLORS["cyan"], COLORS["azure"], COLORS["green"], COLORS["amber"])[index]
@@ -406,11 +422,21 @@ def feasibility_visual_slide(prs, data, blocks, page, preferred=None):
     if preferred:
         add_visual_panel(slide, preferred, 6.1, 1.25, 6.1, 4.55)
     elif summaries:
-        comparison_layout(slide, [block_text(block) for block in summaries[:4]])
+        summary_panel(slide, summaries[:4], 6.1, 1.25, 6.1, 4.55)
     text_box(slide, 6.22, 6.02, 5.75, 0.38,
              excerpt(block_text(summaries[4]) if len(summaries) > 4 else block_text(summaries[-1]), 82),
              12.5, COLORS["ink"], bold=True, align=PP_ALIGN.CENTER)
     return slide
+
+
+def summary_panel(slide, blocks, x, y, width, height):
+    """Render excerpts inside the reserved image area without inventing relations."""
+    rect(slide, x, y, width, height, COLORS["panel"], radius=True)
+    count = max(1, len(blocks))
+    step = (height - 0.5) / count
+    for index, block in enumerate(blocks):
+        text_box(slide, x + 0.24, y + 0.25 + index * step, width - 0.48,
+                 step - 0.12, excerpt(block_text(block), 70), 12, COLORS["ink"])
 
 
 def section_slide(prs, family, chapters, page):
@@ -667,9 +693,7 @@ def main():
     })
     prs.save(target)
 
-    # Every persisted block is represented by at least one of the executive
-    # views.  The deck intentionally compresses the reports rather than
-    # reproducing their paragraphs slide by slide.
+    # Record only selected excerpts. Omitted content remains in the reports.
     eligible_refs = {block["ref"] for block in blocks if eligible_block(block)}
     all_refs = {block["ref"] for block in blocks}
     rendered = Presentation(str(target))
@@ -677,6 +701,10 @@ def main():
     mapped_refs = mapping["mapped_source_refs"]
     missing_refs = mapping["missing_source_refs"]
     mapped_eligible_refs = eligible_refs & set(mapped_refs)
+    body_coverage = {}
+    for family in FAMILY_LABELS:
+        available = {block["ref"] for block in source_blocks(blocks, family, {"paragraph", "table"})}
+        body_coverage[family] = {"available": len(available), "mapped": len(available & set(mapped_refs))}
     editable_data_visuals = 4
     diagram_slides = 4
     visual_asset_count = sum(shape.shape_type == MSO_SHAPE_TYPE.PICTURE
@@ -690,7 +718,7 @@ def main():
     )
     prohibited_hits = [item for item in PROHIBITED_COPY if item in rendered_text]
     quality = {
-        "engine": "business-tech-pptx", "engine_version": "v3",
+        "engine": "business-tech-pptx", "engine_version": "v4",
         "design_profile": "business-technology-dark", "slides": len(prs.slides),
         "diagram_slides": diagram_slides, "native_charts": native_charts,
         "editable_data_visuals": editable_data_visuals,
@@ -701,6 +729,7 @@ def main():
         **mapping,
         "source_mapping_scope": "selected_summary_blocks",
         "content_review": "not_run",
+        "body_coverage": body_coverage,
         "prohibited_copy_hits": prohibited_hits,
         "fact_boundary": "source-bound; no external facts or invented business metrics",
     }
@@ -709,6 +738,7 @@ def main():
                        if count and name != "cover"]) >= 4
               and editable_data_visuals >= 4 and visual_asset_count >= 1
               and dominant_layout_ratio <= 0.25 and mapped_refs and not missing_refs
+              and all(not counts["available"] or counts["mapped"] for counts in body_coverage.values())
               and not prohibited_hits)
     quality["quality_gate"] = {"status": "pass" if passed else "fail"}
     target.with_suffix(".manifest.json").write_text(

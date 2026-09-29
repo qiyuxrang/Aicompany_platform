@@ -3,6 +3,8 @@ import { CurrentUser, getModules, type PortalModule } from "../api";
 import WorkspaceSidebar from "../WorkspaceSidebar";
 import { centers, isCenterCode } from "../centers/config";
 import Icon from "../Icon";
+import NetworkNotice from "../NetworkNotice";
+import WorkspaceBoundary from "../WorkspaceBoundary";
 import {
   IssuesPage,
   MaintenancePage,
@@ -44,7 +46,8 @@ export default function OpsWorkspace({ user, pathname }: { user: CurrentUser; pa
     const check = () => { if (!document.hidden) void load(); };
     const timer = window.setInterval(check, 15000);
     window.addEventListener("focus", check);
-    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", check); };
+    document.addEventListener("visibilitychange", check);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", check); document.removeEventListener("visibilitychange", check); };
   }, [user.id]);
   let page: React.ReactNode;
   const normalized = pathname.replace(/\/$/, "") || "/";
@@ -76,7 +79,7 @@ export default function OpsWorkspace({ user, pathname }: { user: CurrentUser; pa
           ))}
         </nav>
       </WorkspaceSidebar>
-      <main className="ops-main" id="ops-main" tabIndex={-1}>{page}</main>
+      <main className="ops-main" id="ops-main" tabIndex={-1}><NetworkNotice/><WorkspaceBoundary resetKey={pathname}>{page}</WorkspaceBoundary></main>
     </div>
   );
 }
