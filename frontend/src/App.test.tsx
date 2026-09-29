@@ -103,6 +103,42 @@ describe("portal routing", () => {
     expect(screen.queryByRole("heading", { name: "工作摘要" })).toBeNull();
   });
 
+  it.each([
+    { role: "engineering", name: "工程人员", home: "/centers/cost" },
+    { role: "product", name: "产品人员", home: "/centers/product" },
+    { role: "hr", name: "人事人员", home: "/centers/hr" },
+  ])("单部门账号 $role 访问根地址时直接进入对应部门，不经过个人工作台", async ({ role, name, home }) => {
+    // README 约定：单部门账号登录后直接进入对应部门。此前仅企业台账实现了该跳转，
+    // 工程部等账号会停在个人工作台，需要手动点一次入口才能进部门。
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/me/") return Promise.resolve(json({ ...baseUser, roles: [{ code: role, name }] }));
+      if (url === "/api/modules/") return Promise.resolve(json([{ code: role === "engineering" ? "cost" : role, name, description: "", status: "verified", enabled: true }]));
+      if (url === `/api/modules/${role === "engineering" ? "cost" : role}/`) return Promise.resolve(json({ code: role === "engineering" ? "cost" : role, name, description: "", status: "verified", enabled: true }));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    }));
+
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe(home));
+    expect(screen.queryByRole("heading", { name: /欢迎回来/ })).toBeNull();
+  });
+
+  it("多部门账号访问根地址时仍留在统一工作台选择入口", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/me/") return Promise.resolve(json({ ...baseUser, roles: [{ code: "product", name: "产品人员" }, { code: "hr", name: "人事人员" }] }));
+      if (url === "/api/modules/") return Promise.resolve(json([]));
+      if (url === "/api/work/summary/") return Promise.resolve(json(validWorkSummary));
+      return Promise.resolve(json({ detail: "未找到" }, 404));
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: /欢迎回来/ })).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
+  });
+
   it("待接入模块禁止启动并保留返回工作台", async () => {
     window.history.replaceState({}, "", "/modules/product");
     const fetchMock = vi.fn((input: RequestInfo | URL) => {

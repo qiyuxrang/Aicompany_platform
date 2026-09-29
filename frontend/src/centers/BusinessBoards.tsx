@@ -47,7 +47,8 @@ export function BusinessOverview({ preview = false }: { preview?: boolean }) {
   useEffect(() => {
     if (preview) { setBoards({}); setFailures({}); setLoading(false); return; }
     const controller = new AbortController();
-    setBoards({}); setFailures({}); setLoading(true);
+    // 保留上一份卡片内容，避免刷新时内容塌陷把页面顶回页首。
+    setFailures({}); setLoading(true);
     void Promise.all(departments.map(async ([key]) => {
       try {
         const result = await apiRequest<unknown>(`/api/business/boards/${key}/`, { signal: controller.signal });
@@ -85,14 +86,14 @@ export function BusinessOverview({ preview = false }: { preview?: boolean }) {
       const distribution = board?.distribution.filter(item => item.count > 0).sort((first, second) => second.count - first.count).slice(0, 3) ?? [];
       return <article className={`business-overview-card business-overview-${key}`} key={key} aria-label={label}>
         <div className="business-overview-card-head"><span>{label}</span><strong>{board && !board.available ? key === 'presales' ? '待录入' : '待发布' : key === 'presales' ? '最新跟进' : '已发布'}</strong></div>
-        {preview ? <p className="business-overview-message">预览不读取业务数据。</p> : loading ? <p className="business-overview-message" role="status">正在读取台账…</p>
+        {preview ? <p className="business-overview-message">预览不读取业务数据。</p>
           : failures[key] ? <p className="business-overview-message" role="alert">{failures[key]}</p>
             : board ? <>
               <div className="business-overview-metrics">{board.metrics.slice(0, 3).map(item => <div key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></div>)}</div>
               {board.available ? <><div className="business-overview-distribution"><p>状态分布</p>{distribution.length ? distribution.map(item => <div className="business-overview-bar" key={item.label}><span>{item.label}</span><meter min={0} max={Math.max(1, board.total)} value={item.count} aria-label={`${item.label} ${item.count} 项`} /><strong>{item.count}</strong></div>) : <span>暂无状态数据</span>}</div>
                 <p className="business-overview-source">{key === 'presales' && board.source?.state !== 'published' ? '未发布工作数据' : '已发布台账'} · 截止 {board.source?.as_of || '未填写'} · {board.source?.name}</p></>
                 : <p className="business-overview-source">{key === 'presales' ? '暂无售前跟进数据' : '暂无已发布台账'}，未提供的数据以“—”展示。</p>}
-            </> : <p className="business-overview-message">暂无看板数据。</p>}
+            </> : <p className="business-overview-message" role="status">{loading ? '正在读取台账…' : '暂无看板数据。'}</p>}
         <CenterLink href={`/centers/business/${key}`} className="business-overview-link">查看完整看板 <span aria-hidden="true">→</span></CenterLink>
       </article>;
     })}</div>
@@ -110,12 +111,20 @@ export default function BusinessBoards({ initial = 'engineering', preview = fals
     const version = ++requestVersion.current;
     if (preview) { setData(null); return; }
     const controller = new AbortController();
-    setData(null); setError(''); setLoading(true);
+    // 同部门的刷新／查询／自动轮询保留上一份看板：内容不塌陷，滚动位置也就不会被顶回页首。
+    // 切换到其它部门时清空，避免短暂把上一个部门的数字显示成本部门的数据。
+    setError(''); setLoading(true);
+    setData(current => (current && current.department === department ? current : null));
     const params = new URLSearchParams(filter);
     apiRequest<unknown>(`/api/business/boards/${department}/?${params}`, { signal: controller.signal }).then(result => {
       if (!validBoard(result) || result.department !== department) throw new Error('看板数据格式无效，请稍后重试。');
       if (!controller.signal.aborted && requestVersion.current === version) setData(result);
-    }).catch(e => { if (!controller.signal.aborted && requestVersion.current === version) setError(isApiError(e) ? e.message : e instanceof Error ? e.message : '无法读取看板。'); })
+    }).catch(e => {
+      if (controller.signal.aborted || requestVersion.current !== version) return;
+      // 读取失败必须清空旧数据，避免把已失效的内容当成当前看板继续展示。
+      setData(null);
+      setError(isApiError(e) ? e.message : e instanceof Error ? e.message : '无法读取看板。');
+    })
       .finally(() => { if (!controller.signal.aborted && requestVersion.current === version) setLoading(false); });
     return () => { controller.abort(); requestVersion.current += 1; };
   }, [department, filter, refresh, preview]);
@@ -132,7 +141,8 @@ export default function BusinessBoards({ initial = 'engineering', preview = fals
       {!preview && <button className="button secondary" disabled={loading} onClick={() => setRefresh(x => x + 1)}>刷新看板</button>}</div>
     <div role="tablist" aria-label="部门看板" className="business-tabs">{departments.map(([key, label]) => <button key={key} role="tab" aria-selected={department === key} onClick={() => choose(key)}>{label}</button>)}</div>
     {preview ? <div className="center-empty"><h3>看板预览</h3><p>包含工程、财务和售前三类看板。预览不读取业务数据；请使用已授权的总经理账号进入。</p></div> : <>
-      {loading && <p role="status">正在读取台账…</p>}
+      {/* 仅在尚无内容时提示加载：已有看板时不再插入提示行，避免布局位移把滚动位置顶掉。 */}
+      {loading && !data && !error && <p role="status">正在读取台账…</p>}
       {error && <p className="notice error" role="alert">{error}</p>}
       {data && <div role="tabpanel" aria-label={data.title}>
         <div className="business-metrics">{data.metrics.map(item => <article key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></article>)}</div>

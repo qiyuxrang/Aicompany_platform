@@ -122,6 +122,32 @@ it('failed refresh hides previous business data', async () => {
   expect(await screen.findByRole('alert')).toBeTruthy();
   expect(screen.queryByText('一期项目')).toBeNull();
 });
+it('refresh keeps the current board on screen instead of collapsing it', async () => {
+  // 刷新期间若把整块看板换成一行加载提示，内容高度会塌陷，浏览器会把滚动位置钳回页首。
+  // 因此同部门的刷新必须保留已展示的看板内容。
+  let resolve!: (value: unknown) => void;
+  api.apiRequest.mockResolvedValueOnce(fixture());
+  render(<BusinessBoards />);
+  await screen.findByText('一期项目');
+  api.apiRequest.mockReturnValueOnce(new Promise(r => { resolve = r; }));
+  await userEvent.click(screen.getByRole('button', { name: '刷新看板' }));
+  // 请求仍在进行时，看板内容与滚动高度都必须保持在页面上。
+  expect(screen.getByText('一期项目')).toBeTruthy();
+  expect(screen.getByRole('tabpanel', { name: '工程部看板' })).toBeTruthy();
+  await act(async () => resolve(fixture()));
+});
+it('overview refresh keeps existing cards on screen instead of collapsing them', async () => {
+  api.apiRequest.mockImplementation((url: string) => Promise.resolve(fixture(url.includes('/finance/') ? 'finance' : url.includes('/presales/') ? 'presales' : 'engineering')));
+  render(<BusinessOverview />);
+  await waitFor(() => expect(screen.getAllByRole('meter', { name: '实施中 1 项' })).toHaveLength(3));
+  let resolve!: (value: unknown) => void;
+  api.apiRequest.mockReturnValue(new Promise(r => { resolve = r; }));
+  await userEvent.click(screen.getByRole('button', { name: '刷新数据' }));
+  // 轮询／刷新期间三张卡片内容保留，避免被替换成一行加载文字导致整页高度塌陷。
+  expect(screen.getAllByRole('meter', { name: '实施中 1 项' })).toHaveLength(3);
+  expect(screen.getAllByRole('link', { name: /查看完整看板/ })).toHaveLength(3);
+  await act(async () => resolve(fixture()));
+});
 it('money display does not round away cents in large aggregates', async () => {
   const data = { ...fixture('finance'), metrics: [{ key: 'contract', label: '合同金额', value: '1999999999999999.99', unit: '元' }] };
   api.apiRequest.mockResolvedValue(data);

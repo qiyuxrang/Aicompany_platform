@@ -840,8 +840,12 @@ export default function App() {
     if (!user && pathname !== "/login") requiredPath = "/login";
     if (user?.must_change_password && pathname !== "/password") requiredPath = "/password";
     if (user && !user.must_change_password && pathname === "/login") requiredPath = departmentHome(user);
-    if (user?.is_platform_admin && !user.must_change_password && pathname === "/") requiredPath = "/ops";
-    if (user && !user.must_change_password && pathname === "/" && departmentHome(user) === "/centers/business") requiredPath = "/centers/business";
+    if (user && !user.must_change_password && pathname === "/") {
+      // 按 README 约定：单部门账号登录后直接进入对应部门；
+      // 具有多个部门角色的账号留在统一工作台选择入口（departmentHome 返回 "/"）。
+      const home = departmentHome(user);
+      if (home !== "/") requiredPath = home;
+    }
     if (user && ["/centers/product/solution", "/centers/product/feasibility", "/centers/product/slides"].includes(pathname)) requiredPath = "/centers/product/documents";
     if (user?.is_platform_admin && ["/preview/product/solution", "/preview/product/feasibility", "/preview/product/slides"].includes(pathname)) requiredPath = "/preview/product/documents";
   }
