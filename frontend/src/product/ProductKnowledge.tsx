@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, apiEventStream, apiRequest } from "../api";
 import { ProductIcon } from "./workbench-shared";
-import "./product-knowledge.css";
+import "./knowledge-workbench.css";
 
 interface KnowledgeStatus { available: boolean; code: string; help: string }
 interface Dataset { id: string; name: string; document_count: number }
@@ -113,7 +113,7 @@ export default function ProductKnowledge() {
   }, [draft, conversation?.turns.length]);
 
   async function openSession(id?: string) {
-    if (!status?.available) return;
+    if (locked.current || !status?.available) return;
     const signal = begin(id ? "正在读取会话历史…" : "正在新建会话…");
     setHistoryQuery("");
     setHistoryExpanded(false);
@@ -184,13 +184,13 @@ export default function ProductKnowledge() {
   }
 
   return <div className="pd-workspace pk-workspace">
-    <header className="pk-heading"><div><span className="pd-muted">产品事业部 / 知识库</span><h2>知识库问答</h2><p>围绕已授权资料提问，结合引用原文核对回答。</p></div><span className={`pd-badge ${status?.available ? "good" : "warning"}`}>{status ? status.available ? "服务可用" : "服务不可用" : busy ? "检查服务中" : "服务状态未确认"}</span></header>
-    {status && !status.available && <div className="pd-panel" role="status"><h3>知识库暂不可用</h3><p>{status.help || "请联系管理员检查知识库服务与授权。"}</p><small>{status.code}</small></div>}
+    <header className="pk-page-header"><h1>向资料提问</h1><span className={`pd-badge ${status?.available ? "good" : "warning"}`}>{status ? status.available ? "服务可用" : "服务不可用" : busy ? "检查服务中" : "服务状态未确认"}</span></header>
+    {status && !status.available && <div className="pk-unavailable" role="status"><ProductIcon name="shield"/><div><h2>知识库暂不可用</h2><p>{status.help || "请联系管理员检查知识库服务与授权。"}</p><small>{status.code}</small></div></div>}
     <div className="pk-layout">
       <aside className="pd-panel pk-sidebar" aria-label="知识库会话">
         <button className="button primary" disabled={!status?.available || !!busy} onClick={() => void openSession()}><ProductIcon name="plus"/>新建会话</button>
         <section className="pk-datasets" aria-label="已授权知识库">
-          <h3>已授权知识库</h3>
+          <h2>已授权知识库</h2>
           {status?.available && !datasets && !datasetError && <p className="pd-muted" role="status">正在加载知识库列表…</p>}
           {datasetError && <p className="pd-service-note" role="alert">知识库列表读取失败：{datasetError}</p>}
           {datasets && !datasets.length && <p className="pd-muted">暂无已授权知识库。</p>}
@@ -198,37 +198,37 @@ export default function ProductKnowledge() {
         </section>
         <button type="button" className="button secondary pk-mobile-history-toggle" aria-controls="knowledge-history-list" aria-expanded={historyExpanded} onClick={() => setHistoryExpanded(previous => !previous)}>{historyExpanded ? "收起历史会话" : "查看历史会话"}<span>{sessions.length} 个会话</span></button>
         <section id="knowledge-history-list" className={`pk-history${historyExpanded ? " expanded" : ""}`}>
-          <div className="pk-history-heading"><h3>历史会话</h3><small>{sessions.length} 个会话</small></div>
+          <div className="pk-history-heading"><h2>历史会话</h2><small>{sessions.length} 个会话</small></div>
           {!!sessions.length && <input className="pk-history-search" type="search" aria-label="搜索历史会话" placeholder="按标题搜索会话" value={historyQuery} onChange={event => setHistoryQuery(event.target.value)}/>}
           {!sessions.length && !busy && <p className="pd-muted">暂无会话。服务可用时可新建会话开始提问。</p>}
-          <nav aria-label="历史会话">{visibleSessions.map(item => <button key={item.id} className={selected === item.id ? "selected" : ""} aria-pressed={selected === item.id} title={item.title || "未命名会话"} disabled={!status?.available} onClick={() => void openSession(item.id)}><ProductIcon name="file"/><span><span className="pk-session-title">{item.title || "未命名会话"}</span><small>版本 {item.version}</small></span></button>)}</nav>
+          <nav aria-label="历史会话">{visibleSessions.map(item => <button key={item.id} className={selected === item.id ? "selected" : ""} aria-pressed={selected === item.id} title={item.title || "未命名会话"} disabled={!status?.available || !!busy} onClick={() => void openSession(item.id)}><ProductIcon name="file"/><span><span className="pk-session-title">{item.title || "未命名会话"}</span><small>版本 {item.version}</small></span></button>)}</nav>
           {!!historyQuery && !visibleSessions.length && <p className="pk-no-matches">没有匹配的会话，请换个关键词。</p>}
         </section>
         <button className="button secondary" disabled={!!busy} onClick={() => void initialize()}>重新检查服务</button>
       </aside>
-      <section className={`pd-panel pk-conversation${!conversation?.turns.length && !draft && !busy ? " pk-empty-conversation" : ""}`} aria-label="知识库问答内容" aria-busy={!!busy}>
-        <h3>{conversation?.title || "开始知识库对话"}</h3>
-        {error && <div className="pd-feedback" role="alert"><p>{error}</p>{status?.available && !busy && (attempt ? <button className="button secondary" onClick={() => void send(true)}>重试本次问题</button> : selected ? <button className="button secondary" onClick={() => void openSession(selected)}>重新加载历史</button> : <button className="button secondary" onClick={() => void initialize()}>重新加载会话列表</button>)}</div>}
-        {notice && <p className="pd-service-note" role="status">{notice}</p>}
-        <div className="pk-turns" aria-label="问答历史" ref={turnsRef} onScroll={event => { const element = event.currentTarget; followStream.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }}>
-          {!conversation && !busy && <div className="pd-empty"><ProductIcon name="search"/><h4>直接提问，或打开历史会话</h4><p>首次发送会自动新建会话，回答仅来自已授权资料。</p></div>}
-          {conversation && !conversation.turns.length && <div className="pd-empty"><h4>这个会话还没有问题</h4><p>描述你想查找的要求、设备或方案，回答后可展开引用原文。</p></div>}
-          {conversation?.turns.map((turn, index) => <article className="pk-turn" key={turn.request_id}>
-            <h4>问题 {index + 1}</h4><p className="pk-question">{turn.question}</p>
-            <h4>回答</h4>{turn.outcome === "empty" ? <p className="pd-service-note">未找到足够的相关资料。请补充关键词或确认资料授权范围。</p> : <p className="pk-answer">{turn.answer}</p>}
-            {!!turn.sources.length && <div className="pk-sources"><h4>引用来源 · {turn.sources.length}</h4>{turn.sources.map((source, sourceIndex) => <details key={`${source.id}-${sourceIndex}`}><summary>[{source.id}] {source.title || "未命名来源"}</summary><blockquote>{source.content}</blockquote><small>来源 {source.id} · 文档 {source.document_id} · 数据集 {source.dataset_id}</small></details>)}</div>}
-          </article>)}
-          {draft && !!busy && <article className="pk-turn" aria-label="正在生成回答"><h4>回答生成中</h4><p className="pk-answer">{draft}</p><small className="pd-muted">引用正在核验，完成后才会保存。</small></article>}
-        </div>
-        {busy && <p role="status" className="pk-pending">{busy}</p>}
-        {attempt && <p className="pk-question">{busy ? "待回答" : "待重试"}：{attempt.question}</p>}
+      <section className="pd-panel pk-conversation" aria-label="知识库问答内容" aria-busy={!!busy}>
+        <div className="pk-conversation-heading"><div><span className="pk-section-label">当前会话</span><h2>{conversation?.title || "开始知识库对话"}</h2></div>{conversation && <span>版本 {conversation.version}</span>}</div>
         <form className="pk-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <label htmlFor="knowledge-question">你的问题</label>
-          <textarea id="knowledge-question" ref={questionRef} rows={3} maxLength={2000} value={question} disabled={!status?.available || (!conversation && !!selected) || !!busy || !!attempt} onChange={event => setQuestion(event.target.value)} placeholder="输入问题，发送时自动新建会话…" aria-describedby="knowledge-keyboard" onKeyDown={event => {
+          <textarea id="knowledge-question" ref={questionRef} rows={4} maxLength={2000} value={question} disabled={!status?.available || (!conversation && !!selected) || !!busy || !!attempt} onChange={event => setQuestion(event.target.value)} placeholder="例如：这套设备的安装条件和验收要求是什么？" aria-describedby="knowledge-keyboard knowledge-count" onKeyDown={event => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void send(); }
           }}/>
-          <div className="pd-actions"><small id="knowledge-keyboard">Enter 发送 · Shift+Enter 换行</small><button className="button primary" disabled={!status?.available || (!conversation && !!selected) || !!busy || !!attempt || !question.trim()}>发送问题<ProductIcon name="arrow"/></button></div>
+          <div className="pk-composer-footer"><span><small id="knowledge-keyboard">Enter 发送 · Shift+Enter 换行</small><small id="knowledge-count">{question.length}/2000</small></span><button className="button primary" disabled={!status?.available || (!conversation && !!selected) || !!busy || !!attempt || !question.trim()}>发送问题<ProductIcon name="arrow"/></button></div>
         </form>
+        {error && <div className="pk-error" role="alert"><div><strong>未能完成本次请求</strong><p>{error}</p></div>{status?.available && !busy && (attempt ? <button className="button secondary" onClick={() => void send(true)}>重试本次问题</button> : selected ? <button className="button secondary" onClick={() => void openSession(selected)}>重新加载历史</button> : <button className="button secondary" onClick={() => void initialize()}>重新加载会话列表</button>)}</div>}
+        {notice && <p className="pd-service-note" role="status">{notice}</p>}
+        {busy && <p role="status" className="pk-pending"><span className="pd-spinner"/>{busy}</p>}
+        {attempt && <p className="pk-attempt"><span>{busy ? "待回答" : "待重试"}</span>{attempt.question}</p>}
+        <div className="pk-turns" aria-label="问答历史" ref={turnsRef} onScroll={event => { const element = event.currentTarget; followStream.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }}>
+          {!conversation && !busy && <div className="pd-empty"><ProductIcon name="search"/><h3>直接提问，或打开历史会话</h3><p>首次发送会自动新建会话，回答仅来自已授权资料。</p></div>}
+          {conversation && !conversation.turns.length && <div className="pd-empty"><h3>这个会话还没有问题</h3><p>描述你想查找的要求、设备或方案，回答后可展开引用原文。</p></div>}
+          {conversation?.turns.map((turn, index) => <article className="pk-turn" key={turn.request_id}>
+            <div className="pk-question-block"><span>问题 {index + 1}</span><p>{turn.question}</p></div>
+            <div className="pk-answer-block"><div className="pk-answer-heading"><h3>回答</h3><span className={`pd-badge ${turn.outcome === "empty" ? "neutral" : "good"}`}>{turn.outcome === "empty" ? "未命中资料" : "引用已核验"}</span></div>{turn.outcome === "empty" ? <p className="pk-no-answer">未找到足够的相关资料。请补充关键词或确认资料授权范围。</p> : <p className="pk-answer">{turn.answer}</p>}</div>
+            {!!turn.sources.length && <div className="pk-sources"><h4>引用来源 <span>{turn.sources.length}</span></h4>{turn.sources.map((source, sourceIndex) => <details key={`${source.id}-${sourceIndex}`}><summary>[{source.id}] {source.title || "未命名来源"}</summary><blockquote>{source.content}</blockquote><small>来源 {source.id} · 文档 {source.document_id} · 数据集 {source.dataset_id}</small></details>)}</div>}
+          </article>)}
+          {draft && !!busy && <article className="pk-turn pk-streaming" aria-label="正在生成回答"><div className="pk-answer-heading"><h3>回答生成中</h3><span className="pd-badge info">核验引用中</span></div><p className="pk-answer">{draft}</p><small className="pd-muted">引用正在核验，完成后才会保存。</small></article>}
+        </div>
       </section>
     </div>
   </div>;

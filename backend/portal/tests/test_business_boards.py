@@ -1,12 +1,27 @@
+from datetime import date, datetime, timezone
+from types import SimpleNamespace
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, SimpleTestCase
-from portal.business_boards import BoardError, calculate, parse_csv, validate_record
+from portal.business_boards import BoardError, calculate, parse_csv, payload, validate_record, validate_records
 from portal.business_models import BusinessLedgerSnapshot
 from .base import PortalTestCase
 
 ENGINEERING = '项目编号,项目名称,状态,负责人,计划完成日期,完成进度\nP1,一期项目,实施中,李工,2026-01-01,62.5\nP2,二期项目,已验收,张工,2026-01-01,100\n'
 FINANCE = '项目编号,项目名称,合同金额,已收金额,应收日期\nP1,一期项目,1000.10,200.05,2026-01-01\nP2,二期项目,20.20,20.20,\n'
 PRESALES = '项目编号,项目名称,状态,负责人,预计金额\nP1,园区项目,报价,李工,3000.10\nP2,改造项目,已赢单,张工,200.20\n'
+FINANCE_SOURCE = (
+    'project_id,project_name,contract_amount,opening_receivable,receivable_balance,received_01,received_02,'
+    'planned_08,billing_entity,contract_type,client_name,source_sheet,source_row\n'
+    'P1,一期项目,100.10,200.20,150.10,10.10,,20.20,挂账一,工程,"业主\n单位",财务表,2\n'
+    'P2,二期项目,20.20,,,,,,挂账二,服务,业主二,财务表,3\n'
+)
+PRESALES_SOURCE = (
+    'project_id,project_name,status,owner,amount,source_sheet,source_row,source_group,source_sequence,'
+    'source_amount,amount_unit,follow_up_history,notes,annual_plan,expected_signing\n'
+    'P1,园区项目,,,300000.00,表A,10,重点项目（已签单）,1,30,万元,"第一行\n第二行\t记录",备注,"推进\n计划",2026年10月\n'
+    'P2,园区项目,报价,李工,100.00,表B,20,项目预算,2,100,元,跟进,备注,,2026-11\n'
+)
 
 
 class LedgerParsingTests(SimpleTestCase):
@@ -41,11 +56,91 @@ class LedgerParsingTests(SimpleTestCase):
         before = {x['key']: x['value'] for x in calculate('finance', rows, '2026-01-01')}
         self.assertEqual(before['overdue'], '0.00')
 
+    def test_finance_source_mode_preserves_blanks_and_uses_explicit_monthly_values(self):
+        rows = parse_csv(FINANCE_SOURCE.encode(), 'finance')
+        self.assertEqual(rows[0]['contract_type'], '工程')
+        self.assertEqual(rows[0]['received_amount'], '')
+        self.assertEqual(rows[0]['due_date'], '')
+        metrics = {item['key']: item['value'] for item in calculate('finance', rows, '2026-09-29')}
+        self.assertEqual(metrics['contract'], '120.30')
+        self.assertEqual(metrics['opening_receivable'], '200.20')
+        self.assertEqual(metrics['received'], '10.10')
+        self.assertEqual(metrics['receivable'], '150.10')
+        self.assertEqual(metrics['planned'], '20.20')
+        self.assertIsNone(metrics['overdue'])
+        stamp = datetime(2026, 9, 29, tzinfo=timezone.utc)
+        result = payload('finance', SimpleNamespace(
+            pk='finance-source', records=rows, as_of=date(2026, 9, 29), source_name='finance.csv',
+            revision=1, state='published', created_at=stamp, updated_at=stamp,
+        ))
+        self.assertEqual(result['distribution'], [{'label': '挂账一', 'count': 1}, {'label': '挂账二', 'count': 1}])
+        self.assertEqual(list(result['fields']), [
+            'contract_type', 'project_name', 'client_name', 'affiliate', 'contract_amount',
+            'opening_receivable', 'receivable_balance', 'received_01', 'received_02', 'received_03',
+            'received_04', 'received_05', 'received_06', 'received_07', 'planned_08', 'planned_09',
+            'planned_10', 'planned_11', 'planned_12', 'billing_entity', 'owner', 'current_status',
+            'project_id', 'source_sheet', 'source_row',
+        ])
+        self.assertNotIn('received_amount', result['fields'])
+        self.assertNotIn('due_date', result['fields'])
+        self.assertNotIn('received_amount', result['records'][0])
+        self.assertIn('缺失指标为“—”', result['scope'])
+
+    def test_finance_source_money_fields_reject_inexact_or_negative_values(self):
+        for value in ('1.001', '-1'):
+            with self.subTest(value=value), self.assertRaises(BoardError):
+                parse_csv(FINANCE_SOURCE.replace('200.20', value).encode(), 'finance')
+
     def test_engineering_and_presales_business_definitions(self):
         e = {x['key']: x['value'] for x in calculate('engineering', parse_csv(ENGINEERING.encode(), 'engineering'), '2026-02-01')}
         self.assertEqual(e, {'projects': 2, 'active': 1, 'overdue': 1, 'accepted': 1})
         p = {x['key']: x['value'] for x in calculate('presales', parse_csv(PRESALES.encode(), 'presales'), '2026-02-01')}
         self.assertEqual(p, {'opportunities': 2, 'active': 1, 'pipeline': '3000.10', 'won': 1})
+
+    def test_presales_source_rows_allow_overlap_blanks_and_multiline_history(self):
+        rows = parse_csv(PRESALES_SOURCE.encode(), 'presales')
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]['status'], '')
+        self.assertIn('第二行\t记录', rows[0]['follow_up_history'])
+        self.assertEqual(rows[0]['amount'], '300000.00')
+        metrics = {item['key']: item['value'] for item in calculate('presales', rows, '2026-09-29')}
+        self.assertEqual(metrics['source_entries'], 2)
+        self.assertEqual(metrics['amount_known'], 2)
+        self.assertEqual(metrics['signed_amount'], '300000.00')
+        self.assertEqual(metrics['budget_amount'], '100.00')
+        self.assertEqual(metrics['unknown_stage'], 1)
+        with self.assertRaises(BoardError):
+            parse_csv(PRESALES_SOURCE.replace('报价', '未知状态').encode(), 'presales')
+
+    def test_presales_source_distribution_uses_groups_without_status(self):
+        raw = (
+            'project_id,project_name,source_sheet,source_row,source_group\n'
+            'P1,项目一,表A,10,重点\nP2,项目二,表B,20,普通\n'
+        )
+        rows = parse_csv(raw.encode(), 'presales')
+        stamp = datetime(2026, 9, 29, tzinfo=timezone.utc)
+        result = payload('presales', SimpleNamespace(
+            pk='presales-source', records=rows, as_of=date(2026, 9, 29), source_name='presales.csv',
+            revision=1, state='draft', created_at=stamp, updated_at=stamp,
+        ))
+        self.assertEqual(result['distribution'], [{'label': '重点', 'count': 1}, {'label': '普通', 'count': 1}])
+        self.assertIn('来源工作表可能重叠', result['scope'])
+
+    def test_presales_canonical_amount_validation_is_idempotent(self):
+        record = {
+            'project_id': 'P-1651', 'project_name': '预算项目', 'status': '', 'owner': '',
+            'amount': '16511700.00', 'follow_up_date': '', 'project_type': '', 'project_progress': '',
+            'description': '', 'client_contact': '', 'maturity': '', 'source_sheet': 'Sheet7',
+            'source_row': '8', 'source_group': '项目预算', 'source_sequence': '1',
+            'source_amount': '1651.17', 'amount_unit': '万元', 'follow_up_history': '',
+            'notes': '', 'annual_plan': '', 'expected_signing': '',
+        }
+        first = validate_records([record], 'presales')
+        second = validate_records(first, 'presales')
+        self.assertEqual(first, second)
+        self.assertEqual(second[0]['amount'], '16511700.00')
+        self.assertEqual(second[0]['source_amount'], '1651.17')
+        self.assertEqual(second[0]['amount_unit'], '万元')
 
     def test_invalid_headers_duplicates_dates_status_and_limits(self):
         cases = [b'', b'x' * (2 * 1024 * 1024 + 1),

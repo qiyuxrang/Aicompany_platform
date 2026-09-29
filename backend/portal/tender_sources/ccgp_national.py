@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha256
 from html import unescape
 from urllib.parse import urljoin, urlsplit
 
@@ -147,6 +148,9 @@ class CcgpNationalAdapter(TenderSourceAdapter):
         refs = []
         next_pages = {}
         cursor = cursor if isinstance(cursor, dict) else {}
+        previous_heads = cursor.get('_heads', {})
+        previous_heads = previous_heads if isinstance(previous_heads, dict) else {}
+        heads, scan_starts = {}, {}
         for scope, name, general_url in CHANNELS:
             general = self._read_list(general_url, scope, name, heartbeat)
             refs.extend(general[0])
@@ -155,10 +159,12 @@ class CcgpNationalAdapter(TenderSourceAdapter):
             entry = general_url.replace('/index.htm', '/gkzb/index.htm')
             first, html = self._read_list(entry, scope, name, heartbeat)
             refs.extend(first)
+            heads[scope] = sha256('\n'.join(ref.source_notice_id for ref in first).encode()).hexdigest()
             pager = re.search(r"Pager\(\{\s*size\s*:\s*(\d+)\s*,\s*current\s*:\s*0", html)
             size = min(int(pager.group(1)), 500) if pager else 1
-            start = cursor.get(scope, 2)
+            start = cursor.get(scope, 2) if previous_heads.get(scope) == heads[scope] else 2
             start = start if isinstance(start, int) and 2 <= start <= size else 2
+            scan_starts[scope] = start
             next_page = start
             for page in range(start, min(size + 1, start + max_pages - 2)):
                 items, _ = self._read_list(_page_url(entry, page), scope, name, heartbeat)
@@ -166,7 +172,8 @@ class CcgpNationalAdapter(TenderSourceAdapter):
                 next_page = page + 1
             next_pages[scope] = next_page if next_page <= size else 2
         eligible = []
-        processed = set(value for value in cursor.get('_processed_ids', []) if isinstance(value, str))
+        processed = (set(value for value in cursor.get('_processed_ids', []) if isinstance(value, str))
+                     if previous_heads == heads else set())
         for ref in self._prioritize_and_dedupe(refs):
             if ref.source_notice_id in processed:
                 continue
@@ -182,11 +189,11 @@ class CcgpNationalAdapter(TenderSourceAdapter):
         result = WindowCandidates(eligible[:max_candidates], False,
                                   'candidate_limit' if truncated else 'bounded_public_procurement_scan')
         if truncated:
-            resume = dict(cursor)
+            resume = {**scan_starts, '_heads': heads}
             resume['_processed_ids'] = sorted(processed | {ref.source_notice_id for ref in result.refs})
             result.resume_cursor = resume
         else:
-            result.resume_cursor = next_pages
+            result.resume_cursor = {**next_pages, '_heads': heads}
         return result
 
     def _read_list(self, url, scope, name, heartbeat=None):

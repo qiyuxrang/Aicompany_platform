@@ -30,21 +30,110 @@ function blueprintTask() {
 }
 
 describe("product business workbench", () => {
-  it("shows authorized live metrics and links monthly completion to the same scope", async () => {
-    render(<ProductDashboard/>);
-    await screen.findByText("合成供配电项目");
-    expect(screen.getByLabelText("进行中项目数量").textContent).toBe("3个");
-    expect(screen.getByRole("link", { name: /本月完成/ }).getAttribute("href")).toContain("filter=completed_month");
-    expect(screen.getByRole("link", { name: "继续最近项目" }).getAttribute("href")).toContain(sampleTask().id);
+  it("hides the unused legacy retrieval gate without hiding knowledge service failures", () => {
+    const task = sampleTask({ state: "FAILED", error_code: "ragflow_unavailable", actions: ["retry"], blockers: {
+      queue_retrieve: { code: "retrieval_authorization_required", detail: "D-01/D-08 尚未批准真实资料检索与身份映射，当前不能发起检索。" },
+      queue_blueprint: { code: "ragflow_required", detail: "正式模式必须先完成 RAGFlow 授权检索；服务不可用时不会绕过该步骤。" },
+    } });
+    render(<ProjectStages {...stages(task)}/>);
+    expect(screen.queryByText(/D-01\/D-08/)).toBeNull();
+    expect(screen.getByText(/正式模式必须先完成/)).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("知识库服务暂时无法连接");
+    expect(screen.getByRole("button", { name: "从已保存进度重试" })).toBeTruthy();
   });
-  it("does not replace an unavailable metric with zero", async () => {
+  it("shows chapter titles, content and generation budgets inline and preserves review actions", () => {
+    render(<ProjectStages {...stages({ ...blueprintTask(), output_targets: { 'technical-solution': 3000, feasibility: 5000 } })}/>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("region", { name: "项目蓝图 v1" })).toBeTruthy();
+    expect(screen.getByText('第 1 章 · 建设范围')).toBeTruthy();
+    expect(screen.getByText('合成系统边界')).toBeTruthy();
+    expect(screen.getByText('技术方案：至少 3,000 字')).toBeTruthy();
+    expect(screen.getByText('可行性研究报告：至少 5,000 字')).toBeTruthy();
+    const runtime = screen.getByText('运行细节').closest('details');
+    expect(runtime?.open).toBe(false);
+    expect(screen.getByLabelText('完整处理链路').querySelectorAll('li')).toHaveLength(8);
+    expect(screen.queryByText(/确认绑定蓝图/)).toBeNull();
+    expect(screen.queryByText(/修改意见会随本版蓝图/)).toBeNull();
+    expect(screen.getByLabelText('蓝图确认依据')).toBeTruthy();
+    expect(screen.getByLabelText('项目处理进度').textContent).toContain('已结束 2 / 8 · 完成 1');
+  });
+  it.each(["formal", undefined] as const)("shows formal blueprint targets as minimums with profile %s", (profile) => {
+    render(<ProjectStages {...stages({ ...blueprintTask(), output_profile: profile, output_targets: { 'technical-solution': 50000, feasibility: 70000 } })}/>);
+    expect(screen.getByText('技术方案：至少 50,000 字')).toBeTruthy();
+    expect(screen.getByText('可行性研究报告：至少 70,000 字')).toBeTruthy();
+  });
+  it("does not open review while a waiting task has no persisted blueprint", () => {
+    render(<ProjectStages {...stages(sampleTask({ state: "WAITING_REVIEW", stage: "BLUEPRINT", actions: ["confirm_blueprint"] }))}/>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByLabelText("蓝图确认依据")).toBeNull();
+    expect(screen.getByText("等待形成项目蓝图")).toBeTruthy();
+  });
+  it("keeps failures visible in Chinese and stops the running indicator", () => {
+    render(<ProjectStages {...stages(sampleTask({ state: 'FAILED', error_code: 'execution_failed' }))}/>);
+    expect(screen.getByRole('alert').textContent).toContain('生成未完成');
+    expect(screen.getByRole('alert').textContent).not.toContain('execution_failed');
+    expect(screen.getByLabelText('项目处理进度').getAttribute('data-running')).toBe('false');
+  });
+  it("keeps file inputs mounted when returning from the file picker", async () => {
+    render(<NewProductProject/>);
+    const equipmentInput = await screen.findByLabelText("设备清单文件");
+    const backgroundInput = screen.getByLabelText("选择项目资料文件");
+    let finishRefresh!: (value: api.ProductOverview) => void;
+    overview.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(overview).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText("设备清单文件")).toBe(equipmentInput);
+    expect(screen.getByLabelText("选择项目资料文件")).toBe(backgroundInput);
+    fireEvent.change(equipmentInput, { target: { files: [new File(["name,quantity"], "设备.csv")] } });
+    fireEvent.change(backgroundInput, { target: { files: [new File(["项目背景"], "调研.txt")] } });
+    expect(screen.getByText(/设备.csv/)).toBeTruthy();
+    expect(screen.getByText("调研.txt")).toBeTruthy();
+    await act(async () => finishRefresh(sampleOverview()));
+    expect(screen.getByText(/设备.csv/)).toBeTruthy();
+    expect(screen.getByText("调研.txt")).toBeTruthy();
+    expect(upload).not.toHaveBeenCalled();
+  });
+  it("hides the upload form if focus refresh reports revoked access", async () => {
+    render(<NewProductProject/>);
+    await screen.findByLabelText("设备清单文件");
+    overview.mockRejectedValueOnce(new ApiError(403, "权限已撤销"));
+    fireEvent(window, new Event("focus"));
+    await screen.findByRole("alert");
+    expect(screen.queryByLabelText("设备清单文件")).toBeNull();
+  });
+  it("shows authorized projects with their status and next action", async () => {
+    render(<ProductDashboard/>);
+    expect((await screen.findAllByText("合成供配电项目")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { level: 1, name: "产品事业部工作台" })).toBeTruthy();
+    expect(screen.getByLabelText("进行中项目数量").textContent).toBe("3");
+    expect(screen.getByRole("link", { name: /本月完成/ }).getAttribute("href")).toContain("filter=completed_month");
+    expect(screen.getByRole("link", { name: "继续处理" }).getAttribute("href")).toContain(sampleTask().id);
+    expect(screen.getAllByText("查看资料缺口").length).toBeGreaterThan(0);
+    expect(screen.getByText("查看待确认项目蓝图")).toBeTruthy();
+  });
+  it("does not render invented project counts when overview loading fails", async () => {
     overview.mockRejectedValueOnce(new ApiError(503, "服务暂不可用"));
     render(<ProductDashboard/>); await screen.findByRole("alert");
-    expect(screen.getByLabelText("进行中项目数量").textContent).toBe("—");
-    expect(screen.queryByText("从第一个项目开始")).toBeNull();
+    expect(screen.queryByLabelText("进行中项目数量")).toBeNull();
+    expect(screen.queryByText("合成供配电项目")).toBeNull();
+  });
+  it("prioritizes a review state over a retained generation action", async () => {
+    const task = sampleTask({ state: "WAITING_REVIEW", stage: "BLUEPRINT", pending_action: "blueprint" });
+    overview.mockResolvedValueOnce({ ...sampleOverview(), recent_projects: [task], todos: [] });
+    render(<ProductDashboard/>);
+    expect((await screen.findAllByText("查看待确认项目蓝图")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("查看蓝图生成进度")).toBeNull();
+  });
+  it("translates a returned workflow action instead of exposing its internal code", async () => {
+    const task = sampleTask({ state: "RUNNING", stage: "WRITING", pending_action: "generate_outputs" });
+    overview.mockResolvedValueOnce({ ...sampleOverview(), recent_projects: [task] });
+    render(<ProductDashboard/>);
+    expect((await screen.findAllByText("查看成果生成进度")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("generate_outputs")).toBeNull();
   });
   it("preview never reads project data", () => {
     render(<ProductDashboard preview/>); expect(overview).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { level: 1, name: "产品事业部工作台" })).toBeTruthy();
     expect(screen.queryByText("合成供配电项目")).toBeNull();
   });
   it("aborts outdated list searches instead of letting them replace the next page", async () => {
@@ -52,6 +141,14 @@ describe("product business workbench", () => {
     const signal = overview.mock.calls[0][1]; view.unmount(); expect(signal.aborted).toBe(true);
     window.history.replaceState({}, "", "/centers/product/projects?filter=review&q=%E4%BE%9B%E7%94%B5&page=2");
     render(<ProductProjects/>); await waitFor(() => expect(overview).toHaveBeenLastCalledWith("filter=review&q=%E4%BE%9B%E7%94%B5&page=2&page_size=12", expect.anything()));
+  });
+  it("opens the blueprint workbench and preserves list filters for return", async () => {
+    window.history.replaceState({}, "", "/centers/product/projects?filter=review&q=%E4%BE%9B%E7%94%B5&page=2");
+    render(<ProductProjects/>);
+    const project = await screen.findByRole("link", { name: "合成供配电项目" });
+    const target = new URL(project.getAttribute("href") || "", window.location.origin);
+    expect(target.searchParams.get("tab")).toBe("blueprint");
+    expect(target.searchParams.get("returnTo")).toBe("/centers/product/projects?filter=review&q=%E4%BE%9B%E7%94%B5&page=2");
   });
   it("creates a single project with an ordinary business form while model calls are gated", async () => {
     const user = userEvent.setup(); render(<NewProductProject/>);
@@ -92,24 +189,76 @@ describe("product business workbench", () => {
     await user.click(screen.getByRole("button", { name: "保存蓝图新版本" }));
     expect(props.onAction).toHaveBeenCalledWith("blueprint/", expect.objectContaining({ payload: expect.objectContaining({ conditions: [{ text: "保留原设备数量", type: "human" }], chapters: [expect.objectContaining({ scope: "项目现状和设计范围" })] }) }));
   });
-  it("binds approval to the viewed blueprint hash and requires explicit confirmation", async () => {
+  it("retains failed approval feedback and clears it after successful inline approval", async () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");
-    const props = stages(blueprintTask()); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
-    const approve = screen.getByRole("button", { name: "确认蓝图并生成三件套" }) as HTMLButtonElement;
+    const props = stages(blueprintTask(), { onAction: vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true) }); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
+    const approve = screen.getByRole("button", { name: "批准蓝图并生成成果" }) as HTMLButtonElement;
     expect(approve.disabled).toBe(true);
     await user.type(screen.getByLabelText("蓝图确认依据"), "已根据项目资料逐项核对");
-    expect(approve.disabled).toBe(true);
-    await user.click(screen.getByRole("checkbox")); await user.click(approve);
-    expect(props.onAction).toHaveBeenCalledWith("decisions/", expect.objectContaining({ target: "blueprint", target_id: "blueprint-id", sha256: "a".repeat(64), decision: "approve" }));
+    expect(approve.disabled).toBe(false);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    await user.click(approve);
+    expect((screen.getByLabelText("蓝图确认依据") as HTMLTextAreaElement).value).toBe("已根据项目资料逐项核对");
+    await user.click(approve);
+    await waitFor(() => expect((screen.getByLabelText("蓝图确认依据") as HTMLTextAreaElement).value).toBe(""));
+    expect(screen.getByRole("region", { name: "项目蓝图 v1" })).toBeTruthy();
+    expect(props.onAction).toHaveBeenCalledTimes(2);
+    expect(props.onAction).toHaveBeenLastCalledWith("decisions/", expect.objectContaining({ target: "blueprint", target_id: "blueprint-id", sha256: "a".repeat(64), decision: "approve" }));
   });
-  it("shows preview provenance and disables a fourth automatic blueprint revision", async () => {
+  it("keeps versions inline and clears approval comments when the blueprint changes", async () => {
+    const props = stages(blueprintTask());
+    const user = userEvent.setup();
+    const view = render(<ProjectStages {...props}/>);
+    await user.type(screen.getByLabelText("蓝图确认依据"), "旧版本意见");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    view.rerender(<ProjectStages {...props}/>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("region", { name: "项目蓝图 v1" })).toBeTruthy();
+    const nextTask = blueprintTask();
+    nextTask.version = 2;
+    nextTask.blueprint_version = 2;
+    nextTask.blueprint = { ...nextTask.blueprint!, id: "blueprint-id-2", version: 2, sha256: "b".repeat(64) };
+    view.rerender(<ProjectStages {...stages(nextTask)}/>);
+    expect(screen.getByRole("region", { name: "项目蓝图 v2" })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect((screen.getByLabelText("蓝图确认依据") as HTMLTextAreaElement).value).toBe("");
+  });
+  it("keeps approved blueprints read-only without a leftover confirmation field", async () => {
+    const task = { ...blueprintTask(), state: "COMPLETED" as const, stage: "FINAL_REVIEW" as const, blueprint_approved: true, actions: [] };
+    const user = userEvent.setup();
+    render(<ProjectStages {...stages(task)}/>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByLabelText("蓝图确认依据")).toBeNull();
+    expect(screen.getByText("该蓝图已批准，审核内容只读。")).toBeTruthy();
+    expect(screen.queryByLabelText("蓝图确认依据")).toBeNull();
+  });
+  it("uses manual Radix tabs, URL state, and the preserved list return", async () => {
+    const returnTo = "/centers/product/projects?filter=review&q=供电&page=2";
+    window.history.replaceState({}, "", `/centers/product/projects?task=${sampleTask().id}&tab=blueprint&returnTo=${encodeURIComponent(returnTo)}`);
+    const user = userEvent.setup();
+    render(<ProjectStages {...stages(blueprintTask())}/>);
+    const blueprint = screen.getByRole("tab", { name: "蓝图审批" });
+    const technical = screen.getByRole("tab", { name: "技术方案" });
+    expect(blueprint.getAttribute("aria-selected")).toBe("true");
+    blueprint.focus();
+    await act(async () => { await user.keyboard("{ArrowRight}"); });
+    expect(document.activeElement).toBe(technical);
+    expect(technical.getAttribute("aria-selected")).toBe("false");
+    await act(async () => { await user.keyboard("{Enter}"); });
+    await waitFor(() => expect(technical.getAttribute("aria-selected")).toBe("true"));
+    expect(new URLSearchParams(window.location.search).get("tab")).toBe("technical-solution");
+    expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(technical.id);
+    const back = new URL(screen.getByRole("link", { name: "← 返回项目清单" }).getAttribute("href") || "", window.location.origin);
+    expect([back.pathname, back.searchParams.get("filter"), back.searchParams.get("q"), back.searchParams.get("page")]).toEqual(["/centers/product/projects", "review", "供电", "2"]);
+  });
+  it("shows source-only provenance and disables a fourth automatic blueprint revision", async () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");
     const task = blueprintTask();
     task.blueprint_review = { revision_count: 3, revision_limit: 3, revisions_remaining: 0 };
     const props = stages(task); const user = userEvent.setup(); render(<ProjectStages {...props}/>);
-    expect(screen.getByText("测试预览 · RAGFlow 等待接入")).toBeTruthy();
-    expect(screen.getByText(/仅使用本项目上传资料/)).toBeTruthy();
-    expect(screen.getByText(/不会显示或伪造知识库命中/)).toBeTruthy();
+    expect(screen.getByText("仅使用项目资料")).toBeTruthy();
+    expect(screen.getByText("本版本未执行知识库检索，未产生知识库命中记录。")).toBeTruthy();
+    expect(screen.queryByText(/测试预览|伪造知识库命中/)).toBeNull();
     await user.type(screen.getByLabelText("蓝图确认依据"), "仍需继续修改");
     expect((screen.getByRole("button", { name: "退回修改（剩余 0/3 次）" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/自动修改次数已用完/)).toBeTruthy();
@@ -117,7 +266,9 @@ describe("product business workbench", () => {
   it("does not expose legacy report approval steps or let legacy reviewers confirm a blueprint", () => {
     window.history.replaceState({}, "", "/centers/product/projects?tab=blueprint");
     const view = render(<ProjectStages {...stages({ ...blueprintTask(), actions: ["review_input"] })}/>);
-    expect((screen.getByRole("button", { name: "确认蓝图并生成三件套" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "批准蓝图并生成成果" })).toBeNull();
+    expect(screen.queryByLabelText("蓝图确认依据")).toBeNull();
+    expect(screen.getByText("当前用户无蓝图审批权限，内容仅供查看。")).toBeTruthy();
     view.unmount();
     window.history.replaceState({}, "", "/centers/product/projects?tab=outputs");
     render(<ProjectStages {...stages(sampleTask({ state: "COMPLETED", stage: "FINAL_REVIEW", actions: [] }))}/>);
@@ -205,11 +356,13 @@ describe("product business workbench", () => {
         equipment: { status: 'completed', updated_at: '2026-09-26T00:00:01Z', item_count: 3 },
         blueprint: { status: 'running', updated_at: '2026-09-26T00:00:02Z' } } });
     render(<ProjectStages {...stages(task)}/>);
-    expect(screen.getByLabelText('智能体工作状态').querySelectorAll('[data-status=completed]')).toHaveLength(2);
-    expect(screen.getByText('生成蓝图中').closest('li')?.getAttribute('data-status')).toBe('running');
-    expect(screen.getByText('3 行设备事实')).toBeTruthy();
+    const flow = screen.getByLabelText('项目处理进度');
+    expect(flow.textContent).toContain('已结束 2 / 8 · 完成 1');
+    expect(flow.textContent).toContain('生成项目蓝图 · 处理中');
+    expect(screen.getByLabelText('已结束处理节点').getAttribute('value')).toBe('2');
+    expect(screen.queryByLabelText('项目流程')).toBeNull();
   });
-  it('shows the complete six-stage workflow and prioritizes checkpoint progress', () => {
+  it('shows the complete eight-node workflow and prioritizes checkpoint progress', () => {
     const task = sampleTask({ state: 'RUNNING', stage: 'BLUEPRINT', pending_action: 'blueprint',
       analysis_progress: { documents: { status: 'failed', detail: '旧状态' } },
       checkpoint: { analysis_progress: {
@@ -219,15 +372,13 @@ describe("product business workbench", () => {
         blueprint: { status: 'running', detail: '正在编排章节' },
       } } });
     render(<ProjectStages {...stages(task)}/>);
-    const flow = screen.getByLabelText('智能体工作状态');
-    expect(flow.querySelectorAll(':scope > li')).toHaveLength(6);
-    expect(screen.getByText('解析项目背景').closest('li')?.getAttribute('data-status')).toBe('completed');
-    expect(screen.getByText('RAGFlow 知识检索').closest('li')?.getAttribute('data-status')).toBe('waiting');
-    expect(screen.getByText('生成蓝图中').closest('li')?.getAttribute('data-status')).toBe('running');
-    expect(screen.getByText('RAGFlow 连接待配置')).toBeTruthy();
+    const flow = screen.getByLabelText('项目处理进度');
+    expect(flow.textContent).toContain('已结束 2 / 8 · 完成 1');
+    expect(flow.textContent).toContain('生成项目蓝图 · 处理中');
+    expect(flow.textContent).not.toContain('RAGFlow');
     expect(screen.queryByText('旧状态')).toBeNull();
   });
-  it('queues the real RAGFlow preparation action before a formal blueprint', async () => {
+  it('queues the required knowledge preparation action before a formal blueprint', async () => {
     const task = sampleTask({
       actions: ['queue_blueprint_knowledge', 'queue_blueprint'],
       blockers: { queue_blueprint: { code: 'ragflow_required', detail: '正式蓝图必须先检索 RAGFlow。' } },
@@ -239,7 +390,7 @@ describe("product business workbench", () => {
     const props = stages(task);
     const user = userEvent.setup();
     render(<ProjectStages {...props}/>);
-    await user.click(screen.getByRole('button', { name: '先检索 RAGFlow' }));
+    await user.click(screen.getByRole('button', { name: '先检索知识库' }));
     expect(props.onAction).toHaveBeenCalledWith('queue/', { action: 'knowledge' });
     expect((screen.getByRole('button', { name: '生成项目蓝图' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -259,11 +410,46 @@ describe("product business workbench", () => {
     expect(props.onAction).toHaveBeenCalledWith('decisions/', expect.objectContaining({
       decision: 'revise', target_id: 'blueprint-id', sha256: 'a'.repeat(64), comment: '增加分阶段实施说明' }));
   });
-  it("never offers a stale artifact as the current project output", () => {
-    window.history.replaceState({}, "", "/centers/product/projects?tab=outputs");
-    const stale: api.DraftOutput = { id: "old-artifact", family: "technical-solution", version: 1, sha256: "b".repeat(64), current: false, stale: true, draft: true, approved: false, review_status: "stale", engine: "test", content_version: 1, content_sha256: null, content_approved: false, source_versions: [] };
-    render(<ProjectStages {...stages(sampleTask(), { outputs: [stale] })}/>);
-    expect(screen.queryByRole("link", { name: "下载文件" })).toBeNull();
-    expect(screen.getAllByText("尚未生成")).toHaveLength(3);
+  it.each(["formal", undefined] as const)("rechecks legacy generation progress against the current formal minimum with profile %s", (profile) => {
+    window.history.replaceState({}, "", "/centers/product/projects?tab=technical-solution");
+    const output: api.DraftOutput = { id: "technical-current", family: "technical-solution", version: 1, sha256: "1".repeat(64), current: true, stale: false, draft: true, approved: false, review_status: "pending_review", engine: "test", content_version: 1, content_sha256: null, content_approved: false, source_versions: [] };
+    const task = sampleTask({ output_profile: profile, output_targets: { 'technical-solution': 50000, feasibility: 70000 }, output_generation: { 'technical-solution': { target_characters: 3000, actual_characters: 3000, minimum_characters: 2700, status: "target_met", updated_at: "2026-09-29T10:00:00Z" } } });
+    render(<ProjectStages {...stages(task, { outputs: [output] })}/>);
+    expect(screen.getByText("篇幅结果").closest("div")?.textContent).toContain("3,000 / 至少 50,000 字 · 未达当前最低要求，可续写或重试");
+    expect(screen.queryByText("已达目标")).toBeNull();
+    expect(screen.getByLabelText("完整处理链路").querySelector('li[data-status="blocked"]')?.textContent).toContain("技术方案");
+  });
+  it("never offers stale artifacts as current outputs in any artifact tab", async () => {
+    window.history.replaceState({}, "", "/centers/product/projects?tab=technical-solution");
+    const staleOutputs = (["technical-solution", "feasibility", "presentation"] as const).map((family, index): api.DraftOutput => ({ id: `old-artifact-${index}`, family, version: 1, sha256: String(index + 1).repeat(64), current: false, stale: true, draft: true, approved: false, review_status: "stale", engine: "test", content_version: 1, content_sha256: null, content_approved: false, source_versions: [] }));
+    const user = userEvent.setup();
+    render(<ProjectStages {...stages(sampleTask(), { outputs: staleOutputs })}/>);
+    for (const name of ["技术方案", "可研报告", "汇报 PPT"]) {
+      const tab = screen.getByRole("tab", { name });
+      await user.click(tab);
+      await waitFor(() => expect(tab.getAttribute("aria-selected")).toBe("true"));
+      expect(screen.queryByRole("link", { name: "下载文件" })).toBeNull();
+      expect(screen.getByRole("tabpanel").textContent).toContain("尚未生成");
+    }
+  });
+  it('renders successful knowledge retrieval as success instead of an orange warning', () => {
+    const task = blueprintTask();
+    task.knowledge = { mode: 'ragflow_required', required: true, status: 'ready', ragflow_used: true, source_count: 3, detail: '检索完成' };
+    render(<ProjectStages {...stages(task)}/>);
+    const status = screen.getByText('知识库检索已完成').closest('.pd-feedback');
+    expect(status?.classList.contains('success')).toBe(true);
+    expect(status?.classList.contains('pd-knowledge-preview')).toBe(false);
+  });
+  it('offers an explicit retry from saved progress after an approved blueprint fails', async () => {
+    const task = { ...blueprintTask(), state: 'FAILED' as const, stage: 'WRITING' as const, blueprint_approved: true, error_code: 'execution_failed', actions: ['retry'] };
+    const props = stages(task);
+    const user = userEvent.setup();
+    render(<ProjectStages {...props}/>);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByLabelText('蓝图确认依据')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('已保存项目资料和已完成章节');
+    await user.click(screen.getByRole('button', { name: '从已保存进度重试' }));
+    expect(props.onAction).toHaveBeenCalledWith('retry/', {});
+    expect(props.onAction).not.toHaveBeenCalledWith('decisions/', expect.anything());
   });
 });

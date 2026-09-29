@@ -34,7 +34,7 @@ class ProductReleaseFlowTests(PortalTestCase):
         model_task = DocumentTask.objects.get(pk=task["id"])
         input_revision = model_task.revisions.get(kind="input", version=model_task.input_version)
         blueprint = model_task.revisions.get(kind="blueprint", version=model_task.blueprint_version)
-        chapter = append_revision(model_task, "chapter", {"chapter_id": "overview", "title": "项目概述", "paragraphs": ["测试设备"], "source_ids": ["1"]}, input_revision.sha256, blueprint.sha256)
+        chapter = append_revision(model_task, "chapter", {"chapter_id": "overview", "title": "项目概述", "paragraphs": [f"测试设备第{index}段" + "正文" * 5000 for index in range(5)], "source_ids": ["1"]}, input_revision.sha256, blueprint.sha256)
         review = append_revision(model_task, "review", {"passed": True, "issues": [], "chapter_hashes": {"overview": chapter.sha256}}, input_revision.sha256, blueprint.sha256)
         template_hash = next(entry["sha256"] for entry in frozen_pack()["files"] if entry["path"].endswith("template.docx"))
         self.policy = {"template_hash": template_hash, "approval_ref": "ISOLATED-CONTRACT-TEST-NOT-BUSINESS-APPROVAL", "organization": "隔离测试单位"}

@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 vi.mock("../api", () => ({ apiRequest: api.apiRequest }));
 
-import { getOpportunityOptions, getRefreshOverview, listOpportunities, requestRefresh, updateOpportunityState } from "./tender-api";
+import { getOpportunityOptions, getRefreshOverview, getTenderSources, listOpportunities, requestRefresh, updateOpportunityState } from "./tender-api";
 
 beforeEach(() => api.apiRequest.mockReset());
 
@@ -27,6 +27,14 @@ it("解析全国看板的三个筛选选项", async () => {
     regions: [{ value: "陕西省", label: "陕西省" }],
     industries: [{ value: "coal", label: "煤炭" }], noticeCategories: [{ value: "procurement", label: "招标采购" }],
   });
+});
+
+it("保留来源最近运行的后端 stats 统计", async () => {
+  api.apiRequest.mockResolvedValue({ items: [{ code: "ccgp", name: "中国政府采购网", health_state: "degraded",
+    last_success_at: null, latest_run: { state: "PARTIAL", stats: { new_notices: 3, new_versions: 1, complete: false } } }] });
+  await expect(getTenderSources()).resolves.toMatchObject([{ latest_run: {
+    state: "PARTIAL", stats: { new_notices: 3, new_versions: 1, complete: false },
+  } }]);
 });
 
 it("仅发送全国看板的新筛选字段及分页，忽略旧隐藏条件", async () => {

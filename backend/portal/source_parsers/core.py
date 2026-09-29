@@ -109,7 +109,7 @@ def safe_zip(content, required):
         raise ParseError("invalid_document", "文档损坏、包含不安全 XML 或不属于受支持的 Office 格式。") from error
 
 
-ALIASES = {"row_id": {"序号", "行号", "编号", "row_id"}, "name": {"设备名称", "设备名", "名称", "name"}, "quantity": {"数量", "设备数量", "quantity"}, "unit": {"单位", "计量单位", "unit"}}
+ALIASES = {"row_id": {"序号", "顺序", "行号", "编号", "row_id"}, "name": {"设备名称", "设备材料名称", "设备名", "材料名称", "名称", "name"}, "quantity": {"数量", "设备数量", "quantity"}, "unit": {"单位", "计量单位", "unit"}}
 
 
 def table_items(result, rows):
@@ -137,6 +137,10 @@ def table_items(result, rows):
             # Formulas/cell errors remain in the source block, not factual quantities.
             return "" if value.startswith("=") or value in {"#REF!", "#N/A", "#VALUE!", "#DIV/0!"} else value
         item = {key: cell(key) for key in ALIASES}
+        if (item['name'] and not any(item[key] for key in ('row_id', 'quantity', 'unit'))
+                and re.match(r'^(?:[（(][一二三四五六七八九十百0-9]+[）)]|[一二三四五六七八九十百]+[、.．])', item['name'])):
+            seen.clear()
+            continue
         item.update(source_row=block["location"].get("row", 0), source_location=block["location"], block_id=block["id"])
         if not any(item[key] for key in ALIASES): continue
         for key in ("name", "quantity", "unit"):

@@ -10,7 +10,7 @@ from django.db import connection, transaction
 from django.db.models import F, Q
 from django.http import FileResponse, JsonResponse
 from django.middleware.csrf import get_token
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 from django.views.decorators.csrf import csrf_protect
@@ -214,7 +214,10 @@ def frontend(request, path=""):
                 and not authorized_modules(request.user).filter(code="hr", enabled=True).exists()):
             if path.rstrip("/") not in {"centers/hr", "centers/hr/probation"}:
                 return JsonResponse({"detail": "仅可访问已分配的转正审批。"}, status=403)
-        get_object_or_404(modules, code=code)
+        if not modules.filter(code=code).exists():
+            response = render(request, "portal/center_unavailable.html", status=404)
+            response["Cache-Control"] = "private, no-store"
+            return response
     root = settings.PORTAL_FRONTEND_DIST
     target = (root / path).resolve() if path.startswith("assets/") else root / "index.html"
     if not target.is_relative_to(root.resolve()) or not target.is_file():

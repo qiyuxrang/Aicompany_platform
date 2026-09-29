@@ -60,14 +60,16 @@ export interface ArtifactVerification {
   comment: string;
 }
 export interface TaskSummary { id: string; title: string; state: string; stage: string; version: number; created_at?: string; updated_at?: string; owner_name?: string; reviewer_name?: string | null; pending_action?: string; error_code?: string }
-export type ProductWorkflowPhase = 'documents' | 'equipment' | 'knowledge' | 'blueprint' | 'review' | 'outputs';
+export type ProductWorkflowPhase = 'documents' | 'equipment' | 'knowledge' | 'web_search' | 'blueprint' | 'review' | 'outputs' | 'writing_technical' | 'writing_feasibility' | 'review_technical' | 'review_feasibility' | 'render_technical' | 'render_feasibility' | 'presentation';
 export interface ProductWorkflowProgress {
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'waiting';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'waiting' | 'skipped';
   updated_at?: string;
   source_count?: number;
   item_count?: number;
   issue_count?: number;
   detail?: string;
+  completed_count?: number;
+  total_count?: number;
 }
 export interface ProductKnowledgeStatus {
   mode: 'source_only_preview' | 'ragflow_required';
@@ -80,6 +82,7 @@ export interface ProductKnowledgeStatus {
 export interface DocumentTask extends TaskSummary {
   intake_mode?: 'manual' | 'equipment_background';
   analysis_progress?: Partial<Record<ProductWorkflowPhase, ProductWorkflowProgress>>;
+  activity?: { phase: string; status: ProductWorkflowProgress['status']; detail?: string; updated_at: string }[];
   /** New orchestration payloads are optional so older deployments remain readable. */
   checkpoint?: { analysis_progress?: Partial<Record<ProductWorkflowPhase, ProductWorkflowProgress>>; current_node?: string; detail?: string };
   workflow?: { current_node?: string; status?: string; detail?: string };
@@ -87,6 +90,7 @@ export interface DocumentTask extends TaskSummary {
   blueprint_approved?: boolean;
   blueprint_review: { revision_count: number; revision_limit: number; revisions_remaining: number };
   blueprint_knowledge?: ProductKnowledgeStatus;
+  output_profile?: 'formal';
   output_targets?: { 'technical-solution': number; feasibility: number };
   output_generation?: Partial<Record<'technical-solution' | 'feasibility', { target_characters: number; actual_characters: number; minimum_characters: number; status: 'target_met' | 'below_target'; updated_at: string }>>;
   input_version: number;
@@ -122,7 +126,7 @@ export interface ConversationTaskResult {
 export interface ProductOverview {
   as_of: string;
   scope: "authorized_projects";
-  metrics: { active: number; review: number; generation: number; completed_month: number };
+  metrics: { all?: number; active: number; completed?: number; review: number; generation: number; completed_month: number };
   projects: TaskSummary[];
   pagination: { page: number; page_size: number; total: number; pages: number };
   recent_projects: TaskSummary[];
@@ -133,6 +137,11 @@ export interface ProductOverview {
   templates: { id: string; name: string; version: string; families: OutputFamily[]; approved: boolean; description: string }[];
 }
 export const getProductOverview = (query: string, signal: AbortSignal) => apiRequest<ProductOverview>(`/api/product/workspace/${query ? `?${query}` : ""}`, { signal });
+export interface ProductOutputHistory {
+  outputs: { id: string; task_id: string; title: string; family: OutputFamily; version: number; created_at: string; current: boolean; review_status: 'stale' | 'approved' | 'pending_review'; download_url: string }[];
+  pagination: { page: number; page_size: number; total: number; pages: number };
+}
+export const getProductOutputHistory = (query: string, signal: AbortSignal) => apiRequest<ProductOutputHistory>(`/api/product/workspace/outputs/${query ? `?${query}` : ''}`, { signal });
 export const sourceDownload = (id: string) => `/api/product/sources/${encodeURIComponent(id)}/download/`;
 const root = "/api/product/tasks/";
 const pathFor = (id: string) => `${root}${encodeURIComponent(id)}/`;

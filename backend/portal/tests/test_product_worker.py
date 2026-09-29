@@ -15,11 +15,30 @@ from portal.product_worker import ExecutionError, _store, claim_task, content_ch
 from .base import PortalTestCase
 
 
-@override_settings(PRODUCT_P1_ENABLED=True, PRODUCT_MODEL_CALLS_ALLOWED=True, PRODUCT_COST_POLICY={
+@override_settings(PRODUCT_P1_ENABLED=True, PRODUCT_MODEL_CALLS_ALLOWED=True, PRODUCT_TECHNICAL_TARGET_CHARACTERS=3, PRODUCT_COST_POLICY={
     "approval_ref": "isolated-test-only", "currency": "TEST", "max_task_cost": "100",
     "route_cost_caps": {"product_blueprint": "1", "product_writing": "1", "product_review": "1"},
 })
 class ProductWorkerTests(PortalTestCase):
+    @patch("portal.product_worker.generate_for_use")
+    def test_unexpected_error_keeps_safe_failure_diagnostics(self, model):
+        model.side_effect = RuntimeError("private source text and secret must not be retained")
+        run_once()
+        self.task.refresh_from_db()
+        failure = self.task.checkpoint["last_failure"]
+        self.assertEqual(self.task.error_code, "execution_failed")
+        self.assertEqual(failure["exception_type"], "RuntimeError")
+        self.assertTrue(failure["frames"])
+        self.assertNotIn("private source text", json.dumps(failure))
+
+    @patch("portal.product_worker.generate_for_use")
+    def test_gateway_busy_is_not_replaced_with_generic_failure(self, model):
+        model.side_effect = GatewayError("busy")
+        run_once()
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.error_code, "busy")
+        self.assertEqual(self.task.checkpoint["last_failure"]["exception_type"], "GatewayError")
+
     @patch("portal.product_worker.generate_for_use")
     def test_blueprint_prompt_lists_only_current_authorized_source_ids(self, model):
         self.task.pending_action = "blueprint"
@@ -42,6 +61,8 @@ class ProductWorkerTests(PortalTestCase):
         model.return_value = {"content": "{}", "prompt_tokens": 1, "completion_tokens": 1}
         self.assertEqual(_model(task_id, fence, attempt_id, "product_writing", {"action": "chapter"}), {})
         system_message = model.call_args.args[2][0]["content"]
+        self.assertIn("必须使用简体中文", system_message)
+        self.assertIn("JSON键名、枚举值、来源标识和资料中的型号保持原样", system_message)
         self.assertIn("适用阶段：write", system_message)
         self.assertIn(rules_hash(), system_message)
         self.task.refresh_from_db()

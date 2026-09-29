@@ -1,5 +1,29 @@
 # 部署与运维
 
+## 商机功能升级检查清单
+
+适用于已有商机数据的环境，尤其是从迁移 `0028` 之前升级的数据库。迁移只增加分组字段，不会自动合并历史项目；原文未变化的重复采集也不能替代回填。
+
+1. 确认目标仓库、数据库、环境文件及服务归属，停止该环境的 Web 服务和采集消费者，确认没有未收尾的活动采集批次；不要把其他环境的账号或数据库复制过来。
+2. 按该环境既有备份流程备份数据库及私有配置，保留可恢复副本。备份和配置不得加入 Git。
+3. 同步锁定依赖或构建更新后的部署镜像。此次公开 PDF 提取依赖 `pypdf`，已有依赖复用模式不会补装新依赖。
+4. 使用目标环境自己的配置，依次执行 `migrate --noinput`、`group_tender_projects` 和 `check`。历史分组回填是旧库升级的必要步骤，不是一次新的联网采集；不会删除公告或重写采集时间。
+5. 重新执行 `group_tender_projects` 应报告 `Updated 0 project grouping keys`。核对原始公告数和版本数未减少、同编号/采购单位/标包的项目展示合并、个人标记保留，再恢复服务与原有采集策略。
+
+Windows 本地环境在仓库根目录执行以下命令；执行前必须完成停服和备份。管理命令模式不会启动消费者或 Web 服务，也不会修改保存的采集开关：
+
+```powershell
+uv sync --frozen
+.\scripts\start-local.ps1 -UseExistingDependencies -DisableTenderUpdates -ManagementCommand @('migrate', '--noinput')
+.\scripts\start-local.ps1 -UseExistingDependencies -DisableTenderUpdates -ManagementCommand group_tender_projects
+.\scripts\start-local.ps1 -UseExistingDependencies -DisableTenderUpdates -ManagementCommand group_tender_projects
+.\scripts\start-local.ps1 -UseExistingDependencies -DisableTenderUpdates -ManagementCommand check
+```
+
+检查通过后按 README 的本地启动流程重新构建并启动前端和 Web。生产环境须使用原部署相同的 Compose 项目与环境文件，在数据库就绪、业务写入停止且镜像已更新的情况下，通过 `docker compose run --rm --no-deps backend python manage.py <管理命令>` 执行同样步骤；不要使用本地启动脚本操作生产库。
+
+任一步失败则保持停服并检查原因，不通过清库或覆盖旧版本绕过错误。分组维护命令不是整库事务；已完成部分可保留后重跑，需整体回退时使用升级前备份。
+
 ## 票据留存与重复隔离验收
 
 `cleanup_tickets` 默认仅预览过期超过7天的票据；`--retention-days` 最少1天，显式 `--apply` 才删除。每批最多1000条，独立事务且删除前重查过期条件；不清理审计、账号或映射。当前批失败会回滚，之前已完成批次保留，重跑安全。已在隔离PostgreSQL实测，不表示已在生产运行或安装定时任务。运维账户应在确认目标环境/留存要求后安排，命令与证据见 `PHASE1_FOLLOWUP.md`。

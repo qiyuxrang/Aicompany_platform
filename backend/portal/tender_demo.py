@@ -223,9 +223,12 @@ def import_bundle(data, *, check_only=False):
                     or TenderOpportunity.objects.filter(primary_notice=notice).exists()):
                 continue
             classification = row['classification_notice_version_ref']
+            classification_version = versions.get(tuple(classification)) if classification else None
+            if classification and classification_version is None:
+                raise ValueError('商机引用的分类版本在目标数据库中不可用')
             _create(TenderOpportunity, {name: row[name] for name in OPPORTUNITY_FIELDS},
                     source=sources[row['source_code']], primary_notice=notice,
-                    classification_notice_version=versions.get(tuple(classification)) if classification else None)
+                    classification_notice_version=classification_version)
             counts['opportunities'] += 1
     return counts
 

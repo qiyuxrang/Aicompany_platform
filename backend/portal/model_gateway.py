@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
 from .integration import NoRedirect
+from .model_messages import TEXT_REQUEST_LIMIT
 from .security import audit, authorized_modules
 
 
@@ -82,9 +83,9 @@ def _messages(messages, supports_vision=False):
     for message in messages:
         if (not isinstance(message, dict) or set(message) != {"role", "content"}
                 or message["role"] not in ("system", "user", "assistant")
-                or not isinstance(message["content"], str) or not 1 <= len(message["content"]) <= 16000):
+                or not isinstance(message["content"], str) or not message["content"]):
             raise GatewayError("invalid_request", status=400)
-    if len(json.dumps(messages, ensure_ascii=False).encode()) > 60000:
+    if len(json.dumps(messages, ensure_ascii=False).encode()) > TEXT_REQUEST_LIMIT:
         raise GatewayError("request_too_large", status=413)
     return messages
 

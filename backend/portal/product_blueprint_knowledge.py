@@ -123,7 +123,7 @@ def prepare_blueprint_knowledge(task_id, fence):
     existing = _ragflow_snapshot(revision.payload)
     scope = authorize(task.owner)
     scope_hash = digest(scope)
-    if (existing is not None and existing.get("authorization") == scope
+    if (existing is not None and existing.get("sources") and existing.get("authorization") == scope
             and existing.get("scope_hash") == scope_hash):
         return blueprint_knowledge_status(revision.payload)
 

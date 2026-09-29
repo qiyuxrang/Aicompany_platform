@@ -277,7 +277,7 @@ function Sources({ sources }: { sources: TenderSource[] }) {
       <small>最近尝试：{source.latest_run?.started_at ? formatDateTime(source.latest_run.started_at) : "暂无记录"}</small>
       <small>最近成功：{source.last_success_at ? formatDateTime(source.last_success_at) : "尚未成功更新"}</small>
       {source.last_failure_at && <small>最近失败：{formatDateTime(source.last_failure_at)}</small>}
-      {source.latest_run && <small>最近一轮：{refreshLabel(source.latest_run.state)}{typeof source.latest_run.statistics?.new_notices === "number" ? ` · 新增 ${source.latest_run.statistics.new_notices} 条` : ""}{typeof source.latest_run.statistics?.new_versions === "number" ? ` · 更新 ${source.latest_run.statistics.new_versions} 版` : ""}</small>}
+      {source.latest_run && <small>最近一轮：{refreshLabel(source.latest_run.state)}{typeof source.latest_run.stats?.new_notices === "number" ? ` · 新增 ${source.latest_run.stats.new_notices} 条` : ""}{typeof source.latest_run.stats?.new_versions === "number" ? ` · 更新 ${source.latest_run.stats.new_versions} 版` : ""}</small>}
     </article>)}</div>}
   </section>;
 }
@@ -294,11 +294,13 @@ export default function TenderOpportunities() {
   const [detailId, setDetailId] = useState<number | null>(noticeId);
   const [detail, setDetail] = useState<DetailState>({ kind: "idle" });
   const [detailReload, setDetailReload] = useState(0);
+  const [optionsMessage, setOptionsMessage] = useState("");
   const [metadataMessage, setMetadataMessage] = useState("");
   const [stateMessage, setStateMessage] = useState("");
   const [pendingStates, setPendingStates] = useState<Set<number>>(new Set());
   const stateRequests = useRef(new Map<number, Promise<OpportunityUserState>>());
   const readRequests = useRef(new Map<number, Promise<OpportunityUserState>>());
+  const mounted = useRef(true);
   const [refreshMessage, setRefreshMessage] = useState("");
   const [staleMessage, setStaleMessage] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -307,6 +309,11 @@ export default function TenderOpportunities() {
   const [monitorReload, setMonitorReload] = useState(0);
   const currentBatch = useRef<RefreshBatch | null>(null);
   const observedTerminals = useRef(new Set<string>());
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     updateUrl(initialFilters(), initialPage(), noticeId(), true);
@@ -345,7 +352,8 @@ export default function TenderOpportunities() {
     stateRequests.current.set(id, request); setPendingStates(new Set(stateRequests.current.keys()));
     const cleanup = () => {
       if (stateRequests.current.get(id) === request) {
-        stateRequests.current.delete(id); setPendingStates(new Set(stateRequests.current.keys()));
+        stateRequests.current.delete(id);
+        if (mounted.current) setPendingStates(new Set(stateRequests.current.keys()));
       }
     };
     void request.then(cleanup, cleanup);
@@ -357,9 +365,11 @@ export default function TenderOpportunities() {
     setStateMessage("");
     try {
       const next = await sendUserState(id, patch);
+      if (!mounted.current) return;
       applyUserState(id, next);
       setReload(value => value + 1);
     } catch (error) {
+      if (!mounted.current) return;
       if (isAccessError(error)) return revoke();
       setStateMessage(message(error, "标记保存失败，请重试。"));
     }
@@ -408,11 +418,11 @@ export default function TenderOpportunities() {
     if (accessRevoked) return;
     const controller = new AbortController();
     void getOpportunityOptions(controller.signal).then(value => {
-      if (!controller.signal.aborted) setOptions(value);
+      if (!controller.signal.aborted) { setOptions(value); setOptionsMessage(""); }
     }).catch(error => {
       if (controller.signal.aborted) return;
       if (isAccessError(error)) return revoke();
-      setMetadataMessage("部分筛选选项暂不可用。");
+      setOptionsMessage("部分筛选选项暂不可用。");
     });
     return () => controller.abort();
   }, [accessRevoked, revoke]);
@@ -490,12 +500,13 @@ export default function TenderOpportunities() {
           void request.then(cleanup, cleanup);
         }
         void request.then(next => {
-          if (controller.signal.aborted) return;
+          if (!mounted.current) return;
           applyUserState(data.id, next);
           setReload(value => value + 1);
         }).catch(error => {
-          if (controller.signal.aborted) return;
+          if (!mounted.current) return;
           if (isAccessError(error)) return revoke();
+          if (controller.signal.aborted) return;
           setStateMessage(message(error, "已看标记保存失败，可点击“标为已看”重试。"));
         });
       }
@@ -577,30 +588,36 @@ export default function TenderOpportunities() {
     </section>
 
     {overview?.available === false && <div className="notice info" role="note">刷新当前不可用：{readable(overview.unavailable_reason, "暂未开放手动刷新。")}</div>}
+    {optionsMessage && <div className="notice info" role="status">{optionsMessage}</div>}
     {metadataMessage && <div className="notice info" role="status">{metadataMessage}</div>}
     {staleMessage && <div className="notice error" role="alert">{staleMessage}</div>}
 
 
-    <section className="pd-panel tender-filters" aria-label="商机筛选">
-      <IndustrySelect value={filters.industry} entries={industries} onChange={value => changeFilter("industry", value)} />
-      <label>公告类型<select value={filters.notice_category} onChange={event => changeFilter("notice_category", event.target.value)}>{categories.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-      <label>地区<select value={filters.region || ""} onChange={event => changeFilter("region", event.target.value)}><option value="">全国</option>{regions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-      <button className="button secondary" type="button" onClick={reset}>恢复默认</button>
-    </section>
+    <div className="tender-browser">
+      <section className="tender-filters" aria-label="商机筛选">
+        <div className="tender-filter-grid">
+          <IndustrySelect value={filters.industry} entries={industries} onChange={value => changeFilter("industry", value)} />
+          <label>公告类型<select value={filters.notice_category} onChange={event => changeFilter("notice_category", event.target.value)}>{categories.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+          <label>地区<select value={filters.region || ""} onChange={event => changeFilter("region", event.target.value)}><option value="">全国</option>{regions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+          <button className="button secondary" type="button" onClick={reset}>恢复默认</button>
+        </div>
+        <div className="tender-personal-filters"><label>我的标记<select value={filters.user_state || ""} onChange={event => changeFilter("user_state", event.target.value)}><option value="">全部（隐藏不相关）</option>{userStates.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label>参与状态<select value={filters.participation || ""} onChange={event => changeFilter("participation", event.target.value)}><option value="">全部状态</option>{participationOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><span>榆林优先 · 优先可参与与核心商机</span></div>
+      </section>
 
-    {listUpdating && list.kind === "ready" && <p className="tender-muted" role="status">正在更新筛选结果，统计与列表暂为上次结果。</p>}
-    <div className="tender-personal-filters"><label>我的标记<select value={filters.user_state || ""} onChange={event => changeFilter("user_state", event.target.value)}><option value="">全部（隐藏不相关）</option>{userStates.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label>参与状态<select value={filters.participation || ""} onChange={event => changeFilter("participation", event.target.value)}><option value="">全部状态</option>{participationOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><span>榆林优先 · 优先可参与与核心商机</span></div>
-    {stateMessage && <p className="notice error" role="alert">{stateMessage}</p>}
+      {listUpdating && list.kind === "ready" && <p className="tender-muted tender-update-status" role="status">正在更新筛选结果，统计与列表暂为上次结果。</p>}
+      {stateMessage && <p className="notice error" role="alert">{stateMessage}</p>}
 
-
-    <section className="pd-panel tender-list" aria-labelledby="tender-list-title" aria-busy={listUpdating}>
-      <div className="pd-panel-heading"><h3 id="tender-list-title">项目商机列表</h3>{list.kind === "ready" && <span>共 {list.data.total} 条 · 最近更新：{list.data.last_updated_at ? formatDateTime(list.data.last_updated_at) : "尚未成功更新"}</span>}</div>
-    <section className="tender-stats" aria-label="当前筛选统计" aria-busy={listUpdating}><div><span>符合条件</span><strong>{stats?.total ?? "—"}</strong></div><div><span>今日新增</span><strong>{stats?.today_new ?? "—"}</strong></div><div><span>本轮新增</span><strong>{stats?.latest_batch_new ?? "—"}</strong></div><div><span>即将截止</span><strong>{stats?.closing_soon ?? "—"}</strong></div></section>
-      {list.kind === "loading" && <div className="tender-state" role="status">正在加载商机…</div>}
-      {list.kind === "error" && <div className="tender-state" role="alert"><strong>商机列表加载失败</strong><p>{list.message}</p><button className="button secondary" onClick={() => setReload(value => value + 1)}>重试</button></div>}
-      {list.kind === "ready" && list.data.items.length === 0 && <div className="tender-state"><strong>暂无符合条件的商机</strong><p>已接入来源暂未提供符合当前条件的项目。可调整筛选，并查看下方来源状态。</p></div>}
-      {list.kind === "ready" && list.data.items.length > 0 && <><div className="tender-table-wrap"><table><caption className="sr-only">商机列表</caption><thead><tr><th>项目名称</th><th>地区</th><th>采购单位</th><th>预算</th><th>发布时间</th><th>截止时间</th><th>参与状态</th><th>来源</th><th>我的标记</th></tr></thead><tbody>{list.data.items.map(item => <tr key={item.id}><td><button className="tender-title" type="button" onClick={() => openDetail(item.id)}>{item.project_name || "项目名称未提供"}</button>{item.project_code && <small>编号：{item.project_code}</small>}<ProjectTags item={item} /></td><td>{item.region || "—"}</td><td><span className="tender-purchaser" title={item.purchaser || undefined}>{item.purchaser || "—"}</span></td><td>{formatBudget(item)}</td><td>{publishedAt(item)}</td><td>{formatDateTime(item.bid_deadline)}</td><td><span className={`tender-badge status-${item.status.toLowerCase()}`}>{statusLabel(item)}</span></td><td>{sourceName(item.source)}</td><td><StateActions item={item} pending={pendingStates.has(item.id)} onChange={patch => void saveUserState(item.id, patch)}/></td></tr>)}</tbody></table></div><div className="tender-pager"><span>第 {list.data.page} 页</span><div className="pd-actions"><button className="button secondary" type="button" disabled={page <= 1} onClick={() => changePage(page - 1)}>上一页</button><button className="button secondary" type="button" disabled={!list.data.has_more} onClick={() => changePage(page + 1)}>下一页</button></div></div></>}
-    </section>
+      <section className="tender-list" aria-labelledby="tender-list-title" aria-busy={listUpdating}>
+        <div className="tender-list-header">
+          <div className="pd-panel-heading"><h3 id="tender-list-title">项目商机列表</h3>{list.kind === "ready" && <span>共 {list.data.total} 条 · 最近更新：{list.data.last_updated_at ? formatDateTime(list.data.last_updated_at) : "尚未成功更新"}</span>}</div>
+          <section className="tender-stats" aria-label="当前筛选统计" aria-busy={listUpdating}><div><span>符合条件</span><strong>{stats?.total ?? "—"}</strong></div><div><span>今日新增</span><strong>{stats?.today_new ?? "—"}</strong></div><div><span>本轮新增</span><strong>{stats?.latest_batch_new ?? "—"}</strong></div><div><span>即将截止</span><strong>{stats?.closing_soon ?? "—"}</strong></div></section>
+        </div>
+        {list.kind === "loading" && <div className="tender-state" role="status">正在加载商机…</div>}
+        {list.kind === "error" && <div className="tender-state" role="alert"><strong>商机列表加载失败</strong><p>{list.message}</p><button className="button secondary" onClick={() => setReload(value => value + 1)}>重试</button></div>}
+        {list.kind === "ready" && list.data.items.length === 0 && <div className="tender-state"><strong>暂无符合条件的商机</strong><p>已接入来源暂未提供符合当前条件的项目。可调整筛选，并查看下方来源状态。</p></div>}
+        {list.kind === "ready" && list.data.items.length > 0 && <><div className="tender-table-wrap"><table><caption className="sr-only">商机列表</caption><thead><tr><th>项目名称</th><th>地区</th><th>采购单位</th><th>预算</th><th>发布时间</th><th>截止时间</th><th>参与状态</th><th>来源</th><th>我的标记</th></tr></thead><tbody>{list.data.items.map(item => <tr key={item.id}><td><button className="tender-title" type="button" onClick={() => openDetail(item.id)}>{item.project_name || "项目名称未提供"}</button>{item.project_code && <small>编号：{item.project_code}</small>}<ProjectTags item={item} /></td><td>{item.region || "—"}</td><td><span className="tender-purchaser" title={item.purchaser || undefined}>{item.purchaser || "—"}</span></td><td>{formatBudget(item)}</td><td>{publishedAt(item)}</td><td>{formatDateTime(item.bid_deadline)}</td><td><span className={`tender-badge status-${item.status.toLowerCase()}`}>{statusLabel(item)}</span></td><td><span className="tender-source-label">{sourceName(item.source)}</span></td><td><StateActions item={item} pending={pendingStates.has(item.id)} onChange={patch => void saveUserState(item.id, patch)}/></td></tr>)}</tbody></table></div><div className="tender-pager"><span>第 {list.data.page} 页</span><div className="pd-actions"><button className="button secondary" type="button" disabled={page <= 1} onClick={() => changePage(page - 1)}>上一页</button><button className="button secondary" type="button" disabled={!list.data.has_more} onClick={() => changePage(page + 1)}>下一页</button></div></div></>}
+      </section>
+    </div>
     {((batch && batch.trigger !== "scheduled") || refreshMessage) && <section className="pd-panel tender-refresh" aria-live="polite"><div><strong>刷新状态</strong><span className={`tender-badge batch-${(batch ? batchDisplayState(batch) : "unknown").toLowerCase()}`}>{refreshLabel(refreshMessage || (batch ? batchDisplayState(batch) : undefined))}</span></div>{batch && terminalStates.has(batchDisplayState(batch)) && Object.entries(batch.results).length > 0 && <ul>{Object.entries(batch.results).map(([code, result]) => <li key={code}><strong>{sources.find(source => source.code === code)?.name || "公告来源"}</strong><span>{refreshLabel(result.display_state || result.state)}{typeof result.new_notices === "number" ? ` · 新增 ${result.new_notices} 条` : ""}{typeof result.new_versions === "number" && result.new_versions > 0 ? ` · 更新 ${result.new_versions} 版` : ""}{result.detail || result.error_code || result.error_detail ? ` · ${failureReason(result.error_code, result.detail || result.error_detail)}` : ""}</span></li>)}</ul>}</section>}
     <p className="tender-coverage">公告来自已接入的公开来源，覆盖范围以实际获取结果为准。</p>
     <Sources sources={sources}/>

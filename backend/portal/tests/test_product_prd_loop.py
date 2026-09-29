@@ -103,7 +103,9 @@ class ProductPrdLoopTests(PortalTestCase):
         self.assertEqual([observed[0][key]['status'] for key in ('documents', 'equipment', 'blueprint')],
             ['completed', 'completed', 'running'])
         self.assertEqual(task['analysis_progress']['equipment']['item_count'], 1)
-        self.assertTrue(all(step['status'] == 'completed' for step in task['analysis_progress'].values()))
+        self.assertTrue(all(task['analysis_progress'][key]['status'] == 'completed' for key in ('documents', 'equipment', 'blueprint')))
+        self.assertEqual(task['analysis_progress']['knowledge']['status'], 'skipped')
+        self.assertEqual(task['analysis_progress']['web_search']['status'], 'skipped')
         old = task['blueprint']
         revise = self.action(task, 'decisions', target='blueprint', target_id=old['id'], sha256=old['sha256'],
             decision='revise', comment='增加分阶段实施范围，设备数量保持不变。')

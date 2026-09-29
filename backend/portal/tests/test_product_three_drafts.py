@@ -99,7 +99,7 @@ class ThreeDraftFlowTests(PortalTestCase):
         for family in ("technical-solution", "feasibility"):
             responses.extend([
                 json.dumps({"chapter_id": "overview", "title": "项目概述",
-                            "paragraphs": [f"{family} 代表性正文。"], "source_ids": ["1"]}),
+                            "paragraphs": [f"第{index}段" + "正文" * 5000 for index in range(5 if family == "technical-solution" else 7)], "source_ids": ["1"]}),
                 json.dumps({"passed": True, "issues": []}),
             ])
         model.side_effect = [{"content": value, "prompt_tokens": 10, "completion_tokens": 20} for value in responses]
@@ -151,6 +151,10 @@ class ThreeDraftFlowTests(PortalTestCase):
         self.assertEqual({item["family"] for item in outputs}, {"technical-solution", "feasibility", "presentation"})
         self.assertTrue(all(item["current"] and item["draft"] for item in outputs))
         self.assertTrue(all(item["content_approved"] is False for item in outputs if item["family"] != "presentation"))
+        technical = DocumentArtifact.objects.get(task_id=task_id, family="technical-solution")
+        technical_download = self.owner_client.get(f"/api/product/outputs/{technical.pk}/download/")
+        self.assertEqual(technical_download.status_code, 200)
+        self.assertEqual(b"".join(technical_download.streaming_content), b"PK-report-technical-solution")
         ppt = DocumentArtifact.objects.get(task_id=task_id, family="presentation")
         self.assertTrue(all(source["id"] and source["sha256"] for source in ppt.render_evidence["source_versions"]))
         self.assertTrue(all("approval_id" not in source for source in ppt.render_evidence["source_versions"]))

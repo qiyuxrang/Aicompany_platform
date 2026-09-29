@@ -7,7 +7,7 @@ from django.test import SimpleTestCase
 from portal.product_rules import ProductRulesError, ProductRulesUnavailable, rules_hash, stage_rules
 
 
-RULES_HASH = "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+RULES_HASH = "cca20ae57f89b54d63c701f264590c78249a9926cb66ec4ea879289fc440a8bb"
 SOURCE_HASHES = {
     "af32f0d8281c8ed0f99c1e8671bd0d1b1f463203425ba9aedcf3549a81c4ca22",
     "2056900ab63c9fc0cef54280f4e5bdcf1edd2bff7992ec571ec5a3b9f4192c3a",
@@ -36,6 +36,8 @@ class ProductRulesTests(SimpleTestCase):
         self.assertEqual({value for value in SOURCE_HASHES if value in combined}, SOURCE_HASHES)
         self.assertIn("50,000字", combined)
         self.assertIn("70,000字", combined)
+        self.assertIn("排除短篇测试版交付要求", combined)
+        self.assertNotIn("不复用旧项目技术方案", combined)
         self.assertIn("至少20张图片", combined)
         self.assertIn("WorkBuddy", combined)
 

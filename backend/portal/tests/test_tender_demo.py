@@ -181,16 +181,59 @@ class TenderDemoTests(PortalTestCase):
         self.assertEqual(User.objects.count(), 1)
         self.assertTrue(TenderOpportunityUserState.objects.get().is_favorite)
 
-    def test_existing_notice_history_is_not_extended_by_snapshot_import(self):
+    def test_missing_local_classification_version_rejects_and_rolls_back(self):
         data = self.bundle()
+        new_notice = deepcopy(data['notices'][0])
+        new_notice.update(
+            source_notice_id='t20260925_12345679', canonical_key='ccgp_national:new-project',
+            original_url='https://www.ccgp.gov.cn/cggg/dfgg/gkzb/202609/t20260925_12345679.htm',
+            current_version=1,
+        )
+        data['notices'].append(new_notice)
+        new_version = deepcopy(data['versions'][0])
+        new_version.update(source_notice_id=new_notice['source_notice_id'], content_hash='c' * 64)
+        data['versions'].append(new_version)
         TenderOpportunity.objects.all().delete()
         self.version.delete()
         TenderNotice.objects.filter(pk=self.notice.pk).update(current_version=1)
-        result = import_bundle(data)
-        self.assertEqual(result['versions'], 0)
-        self.assertEqual(TenderNoticeVersion.objects.count(), 1)
+        before = self.counts()
+        with self.assertRaisesRegex(ValueError, '分类版本在目标数据库中不可用'):
+            import_bundle(data)
+        self.assertEqual(self.counts(), before)
+        self.assertFalse(TenderNotice.objects.filter(source_notice_id=new_notice['source_notice_id']).exists())
         self.notice.refresh_from_db()
         self.assertEqual(self.notice.current_version, 1)
+
+    def test_conflicting_local_classification_version_hash_is_rejected(self):
+        data = self.bundle()
+        self.item.delete()
+        TenderNoticeVersion.objects.filter(pk=self.version.pk).update(content_hash='c' * 64)
+        before = self.counts()
+        with self.assertRaisesRegex(ValueError, '分类版本在目标数据库中不可用'):
+            import_bundle(data)
+        self.assertEqual(self.counts(), before)
+        self.version.refresh_from_db()
+        self.assertEqual(self.version.content_hash, 'c' * 64)
+
+    def test_existing_opportunity_skip_ignores_conflicting_bundle_version(self):
+        data = self.bundle()
+        TenderNoticeVersion.objects.filter(pk=self.version.pk).update(content_hash='c' * 64)
+        TenderOpportunity.objects.filter(pk=self.item.pk).update(project_name='本机保留的项目名称')
+        before = self.counts()
+        self.assertEqual(import_bundle(data), dict.fromkeys(before, 0))
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.project_name, '本机保留的项目名称')
+        self.assertEqual(self.item.classification_notice_version_id, self.version.pk)
+
+    def test_null_classification_version_reference_remains_allowed(self):
+        data = self.bundle()
+        data['opportunities'][0]['classification_notice_version_ref'] = None
+        self.clear_public_data()
+        self.assertEqual(
+            import_bundle(data),
+            {'sources': 1, 'notices': 1, 'versions': 2, 'opportunities': 1},
+        )
+        self.assertIsNone(TenderOpportunity.objects.get().classification_notice_version_id)
 
     def test_check_validates_but_never_writes(self):
         data = self.bundle()

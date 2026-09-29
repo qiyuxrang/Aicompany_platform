@@ -288,7 +288,7 @@ export function UsagePage() {
           const employees = usage.employees ?? [];
           const modelUsage = usage.model_usage;
           return (
-            <div className="ops-page-stack">
+            <div className="ops-page-stack ops-usage-dashboard">
               <section className="ops-metric-grid four">
                 <MetricCard label="启用账号" value={formatMetric(usage.summary.enabled_accounts)} note="当前账号快照" href="/ops/people?status=active" />
                 <MetricCard label="登录活跃人数" value={formatMetric(usage.summary.login_users)} note="全平台成功登录去重" href={`/ops/usage?days=${days}`} />
@@ -296,6 +296,7 @@ export function UsagePage() {
                 <MetricCard label="模块启动次数" value={formatMetric(usage.summary.module_launches)} note={module ? `仅 ${module}` : "全部模块"} href={`/ops/usage?days=${days}${module ? `&module=${module}` : ""}`} />
               </section>
               <Section title="每日趋势"><TrendChart points={usage.trend} days={days} module={module} /></Section>
+              <div className="ops-usage-details">
               <Section title="员工活动榜">
                 <div className="ops-callout compact">仅统计非平台管理员的成功登录与模块启动事件，最多展示20人；模块筛选只影响启动次数。</div>
                 {employees.length === 0 ? <p className="ops-inline-empty" role="status">当前范围无员工成功活动记录。</p> : (
@@ -322,7 +323,7 @@ export function UsagePage() {
               >
                 <div className="ops-callout compact">仅统计业务调用，处理中调用不计为失败；全部数据均为全平台口径，不受模块筛选影响。</div>
                 {!modelUsage ? <p className="ops-inline-empty" role="status">当前范围暂无业务模型调用统计。</p> : <>
-                  <div className="ops-metric-grid four flat" aria-label="业务模型调用汇总">
+                  <div className="ops-metric-grid flat ops-model-metrics" aria-label="业务模型调用汇总">
                     <div><span>启用路由</span><strong>{formatMetric(modelUsage.enabled_routes)}</strong></div>
                     <div><span>调用次数</span><strong>{formatMetric(modelUsage.calls)}</strong></div>
                     <div><span>成功次数</span><strong>{formatMetric(modelUsage.successes)}</strong></div>
@@ -349,6 +350,7 @@ export function UsagePage() {
                   )}
                 </>}
               </Section>
+              </div>
               <div className="ops-two-column">
                 <Section title="模块启动排行">
                   {usage.ranking.length === 0 ? <p className="ops-inline-empty">当前范围无模块启动记录。</p> : (
@@ -357,7 +359,7 @@ export function UsagePage() {
                     </ol>
                   )}
                 </Section>
-                <Section title="统计口径"><DefinitionList values={usage.definitions} /></Section>
+                <Section title="统计口径"><details className="ops-usage-definitions"><summary>查看指标定义与统计范围</summary><DefinitionList values={usage.definitions} /></details></Section>
               </div>
             </div>
           );

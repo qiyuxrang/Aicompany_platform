@@ -45,33 +45,95 @@ class CcgpWindowScanTests(TestCase):
         urls = []
         def fetch(url):
             urls.append(url)
-            return listing(url, str(len(urls) + 10000), relative='/gkzb/' in url)
+            number = str(int(sha256(url.encode()).hexdigest()[:8], 16))
+            return listing(url, number, relative='/gkzb/' in url)
         outbound = Mock()
         outbound.fetch.side_effect = fetch
-        result = CcgpNationalAdapter(outbound=outbound).scan_window(
-            max_pages=3, max_candidates=20, cursor={'central': 5, 'local': 8},
-            window=window_bounds(datetime(2026, 9, 29, tzinfo=timezone.utc)))
+        adapter = CcgpNationalAdapter(outbound=outbound)
+        kwargs = dict(max_pages=3, max_candidates=20,
+                      window=window_bounds(datetime(2026, 9, 29, tzinfo=timezone.utc)))
+        first = adapter.scan_window(**kwargs)
+        urls.clear()
+        result = adapter.scan_window(**kwargs, cursor={**first.resume_cursor, 'central': 5, 'local': 8})
         self.assertEqual(len(urls), 6)
         self.assertTrue(urls[0].endswith('/zygg/index.htm'))
         self.assertTrue(urls[1].endswith('/zygg/gkzb/index.htm'))
         self.assertTrue(urls[2].endswith('/zygg/gkzb/index_4.htm'))
         self.assertTrue(urls[-1].endswith('/dfgg/gkzb/index_7.htm'))
-        self.assertEqual(result.resume_cursor, {'central': 6, 'local': 9})
+        self.assertEqual(result.resume_cursor['central'], 6)
+        self.assertEqual(result.resume_cursor['local'], 9)
         self.assertFalse(result.complete)
 
-    def test_candidate_cap_continues_remaining_notices_before_advancing(self):
+    def test_changed_head_rescans_new_page_two_notices_before_resuming_history(self):
+        urls = []
+        changed = False
         def fetch(url):
-            number = {'zygg/index.htm': '10001', 'zygg/gkzb/index.htm': '10002',
-                      'dfgg/index.htm': '10003', 'dfgg/gkzb/index.htm': '10004'}[url.split('/cggg/')[1]]
+            urls.append(url)
+            number = str(int(sha256(url.encode()).hexdigest()[:8], 16))
+            if changed and url.endswith('/zygg/gkzb/index.htm'):
+                number = '90001'
+            elif changed and url.endswith('/zygg/gkzb/index_1.htm'):
+                number = '90002'
             return listing(url, number, relative='/gkzb/' in url)
         outbound = Mock()
         outbound.fetch.side_effect = fetch
         adapter = CcgpNationalAdapter(outbound=outbound)
-        kwargs = dict(max_pages=2, max_candidates=2,
+        kwargs = dict(max_pages=3, max_candidates=20,
+                      window=window_bounds(datetime(2026, 9, 29, tzinfo=timezone.utc)))
+        first = adapter.scan_window(**kwargs)
+        changed = True
+        urls.clear()
+        second = adapter.scan_window(**kwargs, cursor={**first.resume_cursor, 'central': 10, 'local': 8})
+        self.assertIn('t20260928_90002', {ref.source_notice_id for ref in second.refs})
+        self.assertEqual(len(urls), 6)
+        self.assertTrue(urls[2].endswith('/zygg/gkzb/index_1.htm'))
+        self.assertTrue(urls[-1].endswith('/dfgg/gkzb/index_7.htm'))
+        self.assertEqual(second.resume_cursor['central'], 3)
+        self.assertEqual(second.resume_cursor['local'], 9)
+        self.assertFalse(second.complete)
+        capped = adapter.scan_window(**{**kwargs, 'max_candidates': 1},
+                                     cursor={**first.resume_cursor, 'central': 10, 'local': 8})
+        self.assertEqual(capped.reason, 'candidate_limit')
+        urls.clear()
+        remaining = adapter.scan_window(**kwargs, cursor=capped.resume_cursor)
+        self.assertTrue(urls[2].endswith('/zygg/gkzb/index_1.htm'))
+        self.assertTrue(urls[-1].endswith('/dfgg/gkzb/index_7.htm'))
+        self.assertEqual({ref.source_notice_id for ref in capped.refs + remaining.refs},
+                         {ref.source_notice_id for ref in second.refs})
+        self.assertEqual(remaining.resume_cursor['central'], 3)
+        self.assertEqual(remaining.resume_cursor['local'], 9)
+
+    def test_legacy_cursor_without_a_head_snapshot_restarts_recent_pages(self):
+        outbound = Mock()
+        outbound.fetch.side_effect = lambda url: listing(url, '10001', relative='/gkzb/' in url)
+        result = CcgpNationalAdapter(outbound=outbound).scan_window(
+            max_pages=3, max_candidates=20, cursor={'central': 10, 'local': 10},
+            window=window_bounds(datetime(2026, 9, 29, tzinfo=timezone.utc)))
+        urls = [call.args[0] for call in outbound.fetch.call_args_list]
+        self.assertTrue(urls[2].endswith('/zygg/gkzb/index_1.htm'))
+        self.assertTrue(urls[-1].endswith('/dfgg/gkzb/index_1.htm'))
+        self.assertEqual(result.resume_cursor['central'], 3)
+        self.assertEqual(result.resume_cursor['local'], 3)
+
+    def test_candidate_cap_continues_remaining_notices_before_advancing(self):
+        def fetch(url):
+            number = {'zygg/index.htm': '10001', 'zygg/gkzb/index.htm': '10002',
+                      'dfgg/index.htm': '10003', 'dfgg/gkzb/index.htm': '10004',
+                      'zygg/gkzb/index_1.htm': '10005', 'dfgg/gkzb/index_1.htm': '10006'}[url.split('/cggg/')[1]]
+            return listing(url, number, relative='/gkzb/' in url)
+        outbound = Mock()
+        outbound.fetch.side_effect = fetch
+        adapter = CcgpNationalAdapter(outbound=outbound)
+        kwargs = dict(max_pages=3, max_candidates=2,
                       window=window_bounds(datetime(2026, 9, 29, tzinfo=timezone.utc)))
         first = adapter.scan_window(**kwargs)
         second = adapter.scan_window(**kwargs, cursor=first.resume_cursor)
+        third = adapter.scan_window(**kwargs, cursor=second.resume_cursor)
         self.assertEqual(first.reason, 'candidate_limit')
         self.assertFalse({ref.source_notice_id for ref in first.refs} & {ref.source_notice_id for ref in second.refs})
-        self.assertEqual(len(first.refs) + len(second.refs), 4)
-        self.assertNotIn('_processed_ids', second.resume_cursor)
+        self.assertEqual(len(first.refs) + len(second.refs) + len(third.refs), 6)
+        self.assertEqual(len({ref.source_notice_id for ref in first.refs + second.refs + third.refs}), 6)
+        self.assertEqual(first.resume_cursor['central'], 2)
+        self.assertEqual(second.resume_cursor['central'], 2)
+        self.assertEqual(third.resume_cursor['central'], 3)
+        self.assertNotIn('_processed_ids', third.resume_cursor)

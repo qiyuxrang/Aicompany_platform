@@ -13,10 +13,10 @@ import time
 from urllib.parse import urlsplit
 
 from model_gateway.errors import GatewayError
-from backend.portal.model_messages import VISION_REQUEST_LIMIT, validate_messages
+from backend.portal.model_messages import TEXT_REQUEST_LIMIT, VISION_REQUEST_LIMIT, validate_messages
 
 
-REQUEST_LIMIT = 64 * 1024
+REQUEST_LIMIT = TEXT_REQUEST_LIMIT + 65536
 RESPONSE_LIMIT = 1024 * 1024
 _DNS_SLOTS = threading.BoundedSemaphore(2)
 _KEY_NAME = re.compile(r"PORTAL_MODEL_KEY_[A-Z0-9_]+", re.ASCII)

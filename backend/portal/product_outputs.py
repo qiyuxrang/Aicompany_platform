@@ -8,7 +8,7 @@ from django.urls import path
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .product_api import product_endpoint, _body, _expected, _task_detail
+from .product_api import product_endpoint, _artifact_download_response, _body, _expected, _task_detail
 from .product_models import DocumentArtifact, DocumentRevision
 from .product_pair import FAMILIES, latest_report_content, output_current
 from .product_service import (ProductError, approved_blueprint, current_revision, effective_artifact_approval, input_authorized,
@@ -50,6 +50,8 @@ def draft_download(request, artifact_id):
         artifact = DocumentArtifact.objects.select_related("task").get(pk=artifact_id)
     except (DocumentArtifact.DoesNotExist, ValueError, TypeError) as error:
         raise ProductError("not_found", "对象不存在。", 404) from error
+    if artifact.family == "technical-solution":
+        return _artifact_download_response(request, artifact)
     task = task_for(request.user, artifact.task_id)
     if artifact.family not in ("feasibility", "presentation"):
         raise ProductError("not_found", "对象不存在。", 404)

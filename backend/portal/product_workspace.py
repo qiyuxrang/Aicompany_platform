@@ -13,7 +13,7 @@ from .models import User
 from .product_api import product_endpoint, _task_summary
 from .product_models import DocumentArtifact, DocumentRevision, DocumentSource, DocumentTask
 from .product_pair import output_current
-from .product_service import (ProductError, effective_artifact_approval, input_authorized,
+from .product_service import (ProductError, input_authorized,
                               product_user_allowed, reviewer_allowed, task_for)
 from .product_storage import StorageError, verified_artifact
 from .security import audit
@@ -21,6 +21,7 @@ from .source_parsers.core import EXTENSIONS
 
 
 FILTERS = {"all", "active", "review", "generation", "completed", "completed_month", "attention"}
+OUTPUT_FAMILIES = {"technical-solution", "feasibility", "presentation"}
 GENERATION_STAGES = {"WRITING", "CONTENT_CHECK", "RENDER"}
 ENDED = {"COMPLETED", "CANCELLED"}
 
@@ -79,17 +80,86 @@ def _recent_outputs(tasks):
     for artifact in artifacts:
         task = task_map[artifact.task_id]
         revision = task.revisions.filter(kind="input", sha256=artifact.input_hash).first()
-        if artifact.family not in {"technical-solution", "feasibility", "presentation"} or not input_authorized(task, revision):
+        if artifact.family not in OUTPUT_FAMILIES or not input_authorized(task, revision):
             continue
         current = output_current(task, artifact)
-        approved = effective_artifact_approval(artifact) is not None
         result.append({"id": str(artifact.pk), "task_id": str(task.pk), "title": task.title,
                        "family": artifact.family, "version": artifact.version,
                        "created_at": artifact.created_at.isoformat(), "current": current,
-                       "review_status": "stale" if not current else "approved" if approved else "pending_review"})
+                       "review_status": "pending_review" if current else "stale"})
         if len(result) == 6:
             break
     return result
+
+
+def _file_metadata(path_value, sha256):
+    return (isinstance(path_value, str) and bool(path_value) and isinstance(sha256, str) and len(sha256) == 64
+            and all(character in "0123456789abcdef" for character in sha256))
+
+
+def _output_download_url(artifact, current):
+    if not _file_metadata(artifact.path, artifact.sha256):
+        return None
+    if artifact.family == "technical-solution":
+        if artifact.render_evidence.get("kind") == "candidate":
+            fallback = artifact.render_evidence.get("draft_fallback")
+            if not isinstance(fallback, dict) or not _file_metadata(fallback.get("path"), fallback.get("sha256")):
+                return None
+        url = f"/api/product/artifacts/{artifact.pk}/download/"
+    else:
+        url = f"/api/product/outputs/{artifact.pk}/download/"
+    return url if current else f"{url}?history=1"
+
+
+@api_view(["GET"])
+@product_endpoint
+def outputs(request):
+    page = _number(request, "page", 1, 1000000)
+    page_size = _number(request, "page_size", 12, 50)
+    family = request.query_params.get("family", "all")
+    query = request.query_params.get("q", "").strip()
+    if family not in {*OUTPUT_FAMILIES, "all"} or len(query) > 200:
+        raise ProductError("invalid_filter", "筛选条件无效。")
+    tasks = _authorized_tasks(request.user)
+    if query:
+        tasks = [task for task in tasks if query.casefold() in task.title.casefold()]
+    task_map = {task.pk: task for task in tasks}
+    input_revisions = {
+        (revision.task_id, revision.sha256): revision
+        for revision in DocumentRevision.objects.filter(task_id__in=task_map, kind=DocumentRevision.Kind.INPUT)
+    }
+    artifacts = DocumentArtifact.objects.filter(task_id__in=task_map, family__in=OUTPUT_FAMILIES)
+    if family != "all":
+        artifacts = artifacts.filter(family=family)
+    result = []
+    for artifact in artifacts.select_related("review").order_by("-created_at", "-version", "-pk"):
+        task = task_map[artifact.task_id]
+        revision = input_revisions.get((artifact.task_id, artifact.input_hash))
+        artifact.task = task
+        try:
+            if not input_authorized(task, revision):
+                continue
+            current = output_current(task, artifact)
+            download_url = _output_download_url(artifact, current)
+            if download_url is None:
+                continue
+            task = task_for(request.user, artifact.task_id)
+            if not input_authorized(task, revision):
+                continue
+        except ProductError:
+            continue
+        result.append({"id": str(artifact.pk), "task_id": str(task.pk), "title": task.title,
+                       "family": artifact.family, "version": artifact.version,
+                       "created_at": artifact.created_at.isoformat(), "current": current,
+                       "review_status": "pending_review" if current else "stale",
+                       "download_url": download_url})
+    start = (page - 1) * page_size
+    response = Response({"outputs": result[start:start + page_size],
+                         "pagination": {"page": page, "page_size": page_size, "total": len(result),
+                                        "pages": ceil(len(result) / page_size)}})
+    response["Cache-Control"] = "private, no-store"
+    audit(request.user, "product_workspace_outputs_read", f"workspace_outputs:r{request.product_request_id}")
+    return response
 
 
 @api_view(["GET"])
@@ -103,9 +173,11 @@ def workspace(request):
         raise ProductError("invalid_filter", "筛选条件无效。")
     tasks = _authorized_tasks(request.user)
     now = timezone.localtime()
-    metrics = {"active": sum(_matches(task, "active") for task in tasks),
+    metrics = {"all": len(tasks),
+               "active": sum(_matches(task, "active") for task in tasks),
                "review": sum(_matches(task, "review") for task in tasks),
                "generation": sum(_matches(task, "generation") for task in tasks),
+               "completed": sum(_matches(task, "completed") for task in tasks),
                "completed_month": sum(task.state == "COMPLETED" and
                     (timezone.localtime(task.updated_at).year, timezone.localtime(task.updated_at).month) == (now.year, now.month)
                     for task in tasks)}
@@ -161,7 +233,8 @@ def source_download(request, source_id):
     return response
 
 
-urlpatterns = [path("workspace/", workspace), path("sources/<uuid:source_id>/download/", source_download)]
+urlpatterns = [path("workspace/", workspace), path("workspace/outputs/", outputs),
+               path("sources/<uuid:source_id>/download/", source_download)]
 
 # Independent RAGFlow knowledge Q&A; does not reuse blueprint retrieval configuration.
 from .product_knowledge_api import urlpatterns as knowledge_urlpatterns

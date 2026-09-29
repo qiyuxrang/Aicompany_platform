@@ -1,0 +1,72 @@
+.business-projects { min-width:0; }
+.business-project-header { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:4px 0 24px; }
+.business-project-header h1 { margin:0; font-size:clamp(23px,2.4vw,32px); line-height:1.4; overflow-wrap:anywhere; }
+.business-project-header h1:focus { outline:none; }
+.business-project-header p { margin:9px 0 0; font-size:13px; color:var(--muted); }
+.business-project-header p span { margin-left:16px; }
+.business-project-header > button { flex:0 0 auto; }
+.business-project-toolbar { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:20px; }
+.business-project-toolbar label,.business-project-original-head label { display:grid; gap:8px; font-size:13px; color:var(--muted); }
+.business-project-toolbar input,.business-project-original-head select { font:inherit; color:var(--ink); border:1px solid var(--line); border-radius:8px; background:var(--surface); padding:11px 14px; min-height:44px; }
+.business-project-toolbar input { width:min(360px,100%); min-width:260px; }
+.business-project-toolbar > span { font-size:12px; color:var(--muted); }
+.business-project-table-wrap { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--surface); }
+.business-project-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:14px; }
+.business-project-table th { background:var(--soft); color:var(--muted); text-align:left; font-size:12px; font-weight:600; padding:14px 18px; }
+.business-project-table th:first-child { width:43%; }.business-project-table th:nth-child(2) { width:23%; }.business-project-table th:nth-child(3) { width:19%; }.business-project-table th:nth-child(4) { width:15%; }
+.business-project-table td { padding:18px; border-top:1px solid var(--line); vertical-align:top; line-height:1.6; overflow-wrap:anywhere; }
+.business-project-table tr:hover td { background:var(--raised); }
+.business-project-table small { display:block; margin-top:5px; color:var(--muted); font-size:11px; }
+.business-project-table time { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.business-project-name { display:flex; justify-content:space-between; align-items:start; gap:14px; color:var(--ink); text-decoration:none; font-weight:600; }
+.business-project-name:hover { color:var(--accent); }.business-project-name > span { color:var(--accent); flex-shrink:0; }
+.business-project-name:focus-visible { outline:2px solid var(--accent); outline-offset:4px; border-radius:3px; }
+.business-project-status { font-size:16px; line-height:1.8; white-space:pre-line; margin:12px 0 0; }
+.business-project-caption,.business-project-loading { color:var(--muted); font-size:12px; line-height:1.8; margin:14px 0; overflow-wrap:anywhere; }
+.business-project-back { display:inline-block; color:var(--accent); font-size:13px; text-decoration:none; margin-bottom:18px; }
+.business-project-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:20px; padding:22px; background:var(--surface); border:1px solid var(--line); border-radius:12px; margin:0; }
+.business-project-summary dt,.business-project-fields dt { font-size:12px; color:var(--muted); line-height:1.6; }
+.business-project-summary dd,.business-project-fields dd { margin:8px 0 0; font-size:14px; line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; }
+.business-project-updates,.business-project-original { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:24px; margin-top:22px; }
+.business-project-detail h2 { font-size:17px; margin:0 0 20px; }
+.business-project-updates ol { list-style:none; padding:0 0 0 15px; margin:0; border-left:2px solid var(--line); }
+.business-project-updates li { position:relative; padding:0 0 20px 12px; }.business-project-updates li:last-child { padding-bottom:0; }
+.business-project-updates li::before { content:''; width:8px; height:8px; position:absolute; top:6px; left:-20px; background:var(--accent); border-radius:50%; }
+.business-project-updates li > div { display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:14px; }
+.business-project-updates li span { font-size:11px; padding:3px 8px; color:var(--accent); background:var(--soft); border-radius:4px; }
+.business-project-updates li p { margin:6px 0 0; color:var(--muted); font-size:12px; }
+.business-project-original-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:20px; }.business-project-original-head h2 { margin:0; }
+.business-project-original-head select { max-width:100%; }
+.business-project-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px 30px; margin:0; }.business-project-wide { grid-column:1/-1; }
+.business-project-source-history { margin-top:24px; border-top:1px solid var(--line); padding-top:20px; }.business-project-source-history summary { cursor:pointer; font-size:14px; color:var(--accent); }
+.business-project-source-history pre { white-space:pre-wrap; word-break:break-word; line-height:1.9; font:inherit; font-size:13px; max-height:420px; overflow:auto; margin:16px 0 0; }
+.business-projects { font-size:16px; }
+.business-project-table { font-size:16px; }
+.business-project-table th { font-size:15px; }
+.business-project-table th:first-child { width:30%; }
+.business-project-table th:nth-child(2) { width:40%; }
+.business-project-table th:nth-child(3),.business-project-table th:nth-child(4) { width:15%; }
+.business-project-table small,.business-project-table time { font-size:14px; }
+.business-projects :is(.business-project-summary dt,.business-project-fields dt,.business-project-caption,.business-project-toolbar label,.business-project-original-head label) { font-size:15px; }
+.business-projects :is(.business-project-summary dd,.business-project-fields dd,.business-project-toolbar input,.business-project-original-head select) { font-size:17px; }
+.business-project-detail h2 { font-size:21px; }
+.business-project-current { padding:24px; border:1px solid var(--info-border); background:var(--soft); border-radius:12px; margin-bottom:22px; }
+.business-project-current .business-project-status { font-size:19px; font-weight:600; }
+.business-project-updates > summary { cursor:pointer; font-size:16px; font-weight:600; }
+.business-project-updates > summary:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+.project-progress-label { font-size:16px; color:var(--accent); }
+.project-progress-track { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); list-style:none; padding:0; margin:12px 0 0; gap:6px; max-width:640px; }
+.project-progress-track li { font-size:13px; color:var(--muted); text-align:center; overflow-wrap:anywhere; }
+.project-progress-track li > span { display:block; height:6px; border-radius:4px; background:var(--line); margin-bottom:7px; }
+.project-progress-track li[aria-current=step] { font-weight:700; color:var(--accent); }
+.project-progress-track li[aria-current=step] > span { background:var(--accent); }
+@media(max-width:1000px) { .business-project-summary,.business-project-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }.business-project-original-head { align-items:start; flex-direction:column; }.business-project-original-head label { width:100%; } }
+@media(max-width:650px) {
+  .business-project-header { align-items:start; gap:12px; }.business-project-header p span { display:block; margin:5px 0 0; }.business-project-header > button { padding:10px; font-size:12px; }
+  .business-project-toolbar { align-items:stretch; flex-direction:column; }.business-project-toolbar input { min-width:0; width:100%; }
+  .business-project-table,.business-project-table tbody,.business-project-table tr,.business-project-table td { display:block; width:auto; }
+  .business-project-table thead { display:none; }.business-project-table tr { padding:16px; border-top:1px solid var(--line); }.business-project-table tr:first-child { border-top:0; }
+  .business-project-table td { padding:5px 0; border:0; }.business-project-table td[data-label]::before { content:attr(data-label); display:inline-block; width:112px; font-size:12px; color:var(--muted); }
+  .business-project-table td:not(:first-child) small { display:inline; margin-left:6px; }
+  .business-project-summary,.business-project-fields { grid-template-columns:1fr; }.business-project-summary,.business-project-updates,.business-project-original { padding:18px; }
+}

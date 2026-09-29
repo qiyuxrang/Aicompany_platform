@@ -1,167 +1,117 @@
 import { useEffect, useRef, useState } from 'react';
-import RequirementFacts from './RequirementFacts';
 import { apiRequest } from '../api';
 import { CenterLink } from '../centers/shared';
-import { get, mutate, message, Requirement, Jd, IntakeResponse, retentionNotice } from './recruitment-api';
-import ModelSelector from '../ModelSelector';
-import type { ModelSelection } from '../model-selection-api';
+import { get, mutate, message, Requirement, Jd, IntakeResponse } from './recruitment-api';
+import './recruitment-dialog.css';
 
-const fields = [['position_name', '岗位名称'], ['headcount', '招聘人数'], ['work_location', '工作地点'],
-  ['education_requirement', '学历要求'], ['experience_requirement', '经验要求'], ['skill_requirements', '技能要求（每行一项）'],
-  ['salary', '薪资'], ['benefits', '福利'], ['social_insurance', '社保'], ['responsibilities', '岗位职责'], ['required_requirements', '必备要求'], ['preferred_requirements', '加分要求'], ['notes', '备注']] as const;
-const empty = Object.fromEntries(fields.map(([key]) => [key, ''])) as Record<typeof fields[number][0], string>;
-const channels = [['general', '通用版'], ['boss', 'BOSS直聘'], ['zhaopin', '智联招聘'], ['51job', '前程无忧'], ['liepin', '猎聘'], ['custom', '自定义']];
+const channels = [['boss', 'BOSS直聘'], ['zhaopin', '智联招聘'], ['51job', '前程无忧'], ['liepin', '猎聘']];
 
 export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }) {
   const requested = new URLSearchParams(window.location.search).get('task') || '';
-  const initialForm = useRef(JSON.stringify(empty));
-  const selectionVersion = useRef(0);
-  const mounted = useRef(true);
-  const allowNavigation = useRef(false);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; selectionVersion.current += 1; }; }, []);
-  const [rows, setRows] = useState<Requirement[]>([]), [selected, setSelected] = useState<Requirement | null>(null);
-  const [form, setForm] = useState(empty), [versions, setVersions] = useState<Jd[]>([]);
-  const [jd, setJd] = useState<Jd | null>(null), [body, setBody] = useState('');
-  const [text, setText] = useState('');
-  const [custom, setCustom] = useState('');
-  const [jdModel, setJdModel] = useState<ModelSelection | null>(null);
-  const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null), lock = useRef(false);
+  const intake = useRef<IntakeResponse | null>(null);
+  const [open, setOpen] = useState(true), [text, setText] = useState('');
+  const [requirement, setRequirement] = useState<Requirement | null>(null);
+  const [general, setGeneral] = useState<Jd | null>(null), [displayed, setDisplayed] = useState<Jd | null>(null);
+  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<{ id: string; title: string; revisions: { id: string; version: number; body: string }[] }[]>([]);
-  async function load() { setRows(await get<Requirement[]>('requests/')); }
-  async function choose(row: Requirement) {
-    const selection = ++selectionVersion.current;
-    setSelected(row); setText(''); setJd(null); setVersions([]); setBody('');
-    const nextForm = Object.fromEntries(fields.map(([key]) => [key, Array.isArray(row[key]) ? row[key].join('\n') : String(row[key] ?? '')])) as typeof empty;
-    initialForm.current = JSON.stringify(nextForm); setForm(nextForm);
-    const list = await get<Jd[]>(`requests/${row.id}/jd-versions/`);
-    if (!mounted.current || selection !== selectionVersion.current) return;
-    setVersions(list);
-    const current = list.find(item => item.id === row.current_jd_id); if (current) { setJd(current); setBody(current.body); }
-  }
-  async function work(action: () => Promise<void>) {
-    if (busy) return; setBusy(true); setError('');
-    try { await action(); } catch (e) { setError(message(e)); } finally { setBusy(false); }
-  }
+
   useEffect(() => {
     const controller = new AbortController();
-    selectionVersion.current += 1; setSelected(null); setJd(null); setVersions([]); setBody(''); setError('');
-    initialForm.current = JSON.stringify(empty); setForm(empty);
-    if (legacy) apiRequest<typeof history>('/api/hr/jobs/', { signal: controller.signal }).then(setHistory).catch(e => { if (!controller.signal.aborted) setError(message(e)); });
-    else get<Requirement[]>('requests/', controller.signal).then(async data => {
-      if (controller.signal.aborted) return;
-      setRows(data);
-      if (requested) {
-        const row = data.find(item => item.id === requested);
-        if (!row) throw new Error('指定岗位不存在或没有访问权限。');
-        await choose(row);
+    intake.current = null; setRequirement(null); setGeneral(null); setDisplayed(null); setText(''); setError(''); setOpen(true);
+    async function load() {
+      if (legacy) {
+        const rows = await apiRequest<typeof history>('/api/hr/jobs/', { signal: controller.signal });
+        if (!controller.signal.aborted) setHistory(rows);
+      } else if (requested) {
+        const row = await get<Requirement>(`requests/${requested}/`, controller.signal);
+        const versions = await get<Jd[]>(`requests/${row.id}/jd-versions/`, controller.signal);
+        if (controller.signal.aborted) return;
+        const current = versions.find(item => item.id === row.current_jd_id && item.channel === 'general') || null;
+        setRequirement(row); setGeneral(current); setDisplayed(current);
       }
-    }).catch(e => { if (!controller.signal.aborted) setError(message(e)); });
+    }
+    void load().catch(reason => { if (!controller.signal.aborted) setError(message(reason)); });
     return () => controller.abort();
   }, [legacy, requested]);
-  const dirty = !!text.trim() || JSON.stringify(form) !== initialForm.current || (!!jd && body !== jd.body);
+
   useEffect(() => {
-    if (!dirty || legacy) return;
+    const element = dialog.current;
+    if (!element || legacy) return;
+    if (open && !element.open) { element.showModal(); element.querySelector('textarea')?.focus(); }
+    else if (!open && element.open) element.close();
+    return () => { if (element.open) element.close(); };
+  }, [open, legacy]);
+
+  useEffect(() => {
+    if (!text.trim() && !busy) return;
     const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const guard = (event: Event) => {
-      if (allowNavigation.current) { allowNavigation.current = false; return; }
-      event.preventDefault(); setError('存在未保存修改，请先保存或切换岗位时明确放弃。');
-    };
-    const navigate = (event: MouseEvent) => {
-      const link = (event.target as Element).closest?.('a');
-      if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-      if (!window.confirm('有未保存修改，确定离开吗？')) { event.preventDefault(); event.stopPropagation(); }
-      else { allowNavigation.current = true; window.setTimeout(() => { allowNavigation.current = false; }, 0); }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
+    const guard = (event: Event) => { event.preventDefault(); setOpen(true); setError('请先完成生成，或清空未提交的招聘说明后离开。'); };
+    window.addEventListener('beforeunload', unload);
     window.addEventListener('portal:navigation-guard', guard);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); window.removeEventListener('portal:navigation-guard', guard); };
-  }, [dirty, legacy]);
-  const base = selected ? `requests/${selected.id}/` : '';
-  const withModel = <T extends object>(payload: T) => {
-    if (!jdModel) throw new Error('请先选择模型。');
-    return { ...payload, model_selection: jdModel };
-  };
-  async function refreshJd(result: Jd) {
-    const requestBase = `requests/${result.request_id}/`;
-    setJd(result); setBody(result.body); setVersions(await get<Jd[]>(requestBase + 'jd-versions/'));
-    const current = await get<Requirement>(requestBase); setSelected(current); await load();
+    return () => { window.removeEventListener('beforeunload', unload); window.removeEventListener('portal:navigation-guard', guard); };
+  }, [text, busy]);
+
+  async function work(action: () => Promise<void>) {
+    if (lock.current) return;
+    lock.current = true; setBusy(true); setError(''); setNotice('');
+    try { await action(); } catch (reason) { setError(message(reason)); }
+    finally { lock.current = false; setBusy(false); }
   }
+
+  async function generate() {
+    const description = text.trim();
+    if (!description) return;
+    if (intake.current?.request.original_text !== description) {
+      intake.current = await mutate<IntakeResponse>('requests/intake/', { text: description });
+    }
+    const row = intake.current.request;
+    setRequirement(row); setGeneral(null); setDisplayed(null);
+    const result = await mutate<Jd>(`requests/${row.id}/generate-jd/`, { expected_version: row.input_version });
+    setGeneral(result); setDisplayed(result); setText(''); intake.current = null;
+  }
+
   async function adaptTo(channel: string) {
-    if (!selected || !jd || dirty || jd.stale || jd.channel !== 'general' || jd.id !== selected.current_jd_id) throw new Error('请先保存修改并选择当前有效的通用 JD。');
-    let officialId = selected.official_jd_id;
-    if (jd.state === 'draft') {
-      const confirmed = await mutate<Jd>(base + `jd-versions/${jd.id}/confirm/`, { expected_version: selected.input_version });
-      officialId = confirmed.id;
-      await refreshJd(confirmed);
-    } else if (jd.state !== 'confirmed' || officialId !== jd.id || selected.official_jd_stale) {
-      throw new Error('请选择当前有效的正式通用 JD。');
+    if (!requirement || !general || general.stale) return;
+    const base = `requests/${requirement.id}/jd-versions/${general.id}/`;
+    if (general.state === 'draft') {
+      const confirmed = await mutate<Jd>(base + 'confirm/', { expected_version: requirement.input_version });
+      setGeneral(confirmed);
+      setRequirement({ ...requirement, official_jd_id: confirmed.id, official_jd_stale: false });
     }
-    try {
-      await refreshJd(await mutate<Jd>(base + `jd-versions/${officialId}/adapt/`, withModel({ expected_version: selected.input_version, channel, custom_label: custom })));
-    } catch (error) {
-      if (jd.state === 'draft') {
-        try {
-          const current = await get<Requirement>(base); setSelected(current);
-          setVersions(await get<Jd[]>(base + 'jd-versions/'));
-        } finally { throw error; }
-      }
-      throw error;
-    }
+    setDisplayed(await mutate<Jd>(base + 'adapt/', { expected_version: requirement.input_version, channel }));
   }
-  const platformActions = selected && jd?.channel === 'general' && (jd.source === 'skill' || jd.source === 'hr_edit') ?
-    <div className="hr-platform-actions"><p className="hr-muted">一键确认当前通用草稿并生成平台适配 JD；不会自动发布。</p><div className="hr-actions">
-      {channels.slice(1, 5).map(([key, label]) => <button key={key} disabled={busy || !jdModel || dirty || jd.stale || jd.id !== selected.current_jd_id || (jd.state !== 'draft' && (jd.state !== 'confirmed' || selected.official_jd_id !== jd.id || selected.official_jd_stale))} onClick={() => void work(() => adaptTo(key))}>生成{label} JD</button>)}
-    </div><details><summary>自定义平台</summary><label>自定义平台名称<input value={custom} onChange={event => setCustom(event.target.value)} /></label><button disabled={busy || !jdModel || dirty || !custom.trim() || jd.stale || jd.id !== selected.current_jd_id} onClick={() => void work(() => adaptTo('custom'))}>生成自定义平台 JD</button></details></div> : null;
+
   if (legacy) return <section className="hr-card"><h2>历史 JD · 只读</h2>{error && <p role="alert">{error}</p>}
-    {!history.length && <p>暂无历史 JD</p>}{history.map(row => <details key={row.id}><summary>{row.title}</summary>{row.revisions.map(rev => <article key={rev.id}><h3>版本 {rev.version}</h3><pre>{rev.body}</pre></article>)}</details>)}</section>;
-  return <><header className="hr-title"><div><h1>招聘与 JD</h1><p>统一岗位事实，生成并确认 JD，再适配招聘平台。</p></div>
+    {!history.length && <p>暂无历史 JD</p>}{history.map(row => <details key={row.id}><summary>{row.title}</summary>{row.revisions.map(revision => <article key={revision.id}><h3>版本 {revision.version}</h3><pre>{revision.body}</pre></article>)}</details>)}</section>;
+
+  const canAdapt = general && !general.stale && (general.state === 'draft' || (general.state === 'confirmed' && requirement?.official_jd_id === general.id && !requirement.official_jd_stale));
+  return <><header className="hr-title"><div><h1>JD 生成</h1><p>描述你想招聘的人选，使用内置模型生成 JD。</p></div>
     <CenterLink href="/centers/hr/history" className="hr-outline">招聘历史</CenterLink></header>
-    <p className="hr-muted">{retentionNotice}{selected?.expires_at && ` 当前需求保留至 ${new Date(selected.expires_at).toLocaleString()}。`}</p>
-    {error && <div className="hr-error" role="alert">{error}</div>}
-    <section className="hr-card" aria-busy={busy}><h2>用中文描述招聘需求</h2>
-      <ModelSelector route="hr_jd_draft" value={jdModel} onChange={setJdModel} label="JD 生成模型" disabled={busy} />
-      <label>招聘说明<textarea rows={5} maxLength={40000} value={text} disabled={busy} onChange={e => setText(e.target.value)} placeholder="例如：想招一位交付经理，负责项目交付；工作地点西安，熟悉 SQL。薪资和福利按实际情况填写。" /></label>
-      <p className="hr-muted">每次提交创建新需求。保留原始说明和结构化表单，通过平台模型网关生成通用 JD；未知项待补充，不编造条件。</p>
-      <button className="hr-primary" disabled={busy || !text.trim() || !jdModel} onClick={() => void work(async () => {
-        if (!jdModel) throw new Error('请先选择模型。');
-        if ((JSON.stringify(form) !== initialForm.current || (!!jd && body !== jd.body)) && !window.confirm('创建新需求将离开当前未保存修改，继续吗？')) return;
-        const result = await mutate<IntakeResponse>('requests/intake/', { text: text.trim() });
-        setText(''); await load(); await choose(result.request);
-        await refreshJd(await mutate<Jd>(`requests/${result.request.id}/generate-jd/`, withModel({ expected_version: result.request.input_version })));
-      })}>{busy ? '正在处理…' : '整理需求并生成通用 JD'}</button>
-      {selected && jd?.source === 'skill' && jd.channel === 'general' && <div className="hr-model-reply"><h2>通用 JD 回复</h2>
-        <p className="hr-muted">结构化信息来自招聘需求的保守事实快照，未明确的字段标为待补充；下方正文由模型生成，请核对后使用。</p>
-        <RequirementFacts requirements={jd.requirements} reply /><h3>模型生成的 JD 正文</h3><pre>{jd.body}</pre>
-        {platformActions}</div>}
+    <section className="hr-card"><h2>{displayed ? 'JD 已生成' : '你想招聘什么岗位？'}</h2>
+      <p>用一句话说明岗位、职责和工作地点，生成通用 JD 后可一键适配招聘平台。</p>
+      <button className="hr-primary" onClick={() => setOpen(true)}>{displayed ? '查看 JD / 继续生成' : '打开 JD 对话框'}</button>
     </section>
-    <section className="hr-card"><div className="hr-card-head"><h2>招聘需求</h2><button disabled={busy} onClick={() => { if (dirty && !window.confirm('放弃未保存修改？')) return; selectionVersion.current += 1; initialForm.current = JSON.stringify(empty); setSelected(null); setText(''); setForm(empty); setJd(null); setVersions([]); setBody(''); }}>＋ 新建招聘需求</button></div>
-      <label>选择岗位<select value={selected?.id || ''} disabled={busy} onChange={e => { const row = rows.find(r => r.id === e.target.value); if (row && (!dirty || window.confirm('放弃未保存修改并切换岗位？'))) void work(() => choose(row)); }}>
-        <option value="">新招聘需求</option>{rows.map(row => <option key={row.id} value={row.id}>{row.position_name || '未命名岗位'}</option>)}</select></label>
-      {selected?.original_text && <details><summary>原始招聘说明</summary><pre>{selected.original_text}</pre></details>}
-      <details className="hr-manual-form"><summary>人工修订结构化字段（可选）</summary>
-      <form onSubmit={e => { e.preventDefault(); void work(async () => {
-        if (text.trim() && !window.confirm('保存表单将放弃上方未提交的招聘说明，继续吗？')) return;
-        const payload = { ...form, headcount: form.headcount ? Number(form.headcount) : undefined,
-          skill_requirements: form.skill_requirements.split('\n').map(x => x.trim()).filter(Boolean) };
-        const result = await mutate<Requirement>(selected ? base : 'requests/', selected ? { ...payload, expected_version: selected.input_version } : payload, selected ? 'PATCH' : 'POST');
-        await load(); await choose(result);
-      }); }}>
-        <div className="hr-form-grid">{fields.map(([key, label]) => <label key={key}>{label}
-          {['responsibilities', 'required_requirements', 'preferred_requirements', 'notes', 'skill_requirements'].includes(key)
-            ? <textarea disabled={busy} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} rows={3} />
-            : <input disabled={busy} type={key === 'headcount' ? 'number' : 'text'} min={1} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} />}</label>)}</div>
-        <button className="hr-primary" disabled={busy}>{busy ? '处理中…' : '保存招聘需求'}</button>
+    <dialog ref={dialog} className="hr-card hr-jd-dialog" aria-labelledby="hr-jd-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) setOpen(false); }}>
+      <div className="hr-card-head"><div><h2 id="hr-jd-dialog-title">JD 生成助手</h2><p className="hr-muted">内置模型自动整理需求，无需选择模型。</p></div>
+        <button aria-label="关闭 JD 对话框" disabled={busy} onClick={() => setOpen(false)}>关闭</button></div>
+      {error && <p className="hr-error" role="alert">{error}</p>}
+      {notice && <p role="status">{notice}</p>}
+      <form aria-busy={busy} onSubmit={event => { event.preventDefault(); void work(generate); }}>
+        <label>招聘说明<textarea autoFocus rows={4} maxLength={40000} value={text} disabled={busy} onChange={event => setText(event.target.value)} placeholder="例如：想招一位交付经理，负责项目交付，工作地点在西安，熟悉 Circle 等技术背景。" /></label>
+        <div className="hr-card-head"><p className="hr-muted">仅使用已提供的信息；薪资、福利等未知内容标注待补充。</p>
+          <button className="hr-primary" disabled={busy || !text.trim()}>{busy ? '正在处理…' : '生成通用 JD'}</button></div>
       </form>
-      </details>
-      {selected?.missing_items.length ? <p className="hr-warning">待补齐：{selected.missing_items.map(x => x.reason).join('；')}</p> : null}
-    </section>
-    {selected && <section className="hr-card"><div className="hr-card-head"><h2>JD 版本</h2>
-      <button className="hr-primary" disabled={busy || !jdModel || dirty || (selected.intake_source !== 'text' && selected.intake_source !== 'upload' && !!selected.missing_items.length)} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + 'generate-jd/', withModel({ expected_version: selected.input_version }))))}>生成 JD 草稿</button></div>
-      <label>版本<select value={jd?.id || ''} disabled={busy} onChange={e => { const item = versions.find(x => x.id === e.target.value); if (item && (!dirty || window.confirm('放弃未保存修改并切换版本？'))) { setJd(item); setBody(item.body); } }}><option value="">请选择</option>{versions.map(x => <option key={x.id} value={x.id}>v{x.version} · {channels.find(c => c[0] === x.channel)?.[1]} · {x.stale ? '已过期' : x.state === 'confirmed' ? '已确认' : '草稿'}</option>)}</select></label>
-      {jd && <>{jd.source && <p className="hr-muted">来源：{jd.source === 'skill' ? '平台模型网关生成' : jd.source === 'hr_edit' ? '人工编辑' : '原文整理（尚非模型生成）'}{jd.model_selection?.model_name ? ` · 模型：${jd.model_selection.model_name}` : ''}</p>}{jd.missing_items?.length ? <p className="hr-warning">本版本待补充：{jd.missing_items.map(item => item.reason).join('；')}</p> : null}<label>JD 正文<textarea rows={15} value={body} disabled={busy || jd.state !== 'draft' || jd.stale || jd.channel !== 'general' || jd.id !== selected.current_jd_id} onChange={e => setBody(e.target.value)} /></label>
-        {!(jd.source === 'skill' && jd.channel === 'general') && <RequirementFacts requirements={jd.requirements} />}<div className="hr-actions"><button disabled={busy || JSON.stringify(form) !== initialForm.current || jd.state !== 'draft' || jd.stale || jd.channel !== 'general' || jd.id !== selected.current_jd_id} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + 'jd-versions/', { expected_version: selected.input_version, base_jd_id: jd.id, body })))}>保存修改版本</button>
-        <button disabled={busy || jd.state !== 'draft' || jd.stale || jd.channel !== 'general' || jd.id !== selected.current_jd_id || dirty} onClick={() => void work(async () => refreshJd(await mutate<Jd>(base + `jd-versions/${jd.id}/confirm/`, { expected_version: selected.input_version })))}>确认 JD</button>
-        <button onClick={() => void work(async () => { await navigator.clipboard.writeText(body); })}>复制正文</button></div></>}
-      {jd?.source === 'hr_edit' && platformActions}
-    </section>}</>;
+      {displayed && <section className="hr-jd-answer" aria-label="生成结果">
+        <div className="hr-card-head"><h3>{displayed.channel === 'general' ? '通用 JD' : `${channels.find(([key]) => key === displayed.channel)?.[1] || displayed.channel} JD`}</h3>
+          <button disabled={busy} onClick={() => void work(async () => { await navigator.clipboard.writeText(displayed.body); setNotice('JD 正文已复制。'); })}>复制正文</button></div>
+        <label>JD 正文<textarea rows={12} readOnly value={displayed.body} /></label>
+        {general?.stale && <p className="hr-warning">此 JD 已过期，请重新描述需求生成。</p>}
+        <p className="hr-muted">点击平台选项生成对应文案，不会自动发布。招聘记录保留 15 天。</p>
+        <div className="hr-actions">
+          {displayed.channel !== 'general' && <button disabled={busy} onClick={() => setDisplayed(general)}>查看通用 JD</button>}
+          {channels.map(([channel, label]) => <button key={channel} disabled={busy || !canAdapt || !!text.trim()} onClick={() => void work(() => adaptTo(channel))}>生成{label} JD</button>)}
+        </div>
+      </section>}
+    </dialog></>;
 }

@@ -80,6 +80,22 @@ describe("CenterWorkspace", () => {
     await waitFor(() => expect(container.querySelector(".center-main-knowledge")).not.toBeNull());
   });
 
+  it("资料页保留满高布局且各部门不再显示接入说明页脚", async () => {
+    const product = render(<CenterWorkspace code="product" section="sources" user={staff} businessPanel={null} />);
+    await waitFor(() => expect(product.container.querySelector(".center-main-materials")).not.toBeNull());
+    expect(product.container.querySelector(".center-footer")).toBeNull();
+    product.unmount();
+
+    const cost = { code: "cost", name: "工程部", description: "成本草稿", status: "verified", enabled: true } as PortalModule;
+    apiMocks.getModule.mockResolvedValue(cost);
+    apiMocks.getModules.mockResolvedValue([cost]);
+    const engineeringUser: CurrentUser = { ...staff, roles: [{ code: "engineering", name: "工程人员" }] };
+    const engineering = render(<CenterWorkspace code="cost" section="overview" user={engineeringUser} businessPanel={null} />);
+    await screen.findByRole("heading", { name: "工作概览", level: 1 });
+    expect(engineering.container.querySelector(".center-footer")).toBeNull();
+    expect(screen.queryByText("统一入口 · 独立业务 · 明确授权")).toBeNull();
+  });
+
   it("产品导航不显示模板和需求准备稿", async () => {
     const { container } = render(<CenterWorkspace code="product" section="overview" user={staff} businessPanel={null} />);
     await screen.findByRole("heading", { name: "产品事业部工作台" });
@@ -138,7 +154,7 @@ describe("CenterWorkspace", () => {
   });
 
   it.each<{ code: Exclude<CenterCode, "business">; role: string; menu: string; overview: string }>([
-    { code: "product", role: "product", menu: "产品事业部菜单", overview: "工作台" },
+    { code: "product", role: "product", menu: "产品事业部菜单", overview: "产品事业部工作台" },
     { code: "hr", role: "hr", menu: "人事部门菜单", overview: "工作台" },
     { code: "cost", role: "engineering", menu: "工程部菜单", overview: "工作概览" },
   ])("$code 旧模型助手地址回到概览且菜单不再显示入口", async ({ code, role, menu, overview }) => {

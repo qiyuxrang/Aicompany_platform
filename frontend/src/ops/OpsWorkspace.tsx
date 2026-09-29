@@ -67,7 +67,7 @@ export default function OpsWorkspace({ user, pathname }: { user: CurrentUser; pa
       <a className="skip-link" href="#ops-main">跳到主要内容</a>
       <WorkspaceSidebar title="平台运维" subtitle="平台管理员 · 按权限管理" mark={<Icon name="portal"/>}
         workspaces={<><OpsLink href="/ops" className="selected" ariaCurrent="page">平台运维</OpsLink>{authorizedModules.filter(module => module.enabled && module.status !== "disabled" && isCenterCode(module.code)).map(module => <OpsLink key={module.code} href={`/centers/${module.code}`}>{isCenterCode(module.code) ? centers[module.code].name : module.name}<span aria-hidden="true">↗</span></OpsLink>)}</>}
-        footer={<><span>{user.display_name || user.username}</span><small>平台管理权限不授予业务数据权限</small><OpsLink href="/workspace">查看我的工作台</OpsLink></>}>
+        footer={<><span>{user.display_name || user.username}</span><small>平台管理权限不授予业务数据权限</small></>}>
         <nav className="ops-navigation" aria-label="运维主菜单">
           {navigation.map((item) => (
             <OpsLink href={item.href} key={item.href} className={isActive(pathname, item.href) ? "active" : undefined} ariaCurrent={isActive(pathname, item.href) ? "page" : undefined}>

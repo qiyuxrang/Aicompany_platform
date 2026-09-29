@@ -40,6 +40,28 @@ beforeEach(() => {
 });
 
 describe("ProductKnowledge", () => {
+  it("keeps the active request and its identity when history is clicked during generation", async () => {
+    const user = await open();
+    const pending = deferred<void>();
+    let activeSignal: AbortSignal | undefined;
+    stream.mockImplementationOnce(async (_path, _payload, signal, onDelta) => {
+      activeSignal = signal;
+      onDelta("正在组织回答");
+      await pending.promise;
+      return { ...detail, version: 2, turns: [...detail.turns, { ...turn, answer: "新回答", request_id: "same-request" }] };
+    });
+    await user.type(screen.getByLabelText("你的问题"), "安装需要什么条件？");
+    await user.click(screen.getByRole("button", { name: "发送问题" }));
+    await screen.findByText("正在组织回答");
+    const historyButton = screen.getByRole("button", { name: /另一会话/ }) as HTMLButtonElement;
+    expect(historyButton.disabled).toBe(true);
+    fireEvent.click(historyButton);
+    expect(activeSignal?.aborted).toBe(false);
+    expect(stream).toHaveBeenCalledOnce();
+    await act(async () => pending.resolve());
+    await screen.findByText("新回答");
+    expect(historyButton.disabled).toBe(false);
+  });
   it("shows arriving answer fragments provisionally and replaces them with verified citations", async () => {
     const user = await open();
     const pending = deferred<void>();
@@ -76,7 +98,9 @@ describe("ProductKnowledge", () => {
   it("accepts a first question without a session and creates the session before sending", async () => {
     const user = userEvent.setup(); render(<ProductKnowledge/>);
     await screen.findByText("直接提问，或打开历史会话");
+    expect(screen.getByRole("heading", { level: 1, name: "向资料提问" })).toBeTruthy();
     const input = screen.getByLabelText("你的问题") as HTMLTextAreaElement;
+    expect(input.compareDocumentPosition(screen.getByLabelText("问答历史")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(input.disabled).toBe(false);
     request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce({ id: b, title: "新会话", version: 0, turns: [] })
       .mockResolvedValueOnce({ ...other, version: 1, turns: [{ ...turn, question: "首次问题" }] });
@@ -343,13 +367,16 @@ describe("ProductKnowledge", () => {
     expect((screen.getByRole("button", { name: "发送问题" }) as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole("button", { name: "重新加载历史" })); await screen.findByText(turn.answer);
   });
-  it("ignores late responses after switching and clears session errors", async () => {
+  it("waits for the active answer before switching and clears session errors", async () => {
     const user = await open(); const pending = deferred<unknown>();
     await user.type(screen.getByLabelText("你的问题"), "慢问题");
     request.mockResolvedValueOnce({ available: true }).mockImplementationOnce(() => pending.promise);
     await user.click(screen.getByRole("button", { name: "发送问题" })); await waitFor(() => expect(posts()).toHaveLength(1));
-    await user.click(screen.getByRole("button", { name: /另一会话/ })); await screen.findByText("这个会话还没有问题");
+    expect((screen.getByRole("button", { name: /另一会话/ }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => { pending.resolve(detail); });
+    await waitFor(() => expect((screen.getByRole("button", { name: /另一会话/ }) as HTMLButtonElement).disabled).toBe(false));
+    expect((posts()[0][1]?.signal as AbortSignal).aborted).toBe(false);
+    await user.click(screen.getByRole("button", { name: /另一会话/ })); await screen.findByText("这个会话还没有问题");
     expect(screen.queryByText(turn.answer)).toBeNull();
     expect((posts()[0][1]?.signal as AbortSignal).aborted).toBe(true);
     await user.type(screen.getByLabelText("你的问题"), "失败问题");

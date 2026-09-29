@@ -8,9 +8,10 @@ import json
 import os
 import re
 from http.client import HTTPException
+from math import isfinite
 from time import monotonic
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from django.conf import settings
@@ -25,8 +26,17 @@ MESSAGES = {
     "forbidden": "当前账号无权使用产品知识问答。",
     "invalid_response": "知识服务返回内容不符合协议，请重试或联系管理员。",
     "unavailable": "知识服务暂时不可用，请稍后重试。",
+    "scan_limit": "知识库内容超过安全浏览上限，暂无法完整展示。",
     "conflict": "对话已更新或正在回答，请刷新历史后重试。",
 }
+
+DOCUMENT_SCAN_PAGE_SIZE = 100
+DOCUMENT_SCAN_LIMIT = 1000
+DOCUMENT_RESPONSE_LIMIT = 512 * 1024
+CHUNK_SCAN_PAGE_SIZE = 50
+CHUNK_SCAN_LIMIT = 2000
+CHUNK_RESPONSE_LIMIT = 1024 * 1024
+CHUNK_CONTENT_LIMIT = 64 * 1024
 
 
 def fail(code, status=503):
@@ -151,6 +161,193 @@ def decode(raw):
                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
     except (ValueError, TypeError, UnicodeError, RecursionError):
         fail("invalid_response", 502)
+
+
+def response_identifier(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+        fail("invalid_response", 502)
+    return value
+
+
+def nonnegative_integer(value):
+    if type(value) is not int or not 0 <= value <= 2 ** 63 - 1:
+        fail("invalid_response", 502)
+    return value
+
+
+def _get_json(url, token, deadline, size_limit):
+    remaining = deadline - monotonic()
+    if remaining <= 0:
+        fail("unavailable")
+    request = Request(url, method="GET", headers={
+        "Authorization": "Bearer " + token, "Accept": "application/json"})
+    try:
+        with _open(request, min(10, remaining)) as response:
+            if response.status != 200:
+                fail("unavailable")
+            parts, size = [], 0
+            while True:
+                if monotonic() >= deadline:
+                    fail("unavailable")
+                part = response.read1(min(8192, size_limit + 1 - size))
+                if monotonic() >= deadline:
+                    fail("unavailable")
+                if not isinstance(part, bytes):
+                    fail("invalid_response", 502)
+                if not part:
+                    break
+                parts.append(part)
+                size += len(part)
+                if size > size_limit:
+                    fail("invalid_response", 502)
+    except HTTPError as error:
+        error.close()
+        fail("unavailable")
+    except (URLError, OSError, TimeoutError, HTTPException):
+        fail("unavailable")
+    return decode(b"".join(parts))
+
+
+def _browse_config(config):
+    url, token, _ = config
+    base = url.removesuffix("retrieval")
+    if base == url:
+        fail("unconfigured")
+    return base, token
+
+
+def _document_identity(item, dataset):
+    if not isinstance(item, dict) or item.get("dataset_id") != dataset:
+        fail("invalid_response", 502)
+    return response_identifier(item.get("id"))
+
+
+def _document_summary(item, dataset):
+    document_id = _document_identity(item, dataset)
+    progress = item.get("progress")
+    if (type(progress) not in (int, float) or not isfinite(progress)
+            or not 0 <= progress <= 1):
+        fail("invalid_response", 502)
+    return {
+        "id": document_id,
+        "name": text(item.get("name"), 300),
+        "type": text(item.get("type"), 50),
+        "size": nonnegative_integer(item.get("size")),
+        "chunk_count": nonnegative_integer(item.get("chunk_count")),
+        "run": text(item.get("run"), 32),
+        "progress": progress,
+        "updated_at": text(item.get("update_date"), 100),
+    }
+
+
+def list_documents(dataset, documents, page, page_size, query, config):
+    base, token = _browse_config(config)
+    allowed = set(documents)
+    found, seen = {}, set()
+    expected_total = None
+    provider_page = 1
+    deadline = monotonic() + 25
+    while True:
+        params = urlencode({"page": provider_page, "page_size": DOCUMENT_SCAN_PAGE_SIZE,
+                            "orderby": "update_time", "desc": "true"})
+        payload = _get_json(f"{base}datasets/{dataset}/documents?{params}", token, deadline,
+                            DOCUMENT_RESPONSE_LIMIT)
+        if (not isinstance(payload, dict) or type(payload.get("code")) is not int
+                or payload["code"] != 0 or not isinstance(payload.get("data"), dict)):
+            fail("invalid_response", 502)
+        data = payload["data"]
+        rows, total = data.get("docs"), data.get("total")
+        if (not isinstance(rows, list) or len(rows) > DOCUMENT_SCAN_PAGE_SIZE
+                or type(total) is not int or total < 0):
+            fail("invalid_response", 502)
+        if expected_total is None:
+            expected_total = total
+        elif total != expected_total:
+            fail("invalid_response", 502)
+        for item in rows:
+            document_id = _document_identity(item, dataset)
+            if document_id in seen:
+                fail("invalid_response", 502)
+            seen.add(document_id)
+            if document_id in allowed:
+                found[document_id] = _document_summary(item, dataset)
+        if len(seen) > expected_total:
+            fail("invalid_response", 502)
+        if set(found) == allowed or len(seen) == expected_total:
+            break
+        if not rows:
+            fail("invalid_response", 502)
+        if len(seen) >= DOCUMENT_SCAN_LIMIT:
+            fail("scan_limit", 503)
+        provider_page += 1
+    items = list(found.values())
+    if query:
+        folded = query.casefold()
+        items = [item for item in items if folded in item["name"].casefold()]
+    total = len(items)
+    start = (page - 1) * page_size
+    return {"documents": items[start:start + page_size], "total": total, "page": page,
+            "page_size": page_size, "has_more": start + page_size < total}
+
+
+def list_chunks(dataset, document, page, page_size, config):
+    base, token = _browse_config(config)
+    chunks, seen = [], set()
+    expected_total = None
+    document_name = None
+    provider_page = 1
+    deadline = monotonic() + 25
+    while True:
+        params = urlencode({"page": provider_page, "page_size": CHUNK_SCAN_PAGE_SIZE})
+        payload = _get_json(f"{base}datasets/{dataset}/documents/{document}/chunks?{params}",
+                            token, deadline, CHUNK_RESPONSE_LIMIT)
+        if (not isinstance(payload, dict) or type(payload.get("code")) is not int
+                or payload["code"] != 0 or not isinstance(payload.get("data"), dict)):
+            fail("invalid_response", 502)
+        data = payload["data"]
+        rows, provider_document, total = data.get("chunks"), data.get("doc"), data.get("total")
+        if (not isinstance(rows, list) or len(rows) > CHUNK_SCAN_PAGE_SIZE
+                or type(total) is not int or total < 0 or total > CHUNK_SCAN_LIMIT
+                or _document_identity(provider_document, dataset) != document):
+            if type(total) is int and total > CHUNK_SCAN_LIMIT:
+                fail("scan_limit", 503)
+            fail("invalid_response", 502)
+        current_name = text(provider_document.get("name"), 300)
+        if document_name is None:
+            document_name = current_name
+            expected_total = total
+        elif current_name != document_name or total != expected_total:
+            fail("invalid_response", 502)
+        for item in rows:
+            if (not isinstance(item, dict) or item.get("dataset_id") != dataset
+                    or item.get("document_id") != document):
+                fail("invalid_response", 502)
+            chunk_id = response_identifier(item.get("id"))
+            if chunk_id in seen:
+                fail("invalid_response", 502)
+            seen.add(chunk_id)
+            content = text(item.get("content"), CHUNK_CONTENT_LIMIT)
+            available = item.get("available")
+            if type(available) is bool:
+                enabled = available
+            elif type(available) is int and available in (0, 1):
+                enabled = bool(available)
+            else:
+                fail("invalid_response", 502)
+            if enabled:
+                chunks.append({"id": chunk_id, "content": content})
+        if len(seen) > expected_total:
+            fail("invalid_response", 502)
+        if len(seen) == expected_total:
+            break
+        if not rows:
+            fail("invalid_response", 502)
+        provider_page += 1
+    total = len(chunks)
+    start = (page - 1) * page_size
+    return {"document": {"id": document, "name": document_name},
+            "chunks": chunks[start:start + page_size], "total": total, "page": page,
+            "page_size": page_size, "has_more": start + page_size < total}
 
 
 def list_datasets(scope, config):

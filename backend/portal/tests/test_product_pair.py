@@ -1,3 +1,4 @@
+import hashlib
 import tempfile
 from pathlib import Path
 
@@ -60,7 +61,6 @@ class PairDraftTests(PortalTestCase):
             path = Path(directory) / str(task.pk) / "artifacts" / "test.docx"
             path.parent.mkdir(parents=True)
             path.write_bytes(b"draft")
-            import hashlib
             report = save_report_content(task, "feasibility", {"blocks": [], "pending": []}, input_hash=current.sha256, blueprint_hash=task.revisions.get(kind="blueprint", version=task.blueprint_version).sha256, actor=self.owner)
             artifact = DocumentArtifact.objects.create(task=task, version=1, family="feasibility", path=path.relative_to(directory).as_posix(), sha256=hashlib.sha256(b"draft").hexdigest(), input_hash=current.sha256, blueprint_hash=report.blueprint_hash, template_hash="a" * 64, render_evidence={"report_id": str(report.pk)})
             url = f"/api/product/outputs/{artifact.pk}/download/"
@@ -77,6 +77,41 @@ class PairDraftTests(PortalTestCase):
             task.save(update_fields=["input_version"])
             self.assertEqual(self.owner_client.get(url).status_code, 409)
             self.assertTrue(verified_artifact(artifact).is_file())
+
+    def test_technical_output_download_uses_candidate_fallback_until_approved(self):
+        created = self.create_task()
+        task = self._task(created)
+        current = task.revisions.get(kind="input", version=task.input_version)
+        with tempfile.TemporaryDirectory() as directory, override_settings(PRODUCT_STORAGE_ROOT=directory):
+            final_path = Path(directory) / str(task.pk) / "artifacts" / "candidate.docx"
+            draft_path = Path(directory) / str(task.pk) / "artifacts" / "draft.docx"
+            final_path.parent.mkdir(parents=True)
+            final_content = b"UNAPPROVED_CANDIDATE"
+            draft_content = b"SAFE_DRAFT"
+            final_path.write_bytes(final_content)
+            draft_path.write_bytes(draft_content)
+            artifact = DocumentArtifact.objects.create(
+                task=task,
+                family="technical-solution",
+                version=1,
+                path=final_path.relative_to(directory).as_posix(),
+                sha256=hashlib.sha256(final_content).hexdigest(),
+                input_hash=current.sha256,
+                blueprint_hash="b" * 64,
+                template_hash="t" * 64,
+                render_evidence={
+                    "kind": "candidate",
+                    "draft_fallback": {
+                        "path": draft_path.relative_to(directory).as_posix(),
+                        "sha256": hashlib.sha256(draft_content).hexdigest(),
+                    },
+                },
+            )
+
+            response = self.owner_client.get(f"/api/product/outputs/{artifact.pk}/download/?history=1")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(b"".join(response.streaming_content), draft_content)
 
     def _task(self, created):
         from portal.product_models import DocumentTask

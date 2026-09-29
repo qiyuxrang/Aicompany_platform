@@ -314,19 +314,33 @@ export function TrendChart({ points, days, module = "", detailPath = "/ops/usage
   module?: string;
   detailPath?: string;
 }) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(760);
+  useEffect(() => {
+    const container = chartRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(280, entry.contentRect.width)));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [points.length === 0]);
   if (points.length === 0) return <p className="ops-inline-empty">当前范围暂无趋势数据。</p>;
-  const width = 760;
-  const height = 220;
-  const padding = 28;
-  const max = Math.max(1, ...points.flatMap((point) => [point.login_count, point.module_launches]));
+  const height = 180;
+  const padding = 32;
+  const peak = Math.max(1, ...points.flatMap((point) => [point.login_count, point.module_launches]));
+  const tickStep = Math.max(1, Math.ceil(peak / 3));
+  const max = tickStep * 3;
+  const labelStep = Math.max(1, Math.ceil((points.length - 1) / Math.max(1, Math.floor((width - padding * 2) / 65))));
   const x = (index: number) => points.length === 1 ? width / 2 : padding + index * ((width - padding * 2) / (points.length - 1));
   const y = (value: number) => height - padding - value / max * (height - padding * 2);
   const line = (key: "login_count" | "module_launches") => points.map((point, index) => `${x(index)},${y(point[key])}`).join(" ");
   return (
-    <div className="ops-chart-wrap">
+    <div className="ops-chart-wrap" ref={chartRef}>
       <div className="ops-chart-legend"><span className="login">成功登录次数</span><span className="launch">模块启动次数</span></div>
       <svg className="ops-trend" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="成功登录与模块启动趋势，点击数据点查看当日明细">
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} className="axis" />
+        {[0, 1, 2, 3].map((tick) => <g key={tick}>
+          <line x1={padding} y1={y(tick * tickStep)} x2={width - padding} y2={y(tick * tickStep)} className="axis" />
+          <text x={padding - 8} y={y(tick * tickStep) + 4} textAnchor="end">{formatMetric(tick * tickStep)}</text>
+        </g>)}
         <polyline points={line("login_count")} className="trend-line login" />
         <polyline points={line("module_launches")} className="trend-line launch" />
         {points.map((point, index) => {
@@ -340,7 +354,7 @@ export function TrendChart({ points, days, module = "", detailPath = "/ops/usage
           const hitHeight = Math.abs(loginY - launchY) + 20;
           return (
             <g key={point.date}>
-              <text x={pointX} y={height - 8} textAnchor="middle">{point.date.slice(5)}</text>
+              {(index % labelStep === 0 && index < points.length - Math.ceil(labelStep / 2) || index === points.length - 1) && <text x={pointX} y={height - 8} textAnchor="middle">{point.date.slice(5)}</text>}
               <g
                 role="link"
                 tabIndex={0}
@@ -355,8 +369,9 @@ export function TrendChart({ points, days, module = "", detailPath = "/ops/usage
                 aria-label={`${point.date}：登录 ${point.login_count} 次，模块启动 ${point.module_launches} 次`}
               >
                 <rect className="trend-hit-target" x={pointX - 12} y={hitTop} width="24" height={hitHeight} aria-hidden="true" />
-                <circle cx={pointX} cy={loginY} r="6" className="trend-point login"><title>登录 {point.login_count} 次</title></circle>
-                <circle cx={pointX} cy={launchY} r="6" className="trend-point launch"><title>模块启动 {point.module_launches} 次</title></circle>
+                <title>{point.date}：登录 {point.login_count} 次，模块启动 {point.module_launches} 次</title>
+                <circle cx={pointX} cy={loginY} r="3" className="trend-point login" />
+                <circle cx={pointX} cy={launchY} r="3" className="trend-point launch" />
               </g>
             </g>
           );

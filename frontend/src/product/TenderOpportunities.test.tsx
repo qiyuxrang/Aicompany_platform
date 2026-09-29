@@ -200,6 +200,24 @@ describe("TenderOpportunities", () => {
     expect(mocks.updateOpportunityState).toHaveBeenCalledTimes(1);
   });
 
+  it("关闭详情后延迟完成的自动已看仍同步并重取列表", async () => {
+    let finish: (value: { is_read: boolean; is_favorite: boolean; is_irrelevant: boolean }) => void = () => {};
+    let isRead = false;
+    mocks.listOpportunities.mockImplementation(() => Promise.resolve({ ...list, items: [{ ...opportunity,
+      user_state: { is_read: isRead, is_favorite: false, is_irrelevant: false } }] }));
+    mocks.getOpportunity.mockResolvedValue({ ...opportunity, user_state: { is_read: false, is_favorite: false, is_irrelevant: false } });
+    mocks.updateOpportunityState.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<TenderOpportunities/>);
+    fireEvent.click(await screen.findByRole("button", { name: opportunity.project_name }));
+    await waitFor(() => expect(mocks.updateOpportunityState).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "← 返回商机列表" }));
+    await screen.findByRole("button", { name: opportunity.project_name });
+    isRead = true;
+    await act(async () => finish({ is_read: true, is_favorite: false, is_irrelevant: false }));
+    await waitFor(() => expect(mocks.listOpportunities).toHaveBeenCalledTimes(2));
+    expect(within(screen.getByRole("button", { name: opportunity.project_name }).closest("tr")!).getByText("已看")).toBeTruthy();
+  });
+
   it("仅在详情展示可收起采购范围、报名时间和待核实原文而不暴露技术规则", async () => {
     mocks.getOpportunity.mockResolvedValue({ ...opportunity, procurement_scope: '建设矿区设备远程监测系统，包含传感器及平台。',
       signup_time_text: '2026年9月29日至10月9日', extraction_warnings: ['截止时间存在冲突，请核实更正公告'],
@@ -516,6 +534,17 @@ describe("TenderOpportunities", () => {
     expect(vi.getTimerCount()).toBe(1);
   });
 
+  it("筛选选项失败不会被成功的来源状态轮询清除", async () => {
+    let finishOverview: (value: typeof noRefresh) => void = () => {};
+    mocks.getOpportunityOptions.mockRejectedValue(new Error("options unavailable"));
+    mocks.getRefreshOverview.mockImplementationOnce(() => new Promise(resolve => { finishOverview = resolve; }));
+    render(<TenderOpportunities/>);
+    expect(await screen.findByText("部分筛选选项暂不可用。")).toBeTruthy();
+    await act(async () => finishOverview({ ...noRefresh, available: false, unavailable_reason: "暂时关闭手动刷新。" }));
+    expect(await screen.findByText(/刷新当前不可用：暂时关闭手动刷新/)).toBeTruthy();
+    expect(screen.getByText("部分筛选选项暂不可用。")).toBeTruthy();
+  });
+
   it("隐藏页面暂停所有状态轮询，恢复可见立即发现新批次且只保留一个计时器", async () => {
     vi.useFakeTimers();
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
@@ -557,7 +586,7 @@ describe("TenderOpportunities", () => {
 
   it("显示来源安全统计与中文原因，未知错误不暴露原始代码", async () => {
     mocks.getTenderSources.mockResolvedValue([{ ...source, health_state: "degraded", latest_run: {
-      state: "PARTIAL", statistics: { new_notices: 3, new_versions: 1 }, error_code: "private_internal_exception",
+      state: "PARTIAL", stats: { new_notices: 3, new_versions: 1 }, error_code: "private_internal_exception",
       error_detail: "服务限制访问，请稍后重试。", started_at: "2026-09-28T00:00:00Z",
     } }]);
     mocks.getRefreshOverview.mockResolvedValue({ ...noRefresh, consumer_online: false,
@@ -575,7 +604,7 @@ describe("TenderOpportunities", () => {
   it("有限扫描标注部分更新，批次和来源优先显示安全detail字段", async () => {
     mocks.getTenderSources.mockResolvedValue([{ ...source, latest_run: {
       state: "PARTIAL", error_code: "coverage_partial", detail: "本轮已更新可访问范围，其余公告待后续采集。",
-      error_detail: "不应展示的旧错误详情", statistics: { new_notices: 2 },
+      error_detail: "不应展示的旧错误详情", stats: { new_notices: 2 },
     } }]);
     mocks.getRefreshOverview.mockResolvedValue({ ...noRefresh, batch: {
       ...queued, stored_state: "PARTIAL", display_state: "PARTIAL", results: {

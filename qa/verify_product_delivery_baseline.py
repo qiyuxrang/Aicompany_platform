@@ -1,7 +1,7 @@
 """Reproducible acceptance gate for the frozen product-delivery baseline.
 
 The gate checks the machine-readable policy, frozen-pack integrity and the
-exact v10 artifacts accepted by the user.  It performs no model, RAGFlow or
+historical v10 format references separately from actual formal outputs. It performs no model, RAGFlow or
 network calls and therefore cannot fabricate a knowledge-base hit.
 """
 
@@ -13,7 +13,7 @@ import json
 import sys
 from pathlib import Path
 
-from verify_product_deliverables import inspect_docx, inspect_pptx
+from verify_product_deliverables import CHARACTER_COUNT_SCOPE, inspect_docx, inspect_pptx
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +40,11 @@ def load_json(path: Path) -> dict:
 def validate_contract(baseline: dict, policy: dict, rules: dict) -> dict:
     issues: list[str] = []
     check(baseline.get("schema") == "PRODUCT_DELIVERY_BASELINE_V1", "baseline_schema_invalid", issues)
-    check(baseline.get("status") == "accepted_and_frozen", "baseline_not_frozen", issues)
+    check(baseline.get("status") == "formal_length_required_pending_live_acceptance", "baseline_status_invalid", issues)
+    check(baseline.get("character_count_scope") == CHARACTER_COUNT_SCOPE, "character_count_scope_invalid", issues)
+    check("accepted_artifacts" not in baseline and isinstance(baseline.get(
+        "historical_format_reference_artifacts_not_formal_length_acceptance"), dict),
+        "historical_reference_scope_invalid", issues)
     check(policy.get("schema") == "BJ_PRODUCT_DOCUMENT_FORMAT_POLICY_V2", "format_policy_schema_invalid", issues)
     check(policy.get("acceptance_evidence_revision") == "format-governance-acceptance-20260927-v10",
           "format_acceptance_revision_invalid", issues)
@@ -75,9 +79,9 @@ def validate_contract(baseline: dict, policy: dict, rules: dict) -> dict:
     technical = deliverables.get("technical-solution", {})
     feasibility = deliverables.get("feasibility", {})
     presentation = deliverables.get("presentation", {})
-    check((technical.get("target_characters"), technical.get("minimum_diagrams")) == (3000, 15),
+    check((technical.get("target_characters"), technical.get("minimum_characters"), technical.get("minimum_diagrams")) == (50000, 50000, 15),
           "technical_target_invalid", issues)
-    check((feasibility.get("target_characters"), feasibility.get("minimum_diagrams")) == (5000, 20),
+    check((feasibility.get("target_characters"), feasibility.get("minimum_characters"), feasibility.get("minimum_diagrams")) == (70000, 70000, 20),
           "feasibility_target_invalid", issues)
     check(technical.get("toc_levels") == [1, 2] and feasibility.get("toc_levels") == [1, 2],
           "two_level_toc_not_frozen", issues)
@@ -85,17 +89,20 @@ def validate_contract(baseline: dict, policy: dict, rules: dict) -> dict:
           "presentation_target_invalid", issues)
     check(presentation.get("editable_native_objects_required") is True,
           "presentation_editability_not_required", issues)
-    policy_targets = policy.get("test_version_targets", {})
+    check("maximum_characters" not in technical and "maximum_characters" not in feasibility,
+          "obsolete_maximum_characters", issues)
+    check("test_version_targets" not in policy, "obsolete_test_version_targets", issues)
+    policy_targets = policy.get("formal_version_targets", {})
     check(policy_targets.get("technical_solution") == {
-        key: technical[key] for key in (
-            "target_characters", "minimum_characters", "maximum_characters", "minimum_diagrams")
+        key: technical.get(key) for key in (
+            "target_characters", "minimum_characters", "minimum_diagrams")
     }, "technical_policy_target_drift", issues)
     check(policy_targets.get("feasibility_report") == {
-        key: feasibility[key] for key in (
-            "target_characters", "minimum_characters", "maximum_characters", "minimum_diagrams")
+        key: feasibility.get(key) for key in (
+            "target_characters", "minimum_characters", "minimum_diagrams")
     }, "feasibility_policy_target_drift", issues)
     check(policy_targets.get("presentation") == {
-        key: presentation[key] for key in (
+        key: presentation.get(key) for key in (
             "slides", "aspect_ratio", "visual_style", "minimum_native_charts",
             "minimum_native_connectors", "minimum_embedded_visual_assets",
             "editable_native_objects_required")
@@ -114,13 +121,21 @@ def validate_contract(baseline: dict, policy: dict, rules: dict) -> dict:
           "internet_search_fallback_must_be_disabled", issues)
 
     exclusion_ids = {item.get("id") for item in rules.get("exclusions", []) if isinstance(item, dict)}
-    check({"legacy-length-targets", "legacy-figure-minimum", "workbuddy-runtime"} <= exclusion_ids,
+    check({"short-test-length-targets", "legacy-figure-minimum", "workbuddy-runtime"} == exclusion_ids,
           "p1_legacy_exclusions_missing", issues)
+    sys.path.insert(0, str(ROOT / "backend"))
+    from portal.product_rules import ProductRulesUnavailable, _load_rules
+    try:
+        verified_rules, rules_digest = _load_rules()
+        check(rules == verified_rules, "p1_rules_payload_mismatch", issues)
+    except ProductRulesUnavailable:
+        rules_digest = sha256(PACK.parent / "p1_rules.json")
+        issues.append("p1_rules_integrity_failed")
     return {
         "passed": not issues,
         "issues": issues,
-        "p1_rules_sha256": sha256(PACK.parent / "p1_rules.json"),
-        "note": "旧5万/7万字与每份Word统一20图规则保持排除；本次3000/5000字及15/20图由已验收基线单独确定。",
+        "p1_rules_sha256": rules_digest,
+        "note": "正式正文最低50,000/70,000字；历史v10仅为格式参考，不证明正式长文验收通过。",
     }
 
 
@@ -154,23 +169,28 @@ def validate_manifest() -> dict:
     }
 
 
-def validate_artifacts(baseline: dict) -> dict:
-    accepted = baseline["accepted_artifacts"]
-    artifact_root = ROOT / accepted["root"]
+def validate_artifacts(baseline: dict, artifact_root: Path | None = None) -> dict:
+    historical = artifact_root is None
+    accepted = baseline["historical_format_reference_artifacts_not_formal_length_acceptance"]
+    artifact_root = (ROOT / accepted["root"]).resolve() if historical else artifact_root.resolve()
+    if historical and not artifact_root.is_relative_to(ROOT.resolve()):
+        return {"passed": False, "issues": ["historical_artifact_root_escape"]}
     deliverables = baseline["deliverables"]
     paths = {
-        family: artifact_root / deliverables[family]["filename"]
+        family: (artifact_root / deliverables[family]["filename"]).resolve()
         for family in ("technical-solution", "feasibility", "presentation")
     }
     identity_issues: list[str] = []
     for family, path in paths.items():
+        if not path.is_relative_to(artifact_root):
+            return {"passed": False, "issues": [f"artifact_path_escape:{family}"]}
         identity = accepted[family]
         if not path.is_file():
             identity_issues.append(f"accepted_artifact_missing:{family}")
             continue
-        if path.stat().st_size != identity["bytes"]:
+        if historical and path.stat().st_size != identity["bytes"]:
             identity_issues.append(f"accepted_artifact_size_mismatch:{family}")
-        if sha256(path) != identity["sha256"]:
+        if historical and sha256(path) != identity["sha256"]:
             identity_issues.append(f"accepted_artifact_hash_mismatch:{family}")
 
     technical = deliverables["technical-solution"]
@@ -180,20 +200,24 @@ def validate_artifacts(baseline: dict) -> dict:
         "technical_solution": inspect_docx(
             paths["technical-solution"],
             minimum_characters=technical["minimum_characters"],
-            maximum_characters=technical["maximum_characters"],
             minimum_figures=technical["minimum_diagrams"],
             expected_header="技术方案",
         ),
         "feasibility": inspect_docx(
             paths["feasibility"],
             minimum_characters=feasibility["minimum_characters"],
-            maximum_characters=feasibility["maximum_characters"],
             minimum_figures=feasibility["minimum_diagrams"],
             expected_header="可行性研究报告",
         ),
         "presentation": inspect_pptx(paths["presentation"]),
     }
-    results["passed"] = all(value["passed"] for key, value in results.items() if key != "passed")
+    results["passed"] = all(
+        value.get("structural_passed", value["passed"]) if historical else value["passed"]
+        for value in results.values()
+    )
+    results["acceptance_scope"] = "historical_format_reference_only" if historical else "actual_formal_output_length_and_structure"
+    results["formal_output_accepted"] = not historical and results["passed"]
+    results["business_content_and_visual_review"] = "not_evaluated"
     return results
 
 
@@ -201,6 +225,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--artifact-root", type=Path, help="Actual generated deliverables; omission never passes formal acceptance")
     args = parser.parse_args()
     baseline = load_json(args.baseline.resolve())
     policy = load_json(PACK / "assets" / baseline["format_policy"])
@@ -210,10 +235,15 @@ def main() -> int:
         "baseline_sha256": sha256(args.baseline.resolve()),
         "contract": validate_contract(baseline, policy, rules),
         "manifest": validate_manifest(),
-        "artifacts": validate_artifacts(baseline),
+        "historical_format_reference": validate_artifacts(baseline),
+        "actual_formal_output_acceptance": validate_artifacts(baseline, args.artifact_root) if args.artifact_root else {
+            "passed": False, "status": "not_evaluated", "issues": ["actual_formal_outputs_not_supplied"],
+        },
         "external_calls": {"model": 0, "ragflow": 0, "network": 0},
     }
-    result["passed"] = all(result[key]["passed"] for key in ("contract", "manifest", "artifacts"))
+    result["structural_baseline_passed"] = all(result[key]["passed"] for key in (
+        "contract", "manifest", "historical_format_reference"))
+    result["passed"] = result["structural_baseline_passed"] and result["actual_formal_output_acceptance"]["passed"]
     payload = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.resolve().parent.mkdir(parents=True, exist_ok=True)

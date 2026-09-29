@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import GatewayError
 from .transport import chat_completion, list_models, stream_completion
-from backend.portal.model_messages import VISION_REQUEST_LIMIT, validate_messages
+from backend.portal.model_messages import TEXT_REQUEST_LIMIT, VISION_REQUEST_LIMIT, validate_messages
 
 
 class ServiceBoundary:
@@ -40,7 +40,12 @@ class ServiceBoundary:
                     if message["type"] == "http.disconnect":
                         return
                     body.extend(message.get("body", b""))
-                    limit = VISION_REQUEST_LIMIT if scope['path'] == '/v1/generate-vision' else 65536
+                    if scope['path'] == '/v1/generate-vision':
+                        limit = VISION_REQUEST_LIMIT
+                    elif scope['path'] in {'/v1/generate', '/v1/generate-stream'}:
+                        limit = TEXT_REQUEST_LIMIT + 65536
+                    else:
+                        limit = 65536
                     if len(body) > limit:
                         return await JSONResponse({"code": "request_too_large", "detail": "请求内容过大。"}, 413)(scope, receive, send)
                     if not message.get("more_body", False):
@@ -82,7 +87,7 @@ class ModelConfig(StrictModel):
 
 class Message(StrictModel):
     role: Literal["system", "user", "assistant"]
-    content: str = Field(min_length=1, max_length=16000)
+    content: str = Field(min_length=1)
 
 
 class GenerateRequest(StrictModel):

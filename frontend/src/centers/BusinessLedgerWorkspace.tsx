@@ -18,7 +18,10 @@ const failureMessage = (error: unknown) => {
   return isApiError(error) ? error.message : error instanceof Error ? error.message : '操作未完成，请稍后重试。';
 };
 const requiredRecordFields = new Set(['project_id', 'project_name', 'status', 'progress', 'contract_amount', 'received_amount', 'amount']);
-const numericRecordFields = new Set(['progress', 'contract_amount', 'received_amount', 'amount']);
+const numericRecordFields = new Set(['progress', 'contract_amount', 'received_amount', 'amount', 'opening_receivable', 'receivable_balance',
+  ...Array.from({ length: 7 }, (_, index) => `received_${String(index + 1).padStart(2, '0')}`),
+  ...Array.from({ length: 5 }, (_, index) => `planned_${String(index + 8).padStart(2, '0')}`)]);
+const multilineRecordFields = new Set(['description', 'project_progress', 'follow_up_history', 'notes', 'annual_plan', 'current_status']);
 const dateRecordFields = new Set(['planned_end', 'due_date', 'follow_up_date']);
 
 export default function BusinessLedgerWorkspace({ preview = false, onlyDepartment }: { preview?: boolean; onlyDepartment?: LedgerDepartment }) {
@@ -130,10 +133,10 @@ export default function BusinessLedgerWorkspace({ preview = false, onlyDepartmen
             <div className="ledger-metadata"><label>台账截止日期<input type="date" max={localToday()} required value={asOf} onChange={event => setAsOf(event.target.value)} /></label><label>数据来源名称<input required maxLength={200} value={sourceName} onChange={event => setSourceName(event.target.value)} /></label><button type="button" disabled={busy || !asOf || !sourceName.trim()} onClick={() => void execute(current => updateLedgerMetadata(current, { as_of: asOf, source_name: sourceName.trim() }), '台账来源和截止日期已更新。')}>保存台账信息</button></div>
             <div className="ledger-fields">{fieldEntries.map(([key, label]) => <label key={key}>{label}
               {key === 'status' && ledger.statuses.length
-                ? <select required value={record[key] || ''} onChange={event => setRecord({ ...record, [key]: event.target.value })}><option value="">请选择</option>{ledger.statuses.map(item => <option key={item}>{item}</option>)}</select>
-                : key === 'description' || key === 'project_progress'
-                  ? <textarea value={record[key] || ''} maxLength={2000} onChange={event => setRecord({ ...record, [key]: event.target.value })}/>
-                : <input type={numericRecordFields.has(key) ? 'number' : dateRecordFields.has(key) ? 'date' : 'text'} min={numericRecordFields.has(key) ? 0 : undefined} max={key === 'progress' ? 100 : undefined} step={numericRecordFields.has(key) ? '.01' : undefined} required={requiredRecordFields.has(key)} value={record[key] || ''} maxLength={numericRecordFields.has(key) || dateRecordFields.has(key) ? undefined : 200} onChange={event => setRecord({ ...record, [key]: event.target.value })} />}
+                ? <select required={!record.source_sheet} value={record[key] || ''} onChange={event => setRecord({ ...record, [key]: event.target.value })}><option value="">{record.source_sheet ? '原表未标注' : '请选择'}</option>{ledger.statuses.map(item => <option key={item}>{item}</option>)}</select>
+                : multilineRecordFields.has(key)
+                  ? <textarea value={record[key] || ''} maxLength={key === 'follow_up_history' ? 20000 : 4000} onChange={event => setRecord({ ...record, [key]: event.target.value })}/>
+                : <input type={numericRecordFields.has(key) ? 'number' : dateRecordFields.has(key) ? 'date' : 'text'} min={numericRecordFields.has(key) ? 0 : undefined} max={key === 'progress' ? 100 : undefined} step={numericRecordFields.has(key) ? '.01' : undefined} required={requiredRecordFields.has(key) && !(record.source_sheet && ['amount', 'received_amount'].includes(key))} value={record[key] || ''} maxLength={numericRecordFields.has(key) || dateRecordFields.has(key) ? undefined : 200} onChange={event => setRecord({ ...record, [key]: event.target.value })} />}
             </label>)}</div>
             <div className="center-actions"><button className="button primary" disabled={busy}>{editingId ? '保存修改' : '新增记录'}</button>{editingId && <button type="button" className="button secondary" onClick={() => resetEditor(ledger)}>取消编辑</button>}</div>
           </form>

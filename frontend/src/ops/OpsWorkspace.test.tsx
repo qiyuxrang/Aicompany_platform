@@ -86,7 +86,8 @@ describe("ops workspace", () => {
     vi.unstubAllGlobals();
   });
 
-  it("管理员默认进入运维，并在同一路径切换 query 后重新请求", async () => {
+  it.each(["/", "/workspace", "/workspace/"])("管理员从 %s 直接进入运维，并支持切换统计范围", async (path) => {
+    window.history.replaceState({}, "", path);
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const path = String(input);
       if (path === "/api/me/") return Promise.resolve(json(admin));
@@ -101,6 +102,9 @@ describe("ops workspace", () => {
     expect(await screen.findByRole("heading", { name: "运维总览" })).toBeTruthy();
     expect(await screen.findByText("错误率 0%（错误请求数 ÷ 有效接口请求数）")).toBeTruthy();
     expect(window.location.pathname).toBe("/ops");
+    expect(screen.queryByRole("link", { name: "员工视图" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "查看我的工作台" })).toBeNull();
+    expect(screen.queryByText("个人工作台")).toBeNull();
     expect(within(screen.getByRole("navigation", { name: "运维主菜单" })).getByRole("link", { name: "运维总览" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("link", { name: "跳到主要内容" }).getAttribute("href")).toBe("#ops-main");
     expect(screen.getByRole("main").getAttribute("tabindex")).toBe("-1");

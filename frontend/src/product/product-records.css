@@ -1,0 +1,14 @@
+.pr-output-table { min-width:780px; }
+.pr-output-title { display:block; max-width:360px; overflow-wrap:anywhere; font-size:12px; font-weight:600; }
+.pr-family-cell { display:flex; align-items:center; gap:9px; white-space:nowrap; }
+.pr-family-cell .pd-document-symbol { flex:0 0 auto; }
+.pr-version { color:var(--ink); font-variant-numeric:tabular-nums; font-weight:600; }
+.pd-workspace .pr-download { min-height:34px; padding:6px 10px; white-space:nowrap; }
+.pr-download svg { width:16px; height:16px; }
+
+@media(max-width:760px) {
+  .pr-output-table { min-width:0; }
+  .pr-output-table .pr-output-title { max-width:none; }
+  .pr-output-table .pr-family-cell { justify-content:flex-end; }
+  .pr-output-table .pr-download { width:auto; }
+}

@@ -1,11 +1,13 @@
 import json
 from datetime import timedelta
+from io import StringIO
 
+from django.core.management import call_command
 from django.test import Client
 from django.utils import timezone
 
 from portal.tender_grouping import assign_project_group, project_group_key
-from portal.tender_models import TenderManualRefresh, TenderNotice, TenderOpportunity, TenderSource
+from portal.tender_models import TenderManualRefresh, TenderNotice, TenderOpportunity, TenderOpportunityUserState, TenderSource
 from .base import PortalTestCase
 
 
@@ -46,6 +48,27 @@ class TenderProjectWorkflowTests(PortalTestCase):
         first = self.opportunity('a', project_code='')
         second = self.opportunity('b', project_code='')
         self.assertNotEqual(project_group_key(first), project_group_key(second))
+
+    def test_legacy_group_backfill_is_repeatable_and_preserves_records_and_marks(self):
+        first = self.opportunity('legacy-a')
+        self.opportunity('legacy-b')
+        TenderOpportunity.objects.update(project_group_key='')
+        TenderOpportunityUserState.objects.create(
+            user=self.user, project_group_key=first.opportunity_key, is_read=True, is_favorite=True)
+        before = list(TenderOpportunity.objects.order_by('pk').values_list('pk', 'first_seen_at', 'created_at', 'updated_at'))
+        self.assertEqual(self.client.get('/api/product/opportunities/').json()['total'], 2)
+        output = StringIO()
+        call_command('group_tender_projects', stdout=output)
+        self.assertIn('Updated 2 project grouping keys', output.getvalue())
+        payload = self.client.get('/api/product/opportunities/').json()
+        self.assertEqual(payload['total'], 1)
+        self.assertTrue(payload['items'][0]['user_state']['is_read'])
+        self.assertTrue(payload['items'][0]['user_state']['is_favorite'])
+        self.assertEqual(list(TenderOpportunity.objects.order_by('pk').values_list(
+            'pk', 'first_seen_at', 'created_at', 'updated_at')), before)
+        repeated = StringIO()
+        call_command('group_tender_projects', stdout=repeated)
+        self.assertIn('Updated 0 project grouping keys', repeated.getvalue())
 
     def test_lots_and_second_tender_do_not_inherit_other_awards(self):
         first = self.opportunity('lot1', project_name='智能矿山建设第1包', notice_category='result', status='AWARDED')

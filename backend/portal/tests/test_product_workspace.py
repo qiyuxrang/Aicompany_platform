@@ -44,7 +44,7 @@ class ProductWorkspaceTests(PortalTestCase):
         result = self.client.get("/api/product/workspace/")
         self.assertEqual(result.status_code, 200, result.content)
         data = result.json()
-        self.assertEqual(data["metrics"], {"active": 2, "review": 1, "generation": 0, "completed_month": 1})
+        self.assertEqual(data["metrics"], {"all": 3, "active": 2, "review": 1, "generation": 0, "completed": 1, "completed_month": 1})
         self.assertEqual(data["pagination"]["total"], 3)
         self.assertNotIn("其他人的秘密项目", result.content.decode())
         self.assertIn("no-store", result["Cache-Control"])

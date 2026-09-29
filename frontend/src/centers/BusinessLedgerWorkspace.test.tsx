@@ -86,3 +86,19 @@ it('product workspace limits record entry to presales even when other ledgers ar
   expect(await screen.findByLabelText('跟进时间')).toBeTruthy();
   expect(screen.getByLabelText('项目概况').tagName).toBe('TEXTAREA');
 });
+
+it('editing imported source records preserves unknown stage and amount without requiring invented values', async () => {
+  const record = { project_id: 'PRE-1-2', project_name: '原表项目', status: '', amount: '', source_sheet: '商机', follow_up_history: '第一条\n第二条' };
+  const ledger = { ...fixture(), department: 'presales', title: '产品事业部看板', records: [record], statuses: ['线索', '已赢单'],
+    fields: { project_id: '项目编号', project_name: '项目名称', status: '状态', amount: '预计金额', source_sheet: '来源工作表', follow_up_history: '跟进记录' } };
+  ledgerApi.listLedgerPermissions.mockResolvedValue({ departments: [{ department: 'presales', title: '产品事业部看板', can_edit: true }] });
+  ledgerApi.getLedger.mockResolvedValue(ledger);
+  ledgerApi.updateLedgerRecord.mockResolvedValue({ ...ledger, revision: 8 });
+  render(<BusinessLedgerWorkspace onlyDepartment="presales" />);
+  await userEvent.click(await screen.findByRole('button', { name: '编辑' }));
+  expect((screen.getByLabelText('状态') as HTMLSelectElement).required).toBe(false);
+  expect((screen.getByLabelText('预计金额') as HTMLInputElement).required).toBe(false);
+  expect((screen.getByLabelText('跟进记录') as HTMLTextAreaElement).maxLength).toBe(20000);
+  await userEvent.click(screen.getByRole('button', { name: '保存修改' }));
+  await waitFor(() => expect(ledgerApi.updateLedgerRecord).toHaveBeenCalledWith(expect.anything(), 'PRE-1-2', expect.objectContaining(record)));
+});

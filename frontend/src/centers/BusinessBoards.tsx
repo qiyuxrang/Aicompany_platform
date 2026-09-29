@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiRequest, isApiError } from '../api';
 import { CenterLink } from './shared';
+import BusinessProjects from './BusinessProjects';
 import './business-boards.css';
 
 type Department = 'engineering' | 'finance' | 'presales';
@@ -12,16 +13,16 @@ type Board = {
   total: number; filtered_count: number; scope: string; currency: string;
   source: { name: string; as_of: string; imported_at: string; kind: string; state?: string; revision?: number } | null;
 };
-const departments: [Department, string][] = [['engineering', '工程部看板'], ['finance', '财务部看板'], ['presales', '售前部门看板']];
+const departments: [Department, string][] = [['finance', '财务部看板'], ['presales', '产品事业部看板'], ['engineering', '工程部看板']];
 const explanations: Record<Department, string> = {
   engineering: '交付中包含待开工、实施中、待验收和整改中；交付后包含已验收和质保中。逾期按台账截止日期判断。',
-  finance: '金额统一为人民币元。待收余额＝合同金额－已收金额；逾期待收按台账截止日期与应收日期比较，不等同于会计确认的应收账款。',
-  presales: '跟进中不含已赢单与已丢单；预计金额取台账原值，不按阶段乘以推测成交概率。',
+  finance: '金额与指标名称以来源台账和接口口径为准；期初应收、应收余额、月度实际与计划分别展示，不相加、不相减推算。空值不视为零。',
+  presales: '按来源记录展示，保留不同工作表的同名项目。未填写的阶段、金额不补全，不按阶段推算成交概率。',
 };
 function validBoard(value: unknown): value is Board {
   if (!value || typeof value !== 'object') return false;
   const b = value as Board;
-  return typeof b.available === 'boolean' && typeof b.snapshot_id === 'string' && typeof b.title === 'string'
+  return typeof b.available === 'boolean' && typeof b.snapshot_id === 'string' && typeof b.title === 'string' && typeof b.scope === 'string'
     && !!b.fields && typeof b.fields === 'object' && Object.values(b.fields).every(x => typeof x === 'string')
     && Array.isArray(b.statuses) && b.statuses.every(x => typeof x === 'string')
     && Number.isInteger(b.total) && b.total >= 0 && Number.isInteger(b.filtered_count) && b.filtered_count >= 0
@@ -37,6 +38,27 @@ function display(value: number | string | null, unit: string) {
   const [whole, fraction = ''] = String(value).split('.');
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return unit === '元' ? `${grouped}.${fraction.padEnd(2, '0')}` : grouped;
+}
+function SourceStatus({ board }: { board: Board }) {
+  if (!board.source) return null;
+  const source = board.source;
+  return <p className="business-source">来源：{source.name} · 台账截止 {source.as_of || '未填写'} · {board.department === 'presales'
+    ? `工作数据（${source.state === 'published' ? '已发布' : source.state === 'submitted' ? '待发布' : '草稿'}）· 版本 ${source.revision ?? '—'} · 更新于`
+    : '已发布台账 · 发布于'} {new Date(source.imported_at).toLocaleString('zh-CN')}</p>;
+}
+function FinancialChart({ metrics }: { metrics: Board['metrics'] }) {
+  const amounts = metrics.filter(item => item.unit === '元');
+  const maximum = Math.max(1, ...amounts.map(item => Math.abs(Number(item.value))));
+  return <figure className="business-money-chart" aria-label="财务金额对比">
+    <figcaption>金额对比 <small>人民币元 · 各项独立，不叠加</small></figcaption>
+    {amounts.length ? amounts.map(item => <div className="business-money-row" key={item.key}>
+      <div><span>{item.label}</span><strong>{display(item.value, item.unit)} <small>元</small></strong></div>
+      {item.value !== null && <svg viewBox="0 0 400 12" preserveAspectRatio="none" role="img" aria-label={`${item.label} ${display(item.value, item.unit)} 元`}>
+        <rect width="400" height="12" rx="4" className="business-chart-track" />
+        <rect width={Math.abs(Number(item.value)) / maximum * 400} height="12" rx="4" className="business-chart-fill" />
+      </svg>}
+    </div>) : <p>暂无金额指标，未提供的数据以“—”展示。</p>}
+  </figure>;
 }
 export function BusinessOverview({ preview = false }: { preview?: boolean }) {
   const [boards, setBoards] = useState<Partial<Record<Department, Board>>>({});
@@ -78,81 +100,28 @@ export function BusinessOverview({ preview = false }: { preview?: boolean }) {
   }, [preview]);
 
   return <section className="business-overview" aria-label="企业台账总览">
-    <div className="business-overview-head"><div><p className="eyebrow">经营速览</p><h2>三部门数据，一屏掌握</h2><p>工程、财务取最新已发布台账；售前展示最新工作数据。指标均由台账计算。</p></div>
+    <div className="business-overview-head"><div><p className="eyebrow">数据分析</p><h2>数据分析 / BI报表看板</h2><p>财务、工程读取最新已发布台账；产品事业部展示最新工作数据。仅展示接口提供的指标，不推算收入、利润或成交概率。</p></div>
       {!preview && <button type="button" className="button secondary" disabled={loading} onClick={() => setRefresh(value => value + 1)}>刷新数据</button>}</div>
     <div className="business-overview-grid">{departments.map(([key, label]) => {
       const board = boards[key];
-      const distribution = board?.distribution.filter(item => item.count > 0).sort((first, second) => second.count - first.count).slice(0, 3) ?? [];
+      const distribution = board?.distribution ?? [];
       return <article className={`business-overview-card business-overview-${key}`} key={key} aria-label={label}>
-        <div className="business-overview-card-head"><span>{label}</span><strong>{board && !board.available ? key === 'presales' ? '待录入' : '待发布' : key === 'presales' ? '最新跟进' : '已发布'}</strong></div>
+        <div className="business-overview-card-head"><h3>{label}</h3><strong>{preview ? '预览' : loading ? '读取中' : failures[key] ? '读取失败' : !board?.available ? key === 'presales' ? '待录入' : '待发布' : key === 'presales' ? board.source?.state === 'published' ? '已发布工作数据' : '未发布工作数据' : '已发布'}</strong></div>
         {preview ? <p className="business-overview-message">预览不读取业务数据。</p> : loading ? <p className="business-overview-message" role="status">正在读取台账…</p>
           : failures[key] ? <p className="business-overview-message" role="alert">{failures[key]}</p>
             : board ? <>
-              <div className="business-overview-metrics">{board.metrics.slice(0, 3).map(item => <div key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></div>)}</div>
-              {board.available ? <><div className="business-overview-distribution"><p>状态分布</p>{distribution.length ? distribution.map(item => <div className="business-overview-bar" key={item.label}><span>{item.label}</span><meter min={0} max={Math.max(1, board.total)} value={item.count} aria-label={`${item.label} ${item.count} 项`} /><strong>{item.count}</strong></div>) : <span>暂无状态数据</span>}</div>
-                <p className="business-overview-source">{key === 'presales' && board.source?.state !== 'published' ? '未发布工作数据' : '已发布台账'} · 截止 {board.source?.as_of || '未填写'} · {board.source?.name}</p></>
-                : <p className="business-overview-source">{key === 'presales' ? '暂无售前跟进数据' : '暂无已发布台账'}，未提供的数据以“—”展示。</p>}
+              {board.available ? <>
+                {key === 'finance' && <FinancialChart metrics={board.metrics} />}
+                <div className="business-overview-metrics">{board.metrics.filter(item => key !== 'finance' || item.unit !== '元').map(item => <div key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></div>)}</div>
+                <div className="business-overview-distribution"><p>{key === 'finance' ? '财务条目分布' : key === 'presales' ? '产品条目分布' : '工程条目分布'}</p>{distribution.length ? distribution.map(item => <div className="business-overview-bar" key={item.label}><span>{item.label}</span><meter min={0} max={Math.max(1, board.total, item.count)} value={item.count} aria-label={`${item.label} ${item.count} 项`} /><strong>{item.count}</strong></div>) : <span>暂无分布数据</span>}</div>
+                <SourceStatus board={board} /><p className="business-definition">{explanations[key]}</p><p className="business-scope">{board.scope.replace(/售前(?:部门)?/g, '产品事业部')}</p></>
+                : <p className="business-overview-source">{key === 'presales' ? '暂无产品事业部跟进数据' : '暂无已发布台账'}，未提供的数据以“—”展示。</p>}
             </> : <p className="business-overview-message">暂无看板数据。</p>}
-        <CenterLink href={`/centers/business/${key}`} className="business-overview-link">查看完整看板 <span aria-hidden="true">→</span></CenterLink>
+        <CenterLink href={`/centers/business/${key}`} className="business-overview-link">查看数据明细 <span aria-hidden="true">→</span></CenterLink>
       </article>;
     })}</div>
   </section>;
 }
 export default function BusinessBoards({ initial = 'engineering', preview = false }: { initial?: Department; preview?: boolean }) {
-  const [department, setDepartment] = useState<Department>(initial);
-  const [data, setData] = useState<Board | null>(null), [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState(''), [status, setStatus] = useState('');
-  const [filter, setFilter] = useState({ q: '', status: '' }), [refresh, setRefresh] = useState(0);
-  const requestVersion = useRef(0);
-  useEffect(() => { setDepartment(initial); }, [initial]);
-  useEffect(() => {
-    const version = ++requestVersion.current;
-    if (preview) { setData(null); return; }
-    const controller = new AbortController();
-    setData(null); setError(''); setLoading(true);
-    const params = new URLSearchParams(filter);
-    apiRequest<unknown>(`/api/business/boards/${department}/?${params}`, { signal: controller.signal }).then(result => {
-      if (!validBoard(result) || result.department !== department) throw new Error('看板数据格式无效，请稍后重试。');
-      if (!controller.signal.aborted && requestVersion.current === version) setData(result);
-    }).catch(e => { if (!controller.signal.aborted && requestVersion.current === version) setError(isApiError(e) ? e.message : e instanceof Error ? e.message : '无法读取看板。'); })
-      .finally(() => { if (!controller.signal.aborted && requestVersion.current === version) setLoading(false); });
-    return () => { controller.abort(); requestVersion.current += 1; };
-  }, [department, filter, refresh, preview]);
-  useEffect(() => {
-    if (preview || department !== 'presales') return;
-    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') setRefresh(value => value + 1); }, 5000);
-    return () => window.clearInterval(interval);
-  }, [department, preview]);
-  const choose = (next: Department) => {
-    setDepartment(next); setSearch(''); setStatus(''); setFilter({ q: '', status: '' });
-  };
-  return <section className="business-bi" aria-label="企业台账 BI 看板">
-    <div className="business-bi-head"><div><p className="eyebrow">企业台账</p><h2>经营数据，一处查看</h2><p>工程、财务读取已发布台账；售前展示产品事业部最新保存的跟进数据，并标注未发布状态。</p></div>
-      {!preview && <button className="button secondary" disabled={loading} onClick={() => setRefresh(x => x + 1)}>刷新看板</button>}</div>
-    <div role="tablist" aria-label="部门看板" className="business-tabs">{departments.map(([key, label]) => <button key={key} role="tab" aria-selected={department === key} onClick={() => choose(key)}>{label}</button>)}</div>
-    {preview ? <div className="center-empty"><h3>看板预览</h3><p>包含工程、财务和售前三类看板。预览不读取业务数据；请使用已授权的总经理账号进入。</p></div> : <>
-      {loading && <p role="status">正在读取台账…</p>}
-      {error && <p className="notice error" role="alert">{error}</p>}
-      {data && <div role="tabpanel" aria-label={data.title}>
-        <div className="business-metrics">{data.metrics.map(item => <article key={item.key}><span>{item.label}</span><strong>{display(item.value, item.unit)}<small>{item.unit}</small></strong></article>)}</div>
-        {data.source ? <p className="business-source">来源：{data.source.name} · 台账截止 {data.source.as_of || '未填写'} · {department === 'presales' ? `工作数据（${data.source.state === 'published' ? '已发布' : data.source.state === 'submitted' ? '待发布' : '草稿'}）· 版本 ${data.source.revision ?? '—'} · 更新于` : '发布于'} {new Date(data.source.imported_at).toLocaleString('zh-CN')}</p>
-          : <div className="center-empty"><h3>{department === 'presales' ? '尚无售前跟进数据' : `尚无已发布的${data.title.replace('看板', '')}台账`}</h3><p>{department === 'presales' ? '请由已授权的产品事业部人员录入项目跟进数据。' : '请由已授权的部门录入人员维护并发布数据。'}未提供的数据以“—”展示，不会填入样例数字。</p></div>}
-        <form className="business-filters" onSubmit={e => { e.preventDefault(); setFilter({ q: search, status }); }}>
-          <label>搜索项目<input placeholder="项目编号、名称或负责人" value={search} maxLength={100} onChange={e => setSearch(e.target.value)} /></label>
-          {!!data.statuses.length && <label>状态<select value={status} onChange={e => setStatus(e.target.value)}><option value="">全部状态</option>{data.statuses.map(x => <option key={x}>{x}</option>)}</select></label>}
-          <button className="button secondary" disabled={loading}>查询</button>
-        </form>
-        {data.available && <div className="business-detail-grid">
-          <section className="business-distribution"><h3>状态分布</h3>{data.distribution.map(item => <div className="business-bar" key={item.label}>
-            <div><span>{item.label}</span><strong>{item.count}</strong></div><meter min={0} max={Math.max(1, data.filtered_count)} value={item.count} aria-label={`${item.label} ${item.count} 项`} /></div>)}</section>
-          <section className="business-records"><h3>项目明细 <small>{data.filtered_count} / {data.total} 条</small></h3><div className="business-table-scroll"><table><thead><tr>{Object.values(data.fields).map(label => <th key={label}>{label}</th>)}</tr></thead>
-            <tbody>{data.records.map(row => <tr key={row.project_id}>{Object.keys(data.fields).map(key => <td key={key}>{row[key] || '—'}{key === 'progress' ? '%' : ''}</td>)}</tr>)}</tbody></table></div>
-            {!data.records.length && <p>没有符合筛选条件的记录。</p>}</section>
-        </div>}
-        <p className="business-definition">{explanations[department]}</p>
-        <p className="business-scope">{data.scope}</p>
-      </div>}
-    </>}
-  </section>;
+  return <BusinessProjects key={initial} department={initial} preview={preview} />;
 }

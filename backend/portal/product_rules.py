@@ -6,11 +6,11 @@ from pathlib import Path
 
 
 _RULES_PATH = Path(__file__).resolve().parent / "product_assets" / "p1_rules.json"
-_RULES_SHA256 = "7ed4d2eabea00402e63bfd26e85f5551e79e449e0ad4f859b150816d1edfec55"
+_RULES_SHA256 = "cca20ae57f89b54d63c701f264590c78249a9926cb66ec4ea879289fc440a8bb"
 _SCHEMA = "portal-product-p1-rules-v1"
 _STAGES = {"blueprint", "write", "review"}
 _SOURCE_IDS = {"intake", "technical-solution", "review", "plan"}
-_EXCLUSION_IDS = {"legacy-length-targets", "legacy-figure-minimum", "workbuddy-runtime"}
+_EXCLUSION_IDS = {"short-test-length-targets", "legacy-figure-minimum", "workbuddy-runtime"}
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 
 

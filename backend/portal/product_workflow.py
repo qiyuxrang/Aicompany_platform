@@ -85,8 +85,24 @@ def run_product_workflow(
         return "legacy_action"
 
     def knowledge(state: ProductWorkflowState):
+        from .product_worker import _analysis_progress
+
         _record(state, "knowledge")
-        prepare_blueprint_knowledge(state["task_id"], state["fence"])
+        _analysis_progress(state['task_id'], state['fence'], 'knowledge', 'running', detail='正在核对知识库授权并检索项目相关资料')
+        result = prepare_blueprint_knowledge(state["task_id"], state["fence"])
+        used = isinstance(result, dict) and result.get('ragflow_used') is True
+        source_count = result.get('source_count', 0) if isinstance(result, dict) else 0
+        _analysis_progress(state['task_id'], state['fence'], 'knowledge', 'completed' if used else 'skipped',
+                           source_count=source_count,
+                           detail=f'授权知识库检索完成，获得 {source_count} 项来源' if used else '资料直生成预览：未执行知识库检索，仅使用项目上传资料')
+        if used and source_count == 0:
+            from .product_service import ProductError
+
+            _analysis_progress(state['task_id'], state['fence'], 'web_search', 'blocked',
+                               detail='知识库未命中；联网搜索服务尚未接入，已暂停生成。请补充知识库资料后重新检索。')
+            raise ProductError('web_search_unconfigured', '知识库未命中且联网搜索服务尚未接入，请补充知识库资料后重新检索。', 409)
+        _analysis_progress(state['task_id'], state['fence'], 'web_search', 'skipped',
+                           detail='本次知识库已有检索来源，未触发联网搜索' if used else '资料直生成预览：未执行联网搜索')
         return {"node": "knowledge"}
 
     def blueprint(state: ProductWorkflowState):

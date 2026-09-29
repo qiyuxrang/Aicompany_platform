@@ -1,0 +1,22 @@
+.hr-card.hr-jd-dialog {
+  width: min(880px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 28px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  color: var(--ink, #18375b);
+  border: 1px solid var(--line, #dfe7f3);
+  box-shadow: 0 24px 80px #10223a33;
+}
+.hr-jd-dialog::backdrop { background: #10223a70; }
+.hr-jd-dialog .hr-card-head { flex-wrap: wrap; gap: 12px; }
+.hr-jd-dialog .hr-card-head p { margin: 8px 0; }
+.hr-jd-answer { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line, #dfe7f3); }
+.hr-jd-dialog textarea { line-height: 1.7; }
+.hr-jd-dialog button { min-height: 40px; }
+@media (max-width: 600px) {
+  .hr-card.hr-jd-dialog { padding: 18px; max-height: calc(100dvh - 24px); }
+  .hr-jd-dialog .hr-actions button { flex: 1 1 140px; }
+}

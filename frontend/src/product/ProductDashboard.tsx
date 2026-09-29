@@ -1,36 +1,85 @@
 import { CenterLink } from "../centers/shared";
-import { CompanyMark, DocumentSymbol, EmptyState, formatDate, LoadState, outputNames, ProductIcon, projectUrl, stageNames, StatusBadge, useProductOverview, type ProductIconName } from "./workbench-shared";
+import { DocumentSymbol, EmptyState, formatDate, LoadState, outputNames, ProductIcon, projectUrl, stageNames, useProductOverview } from "./workbench-shared";
+import type { TaskSummary } from "./product-api";
+import "./product-home.css";
 
-const steps: { title: string; detail: string; icon: ProductIconName }[] = [
-  { title: "上传资料", detail: "整理项目依据", icon: "upload" }, { title: "事实与蓝图", detail: "厘清目标与边界", icon: "file" },
-  { title: "人工确认", detail: "核对具体版本", icon: "shield" }, { title: "技术方案", detail: "编制实施方案", icon: "settings" },
-  { title: "可研报告", detail: "论证可行性", icon: "file" }, { title: "汇报 PPT", detail: "从当前报告派生", icon: "layers" }, { title: "下载归档", detail: "保留来源与版本", icon: "folder" },
-];
+const pendingActionNames: Record<string, string> = {
+  retrieve: "查看资料检索进度",
+  knowledge: "查看知识检索进度",
+  blueprint: "查看蓝图生成进度",
+  write: "查看正文编制进度",
+  render: "查看文档生成进度",
+  candidate: "查看候选成果生成进度",
+  three_drafts: "查看成果生成进度",
+  generate_outputs: "查看成果生成进度",
+  presentation: "查看汇报 PPT 生成进度",
+};
+
+function nextAction(task: TaskSummary) {
+  if (task.state === "FAILED") return "查看失败原因";
+  if (task.state === "CANCELLED") return "查看项目记录";
+  if (task.state === "COMPLETED") return "查看项目成果";
+  if (["DRAFT", "WAITING_INPUT"].includes(task.state)) return "补充项目资料";
+  if (["QUEUED", "RUNNING"].includes(task.state) && task.pending_action && pendingActionNames[task.pending_action]) return pendingActionNames[task.pending_action];
+  return "继续项目";
+}
+
+function ProjectStatus({ state }: Pick<TaskSummary, "state">) {
+  if (state === "COMPLETED") return <span className="pd-badge good">已完成</span>;
+  if (state === "CANCELLED") return <span className="pd-badge neutral">已取消</span>;
+  return <span className="pd-badge info">进行中</span>;
+}
+
 export default function ProductDashboard({ preview = false }: { preview?: boolean }) {
   const { data, error, reload } = useProductOverview("", !preview);
-  const tiles: { key: "active" | "review" | "generation" | "completed_month"; title: string; icon: ProductIconName; tone: string; filter: string; hint: string }[] = [
-    { key: "active", title: "进行中项目", icon: "folder", tone: "blue", filter: "active", hint: "未完成、未取消的项目" },
-    { key: "review", title: "待确认项目", icon: "clock", tone: "orange", filter: "review", hint: "等待蓝图确认或历史成果核对" },
-    { key: "generation", title: "编制中项目", icon: "file", tone: "green", filter: "generation", hint: "正文、检查或文档生成阶段" },
-    { key: "completed_month", title: "本月完成", icon: "check", tone: "purple", filter: "completed_month", hint: "本月转为已完成的项目" },
-  ];
-  return <div className="pd-workspace">
-    <section className="pd-hero">
-      <div className="pd-hero-copy"><div className="pd-eyebrow"><span className="pd-live-dot" />项目协作 · 专业成果</div><h2>产品事业部工作台</h2><p className="pd-hero-subtitle">从项目资料，到有据可依的专业成果。</p><p>汇集项目事实与专业知识，协同完成技术方案、可研报告和汇报材料。</p>
-        <div className="pd-actions"><CenterLink href="/centers/product/new" className="button primary"><ProductIcon name="plus" />新建项目</CenterLink><CenterLink href="/centers/product/sources" className="button secondary"><ProductIcon name="upload" />管理资料</CenterLink>{data?.recent_projects[0] && <CenterLink href={projectUrl(data.recent_projects[0].id)} className="pd-quiet-link"><ProductIcon name="clock" />继续最近项目</CenterLink>}</div>
-      </div>
-      <div className="pd-hero-art" aria-hidden="true"><div className="pd-orbit"/><div className="pd-paper paper-back"><span/><span/><span/></div><div className="pd-paper paper-front"><span className="pd-paper-label">PROJECT</span><b/><span/><span/><div className="pd-mini-chart"><i/><i/><i/><i/></div></div><span className="pd-art-chip"><ProductIcon name="shield"/>来源可追溯</span><span className="pd-art-mark"><CompanyMark/></span></div>
-    </section>
-    <div className="pd-stat-grid">{tiles.map(tile => <CenterLink key={tile.key} href={`/centers/product/projects?filter=${tile.filter}`} className="pd-stat" ><span className={`pd-stat-icon ${tile.tone}`}><ProductIcon name={tile.icon}/></span><div><span>{tile.title}</span><strong aria-label={`${tile.title}数量`}>{data ? data.metrics[tile.key] : "—"}<small>{data ? "个" : ""}</small></strong><small className="pd-stat-hint">{tile.hint}</small></div><span className="pd-chevron">›</span></CenterLink>)}</div>
-    <section className="pd-panel pd-flow"><div className="pd-panel-heading"><h3>核心工作流程</h3><CenterLink href="/centers/product/templates">查看编制说明 <span aria-hidden="true">›</span></CenterLink></div><ol>{steps.map((step, index) => <li key={step.title}><span className={`pd-step-icon step-${index}`}><ProductIcon name={step.icon}/></span><strong>{step.title}</strong><small>{step.detail}</small>{index !== steps.length - 1 && <span className="pd-step-arrow" aria-hidden="true">→</span>}</li>)}</ol></section>
-    {preview ? <div className="pd-feedback" role="note">管理预览不读取项目资料或业务指标。请使用已授权产品账号进入工作台。</div> : !data ? <LoadState error={error} reload={reload}/> : <>
-      <div className="pd-dashboard-grid">
-        <section className="pd-panel"><div className="pd-panel-heading"><h3>最近项目</h3><CenterLink href="/centers/product/projects">查看全部 ›</CenterLink></div>{data.recent_projects.length ? <div className="pd-recent-list">{data.recent_projects.map(task => <CenterLink href={projectUrl(task.id)} className="pd-recent-project" key={task.id}><span className="pd-project-icon"><ProductIcon name="folder"/></span><div><strong>{task.title}</strong><small>{formatDate(task.updated_at)} · {stageNames[task.stage] || "阶段待确认"}</small></div><StatusBadge task={task}/></CenterLink>)}</div> : <EmptyState title="从第一个项目开始" detail="创建项目，上传资料，逐步形成蓝图与成果。" create/>}</section>
-        <section className="pd-panel"><div className="pd-panel-heading"><h3>待处理事项</h3><CenterLink href="/centers/product/projects?filter=review">查看待确认 ›</CenterLink></div>{data.todos.length ? <div className="pd-recent-list">{data.todos.map(task => <CenterLink href={projectUrl(task.id)} className="pd-todo" key={task.id}><span className={`pd-todo-dot ${task.state === "WAITING_REVIEW" ? "orange" : "red"}`}/><div><strong>{task.title}</strong><small>{task.state === "WAITING_REVIEW" ? `${stageNames[task.stage] || "项目"}待确认` : task.state === "FAILED" ? "执行未完成，请查看原因并重试" : "需要补充资料、授权或修改依据"}</small></div><span aria-hidden="true">›</span></CenterLink>)}</div> : <EmptyState title="暂无待处理事项" detail="需要补充或审核的项目会显示在这里。"/>}</section>
-        <section className="pd-panel"><div className="pd-panel-heading"><h3>最近成果</h3><CenterLink href="/centers/product/outputs">查看成果 ›</CenterLink></div>{data.recent_outputs.length ? <div className="pd-recent-list">{data.recent_outputs.map(output => <CenterLink key={output.id} href={projectUrl(output.task_id, "outputs")} className="pd-recent-output"><DocumentSymbol family={output.family}/><div><strong>{output.title}</strong><small>{outputNames[output.family]} · v{output.version}</small></div><span className={`pd-badge ${output.review_status === "approved" ? "good" : "neutral"}`}>{output.review_status === "approved" ? "已批准" : output.current ? "已生成草稿" : "历史版本"}</span></CenterLink>)}</div> : <EmptyState title="尚无成果文件" detail="生成的文档将按项目保存，草稿与正式成果分开标记。"/>}</section>
-      </div>
-      <div className="pd-dashboard-foot"><span>仅统计当前账号获授权的项目 · 更新于 {formatDate(data.as_of)}</span><button className="text-button" onClick={reload}>刷新工作台</button></div>
-      {!data.capabilities.model_generation && <p className="pd-service-note"><ProductIcon name="shield"/>项目创建、资料整理和人工蓝图可用；AI 生成尚需模型调用与资料外发授权。</p>}
+  const recent = data?.recent_projects[0];
+  const counts = data ? [
+    { label: "全部项目", value: data.metrics.all ?? data.pagination.total, filter: "all" },
+    { label: "进行中", value: data.metrics.active, filter: "active" },
+    { label: "已完成", value: data.metrics.completed ?? "—", filter: "completed" },
+    { label: "本月完成", value: data.metrics.completed_month, filter: "completed_month" },
+  ] : [];
+
+  return <div className="pd-workspace ph-workspace">
+    <header className="ph-header">
+      <h1>产品事业部工作台</h1>
+      <div className="pd-actions"><CenterLink href="/centers/product/new" className="button primary"><ProductIcon name="upload"/>上传资料生成成果</CenterLink><CenterLink href="/centers/product/outputs" className="button secondary"><ProductIcon name="folder"/>查看历史成果</CenterLink></div>
+    </header>
+
+    {preview ? <div className="pd-feedback" role="note">请使用已授权产品账号查看项目。</div> : !data ? <LoadState error={error} reload={reload}/> : <>
+      {recent ? <section className="ph-resume" aria-labelledby="resume-project-title">
+        <div className="ph-resume-main">
+          <div className="ph-section-label"><ProductIcon name="clock"/>最近更新</div>
+          <div className="ph-resume-title"><div><h2 id="resume-project-title">{recent.title}</h2><p>{stageNames[recent.stage] || "阶段未记录"} · 更新于 {formatDate(recent.updated_at)}</p></div><ProjectStatus state={recent.state}/></div>
+          <div className="ph-next-action"><span>下一步</span><strong>{nextAction(recent)}</strong></div>
+        </div>
+        <CenterLink href={projectUrl(recent.id)} className="button primary">继续处理<ProductIcon name="arrow"/></CenterLink>
+      </section> : <section className="pd-panel"><h2 className="sr-only">最近项目</h2><EmptyState title="从第一个项目开始" detail="创建项目后，下一步任务会显示在这里。" create/></section>}
+
+      <nav className="ph-counts" aria-label="项目状态筛选">
+        {counts.map(item => <CenterLink key={item.filter} href={`/centers/product/projects?filter=${item.filter}`}><span>{item.label}</span><strong aria-label={`${item.label}项目数量`}>{item.value}</strong></CenterLink>)}
+      </nav>
+
+      <section className="ph-section" aria-labelledby="recent-projects-title">
+        <div className="ph-section-heading"><div><span className="ph-section-label">项目</span><h2 id="recent-projects-title">最近项目</h2></div><CenterLink href="/centers/product/projects">查看历史项目</CenterLink></div>
+        {data.recent_projects.length ? <div className="ph-project-list">{data.recent_projects.map(task => <CenterLink href={projectUrl(task.id)} className="ph-project-row" key={task.id}>
+          <span className="ph-project-mark"><ProductIcon name="folder"/></span>
+          <span className="ph-project-copy"><strong>{task.title}</strong><small>{formatDate(task.updated_at)} · {stageNames[task.stage] || "阶段未记录"}</small></span>
+          <span className="ph-project-state"><ProjectStatus state={task.state}/></span>
+          <span className="ph-project-next"><small>下一步</small><strong>{nextAction(task)}</strong></span>
+          <ProductIcon name="arrow"/>
+        </CenterLink>)}</div> : <EmptyState title="暂无最近项目" detail="上传项目资料后，可从这里继续处理。" create/>}
+      </section>
+
+      <section className="ph-section" aria-labelledby="recent-outputs-title">
+        <div className="ph-section-heading"><div><span className="ph-section-label">成果</span><h2 id="recent-outputs-title">最近生成成果</h2></div><CenterLink href="/centers/product/outputs">查看历史成果</CenterLink></div>
+        {data.recent_outputs.length ? <div className="ph-output-list">{data.recent_outputs.map(output => <CenterLink key={output.id} href={`/centers/product/outputs?q=${encodeURIComponent(output.title)}`}>
+          <DocumentSymbol family={output.family}/><span><strong>{output.title}</strong><small>{outputNames[output.family]} · v{output.version} · {formatDate(output.created_at)}</small></span><span className={`pd-badge ${output.review_status === "approved" ? "good" : "neutral"}`}>{output.review_status === "approved" ? "已批准" : output.current ? "当前草稿" : "历史版本"}</span><ProductIcon name="arrow"/>
+        </CenterLink>)}</div> : <div className="ph-inline-empty"><ProductIcon name="file"/><div><strong>尚无成果文件</strong><p>生成后的技术方案、可研报告和汇报材料会显示在这里。</p></div></div>}
+      </section>
+
+      <footer className="ph-footer"><span>仅显示当前账号获授权的项目 · 更新于 {formatDate(data.as_of)}</span><button className="text-button" onClick={reload}>刷新工作台</button></footer>
+      {!data.capabilities.model_generation && <p className="pd-service-note"><ProductIcon name="shield"/>项目创建、资料整理和人工蓝图可用；AI 生成需要模型调用与资料外发授权。</p>}
     </>}
   </div>;
 }

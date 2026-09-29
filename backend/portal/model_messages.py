@@ -4,6 +4,7 @@ import binascii
 import json
 
 VISION_REQUEST_LIMIT = 6 * 1024 * 1024
+TEXT_REQUEST_LIMIT = 4 * 1024 * 1024
 MAX_IMAGE_BYTES = 1024 * 1024
 
 
@@ -17,7 +18,7 @@ def validate_messages(messages, *, vision=False):
             raise ValueError('invalid message')
         content = message['content']
         if isinstance(content, str):
-            if not content.strip() or len(content) > 16000:
+            if not content.strip():
                 raise ValueError('invalid text')
             continue
         if not vision or message['role'] != 'user' or not isinstance(content, list) or not 1 <= len(content) <= 8:
@@ -26,7 +27,7 @@ def validate_messages(messages, *, vision=False):
             if not isinstance(block, dict):
                 raise ValueError('invalid block')
             if set(block) == {'type', 'text'} and block['type'] == 'text':
-                if not isinstance(block['text'], str) or not block['text'].strip() or len(block['text']) > 16000:
+                if not isinstance(block['text'], str) or not block['text'].strip():
                     raise ValueError('invalid text block')
             elif set(block) == {'type', 'image_url'} and block['type'] == 'image_url':
                 validate_image(block['image_url'])
@@ -35,7 +36,7 @@ def validate_messages(messages, *, vision=False):
                     raise ValueError('too many images')
             else:
                 raise ValueError('invalid block')
-    limit = VISION_REQUEST_LIMIT if vision else 60000
+    limit = VISION_REQUEST_LIMIT if vision else TEXT_REQUEST_LIMIT
     if len(json.dumps(messages, ensure_ascii=False).encode()) > limit:
         raise ValueError('message size limit')
     return images

@@ -38,6 +38,38 @@ def body(request, keys):
     return request.data
 
 
+def browse_query(request, default_page_size, include_query=False):
+    allowed = {"page", "page_size"} | ({"q"} if include_query else set())
+    if set(request.query_params) - allowed or any(
+            len(request.query_params.getlist(key)) != 1 for key in request.query_params):
+        raise ProductError("invalid_request", "查询参数无效。", 400)
+    values = []
+    for key, default, maximum in (("page", 1, 10000), ("page_size", default_page_size, 50)):
+        raw = request.query_params.get(key, str(default))
+        if not raw.isascii() or not raw.isdigit() or not 1 <= int(raw) <= maximum:
+            raise ProductError("invalid_request", "分页参数无效。", 400)
+        values.append(int(raw))
+    query = request.query_params.get("q", "").strip() if include_query else ""
+    if (len(query) > 200
+            or any((ord(char) < 32 and char not in "\r\n\t") or 0xD800 <= ord(char) <= 0xDFFF
+                   for char in query)):
+        raise ProductError("invalid_request", "搜索关键词无效。", 400)
+    return values[0], values[1], query
+
+
+def browsing_scope(request, dataset_id, document_id=None):
+    documents = request.knowledge_scope["datasets"].get(dataset_id)
+    if documents is None or (document_id is not None and document_id not in documents):
+        raise ProductError("not_found", "对象不存在。", 404)
+    return documents
+
+
+def browsing_recheck(request, config):
+    if service.configuration() != config:
+        service.fail("unconfigured")
+    service.recheck(request.user, request.knowledge_scope)
+
+
 def visible(request, conversation):
     service.recheck(request.user, request.knowledge_scope)
     if conversation.scope != request.knowledge_scope:
@@ -142,6 +174,28 @@ def datasets(request):
     return Response({"datasets": items})
 
 
+@api_view(["GET"])
+@endpoint
+def documents(request, dataset_id):
+    allowed = browsing_scope(request, dataset_id)
+    page, page_size, query = browse_query(request, 20, include_query=True)
+    config = service.configuration()
+    result = service.list_documents(dataset_id, allowed, page, page_size, query, config)
+    browsing_recheck(request, config)
+    return Response(result)
+
+
+@api_view(["GET"])
+@endpoint
+def chunks(request, dataset_id, document_id):
+    browsing_scope(request, dataset_id, document_id)
+    page, page_size, _ = browse_query(request, 10)
+    config = service.configuration()
+    result = service.list_chunks(dataset_id, document_id, page, page_size, config)
+    browsing_recheck(request, config)
+    return Response(result)
+
+
 @api_view(["GET", "POST"])
 @endpoint
 def conversations(request):
@@ -239,5 +293,7 @@ def conversation(request, conversation_id):
 
 
 urlpatterns = [path("knowledge/status/", status), path("knowledge/datasets/", datasets),
+               path("knowledge/datasets/<str:dataset_id>/documents/", documents),
+               path("knowledge/datasets/<str:dataset_id>/documents/<str:document_id>/chunks/", chunks),
                path("knowledge/conversations/", conversations),
                path("knowledge/conversations/<uuid:conversation_id>/", conversation)]

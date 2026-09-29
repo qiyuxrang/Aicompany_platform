@@ -1,4 +1,15 @@
 .pd-workflow-monitor { margin: 0 0 20px; border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: linear-gradient(135deg,#f7faff,#fff 62%); }
+.pd-live-progress, .pd-upload-progress { display: flex; align-items: flex-start; gap: 12px; margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); }
+.pd-live-progress p, .pd-upload-progress p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.pd-upload-progress progress { width: 100%; margin-top: 10px; accent-color: var(--accent); }
+.pd-upload-progress > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pd-optional-project-fields { margin-bottom: 20px; }
+.pd-optional-project-fields summary, .pd-activity-log summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+.pd-activity-log { margin-bottom: 20px; }
+.pd-activity-log ol { list-style: none; padding: 0; max-height: 320px; overflow-y: auto; }
+.pd-activity-log li { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pd-activity-log time { color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .pd-live-progress .pd-spinner, .pd-upload-progress .pd-spinner { animation: none; } }
 .pd-workflow-monitor .pd-panel-heading { margin-bottom: 14px; }
 .pd-workflow-monitor .pd-panel-heading h3 { margin: 0 0 4px; }
 .pd-analysis-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
@@ -17,7 +28,58 @@
 .pd-analysis-progress li[data-status=failed],.pd-analysis-progress li[data-status=blocked] { border-color: #e3a29e; background: #fff6f5; }
 .pd-analysis-progress li[data-status=failed] .pd-phase-index,.pd-analysis-progress li[data-status=blocked] .pd-phase-index { background: #ae3e36; color: #fff; }
 .pd-knowledge-preview { border-color: #e5c36d!important; background: #fffaf0!important; }
+.pd-feedback.success { border-color: #a9d9c1; background: #f2fbf6; }
 .pd-review-round { display:flex; justify-content:space-between; gap:16px; margin:14px 0; border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff; }
 .pd-review-round span { color:var(--muted); font-size:13px; }
 @media(max-width: 900px) { .pd-analysis-progress { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media(max-width: 640px) { .pd-analysis-progress { grid-template-columns: 1fr; gap: 6px; }.pd-analysis-progress li { min-height: 0; padding: 12px; }.pd-review-round{flex-direction:column;gap:4px} }
+.pd-compact-progress { margin: 20px 0; padding: 20px 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel, var(--soft)); }
+.pd-compact-progress-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pd-compact-progress-heading span { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.pd-compact-progress progress { display: block; width: 100%; height: 6px; margin: 16px 0; border: 0; border-radius: 99px; overflow: hidden; background: var(--line); accent-color: var(--accent); }
+.pd-compact-progress progress::-webkit-progress-bar { background: var(--line); border-radius: 99px; }
+.pd-compact-progress progress::-webkit-progress-value { background: var(--accent); border-radius: 99px; }
+.pd-compact-progress progress::-moz-progress-bar { background: var(--accent); border-radius: 99px; }
+.pd-compact-progress p { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--muted); }
+.pd-compact-progress .pd-spinner { width: 14px; height: 14px; flex: 0 0 14px; }
+@media (max-width: 640px) { .pd-compact-progress { padding: 16px; } }
+@media (prefers-reduced-motion: reduce) { .pd-compact-progress .pd-spinner { animation: none; } }
+.pd-progress-milestones { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; padding: 8px 0 20px; margin: 0; list-style: none; }
+.pd-progress-milestones li { display: grid; grid-template-columns: 30px minmax(0,1fr); grid-template-rows: auto auto; column-gap: 9px; align-items: center; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--soft); }
+.pd-milestone-dot { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--soft); font-size: 12px; }
+.pd-milestone-dot svg { width: 17px; height: 17px; }
+.pd-progress-milestones strong { align-self: end; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.pd-progress-milestones small { grid-column: 2; align-self: start; font-size: 12px; color: var(--muted); }
+.pd-progress-milestones li[data-status=completed] .pd-milestone-dot { background: #18875d; border-color: #18875d; color: white; }
+.pd-progress-milestones li[data-status=running] .pd-milestone-dot { border-color: var(--accent); color: var(--accent); }
+.pd-compact-progress[data-running=true] li[data-status=running] .pd-milestone-dot { animation: pd-node-pulse 1.8s ease-in-out infinite; }
+.pd-progress-milestones li[data-status=waiting] .pd-milestone-dot { border-color: #a26b00; color: #a26b00; }
+.pd-progress-milestones li[data-status=skipped] .pd-milestone-dot { border-style: dashed; color: var(--muted); }
+.pd-progress-milestones li[data-status=failed] .pd-milestone-dot,.pd-progress-milestones li[data-status=blocked] .pd-milestone-dot { border-color: #ae3e36; color: #ae3e36; }
+.pd-runtime-details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.pd-runtime-details summary,.pd-construction-details summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.pd-runtime-details ol { list-style: none; margin: 12px 0 0; padding: 0; max-height: 280px; overflow: auto; }
+.pd-runtime-details li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pd-runtime-details li > span { margin-left: 12px; color: var(--muted); }
+.pd-runtime-details li p { margin-top: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.pd-construction-details summary { padding: 12px 0; }
+.pd-construction-details summary span { margin-left: 12px; font-weight: 400; font-size: 12px; color: var(--muted); }
+.pd-construction-details summary:focus-visible,.pd-runtime-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.pd-review-actions { justify-content: flex-end; }
+.pd-blueprint-entry { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+.pd-blueprint-entry p { margin:5px 0; color:var(--muted); }
+.pd-blueprint-entry small { color:var(--muted); }
+.pd-blueprint-inline { min-width:0; display:grid; gap:18px; }
+.pd-chapter-plan ol { list-style:none; margin:0; padding:0; display:grid; gap:12px; }
+.pd-chapter-plan li { padding:16px 18px; border:1px solid var(--line); border-radius:10px; overflow-wrap:anywhere; }
+.pd-chapter-plan li header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; }
+.pd-chapter-plan li h4 { margin:0; font-size:16px; }
+.pd-chapter-budgets { display:flex; flex-wrap:wrap; gap:8px; font-size:13px; color:var(--muted); }
+.pd-chapter-budgets span { background:var(--soft); border-radius:5px; padding:4px 8px; }
+.pd-chapter-scope { white-space:pre-wrap; line-height:1.75; margin:12px 0 8px; }
+.pd-chapter-scope strong { display:block; font-size:13px; color:var(--muted); }
+.pd-blueprint-readonly { margin:0; padding:14px 16px; border:1px solid var(--line); border-radius:10px; background:var(--soft); color:var(--muted); }
+@keyframes pd-node-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 12%, transparent); } }
+@media (max-width: 900px) { .pd-progress-milestones { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 640px) { .pd-progress-milestones { grid-template-columns: 1fr; gap: 6px; }.pd-progress-milestones strong { font-size: 12px; }.pd-progress-milestones small { font-size: 11px; }.pd-blueprint-entry{align-items:stretch;flex-direction:column}.pd-chapter-plan li{padding:14px} }
+@media (prefers-reduced-motion: reduce) { .pd-compact-progress[data-running=true] li[data-status=running] .pd-milestone-dot { animation: none; } }

@@ -7,12 +7,42 @@ from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, override_settings
 
 from portal import model_gateway
+from portal.model_messages import TEXT_REQUEST_LIMIT, validate_messages
 from portal.models import AuditEvent, GatewayModel, ModelCallLog, ModelRoute, Module, Provider, Role
 
 from .base import PortalTestCase
 
 
 LOCAL_PROVIDER_URL = "http://127.0.0.1:19880/api/v1/openai/0123456789abcdef0123456789abcdef"
+
+
+class MessageSizeTests(SimpleTestCase):
+    def test_full_document_text_is_preserved(self):
+        messages = [{"role": "user", "content": "完整设备清册与技术论证。" * 16000}]
+        self.assertIs(model_gateway._messages(messages), messages)
+        self.assertEqual(validate_messages(messages), 0)
+
+    def test_long_vision_text_block_is_preserved(self):
+        messages = [{"role": "user", "content": [{"type": "text", "text": "完整项目背景" * 16000}]}]
+        self.assertIs(model_gateway._messages(messages, supports_vision=True), messages)
+        self.assertEqual(validate_messages(messages, vision=True), 0)
+
+    def test_text_resource_limit_counts_utf8_bytes(self):
+        messages = [{"role": "user", "content": "设备" * (TEXT_REQUEST_LIMIT // 6)}]
+        self.assertLess(len(messages[0]["content"]), TEXT_REQUEST_LIMIT)
+        with self.assertRaises(model_gateway.GatewayError) as caught:
+            model_gateway._messages(messages)
+        self.assertEqual(caught.exception.code, "request_too_large")
+        with self.assertRaises(ValueError):
+            validate_messages(messages)
+
+    def test_empty_and_nontext_messages_remain_invalid(self):
+        for content in ("", None, 12, {"text": "not a string"}):
+            with self.subTest(content=content):
+                with self.assertRaises(model_gateway.GatewayError):
+                    model_gateway._messages([{"role": "user", "content": content}])
+                with self.assertRaises(ValueError):
+                    validate_messages([{"role": "user", "content": content}])
 
 
 class ProviderUrlValidationTests(SimpleTestCase):

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from backend.portal.model_messages import TEXT_REQUEST_LIMIT
 from model_gateway import transport
 from model_gateway.app import GenerateRequest, app, generate_stream, slots
 from model_gateway.errors import GatewayError
@@ -133,7 +134,7 @@ class StreamTests(unittest.TestCase):
         headers = {"Authorization": "Bearer " + os.environ["MODEL_GATEWAY_SERVICE_TOKEN"]}
         with TestClient(app) as client, patch("model_gateway.app.stream_completion") as outbound:
             self.assertEqual(client.post("/v1/generate-stream", json=payload).status_code, 401)
-            self.assertEqual(client.post("/v1/generate-stream", content=b"x" * 65537, headers=headers).status_code, 413)
+            self.assertEqual(client.post("/v1/generate-stream", content=b"x" * (TEXT_REQUEST_LIMIT + 65537), headers=headers).status_code, 413)
             slots.acquire()
             slots.acquire()
             try:

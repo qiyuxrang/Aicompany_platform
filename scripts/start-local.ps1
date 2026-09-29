@@ -142,10 +142,11 @@ try {
         Write-Host '公开商机后台更新已启动，运行状态可在全国商机看板查看。'
     }
 
-    Write-Host "本地服务监听 http://127.0.0.1:8100；按 Ctrl+C 正常停止。"
+    $httpListen = if ($values.PORTAL_HTTP_LISTEN) { $values.PORTAL_HTTP_LISTEN.Trim('"') } else { '127.0.0.1:8100' }
+    Write-Host "本地服务监听 $httpListen；按 Ctrl+C 正常停止。"
     Push-Location (Join-Path $root "backend")
     try {
-        & $python -m waitress --listen=127.0.0.1:8100 --threads=4 config.wsgi:application
+        & $python -m waitress "--listen=$httpListen" --threads=4 config.wsgi:application
         if ($LASTEXITCODE -ne 0) { throw '本地 Web 服务异常退出。' }
     } finally {
         Pop-Location

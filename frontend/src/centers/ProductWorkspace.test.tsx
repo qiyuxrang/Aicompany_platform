@@ -13,11 +13,11 @@ describe("ProductWorkspace", () => {
     expect(screen.queryByRole("link", { name: /可行性研究报告|演示文稿/ })).toBeNull();
   });
 
-  it("管理预览的商机页不读取业务接口", () => {
-    window.history.replaceState({}, "", "/preview/product/opportunities");
+  it.each(["opportunities", "sources", "documents"])("管理预览的 %s 页不读取业务接口", section => {
+    window.history.replaceState({}, "", `/preview/product/${section}`);
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);
-    render(<ProductWorkspace section="opportunities" />);
+    render(<ProductWorkspace section={section} />);
     expect(screen.getByRole("heading", { name: "产品事业部页面预览" })).toBeTruthy();
     expect(fetcher).not.toHaveBeenCalled();
     vi.unstubAllGlobals();

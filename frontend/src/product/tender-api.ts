@@ -11,7 +11,7 @@ export interface TenderSource {
   last_success_at: string | null;
   last_failure_at?: string | null;
   consecutive_failures?: number;
-  latest_run?: { state: string; statistics?: Record<string, number>; error_code?: string; detail?: string; error_detail?: string; started_at?: string | null; finished_at?: string | null } | null;
+  latest_run?: { state: string; stats?: Record<string, number | boolean>; error_code?: string; detail?: string; error_detail?: string; started_at?: string | null; finished_at?: string | null } | null;
 }
 
 export interface OpportunityBudget {

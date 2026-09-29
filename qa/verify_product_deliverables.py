@@ -17,6 +17,7 @@ from zipfile import BadZipFile, ZipFile
 
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+CHARACTER_COUNT_SCOPE = "chapter_body_non_whitespace_only_excludes_titles_diagrams_tables_appendices"
 MERMAID_SOURCE = re.compile(rb"(?:flowchart|graph)\s+(?:TB|TD|BT|RL|LR)", re.I)
 PROHIBITED_OUTPUT_COPY = (
     "待核草稿：未经正式内容、格式及产品负责人批准，不得作为正式方案使用。",
@@ -35,6 +36,61 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def chapter_body_characters(root, styles=None) -> int:
+    body = root.find(W + "body")
+    if body is None:
+        return 0
+    style_map = {} if styles is None else {
+        style.get(W + "styleId"): style for style in styles.findall(W + "style")
+    }
+    started = False
+    appendix = False
+    count = 0
+    for paragraph in body:
+        if paragraph.tag != W + "p":
+            continue
+        text = "".join(node.text or "" for node in paragraph.findall(f"{W}r/{W}t"))
+        level = paragraph.find(f"{W}pPr/{W}outlineLvl")
+        style = paragraph.find(f"{W}pPr/{W}pStyle")
+        style_id = style.get(W + "val", "") if style is not None else ""
+        style_names = [style_id]
+        visited = set()
+        while style_id in style_map and style_id not in visited:
+            visited.add(style_id)
+            definition = style_map[style_id]
+            name = definition.find(W + "name")
+            style_names.append(name.get(W + "val", "") if name is not None else "")
+            if level is None:
+                level = definition.find(f"{W}pPr/{W}outlineLvl")
+            parent = definition.find(W + "basedOn")
+            style_id = parent.get(W + "val", "") if parent is not None else ""
+        names = " ".join(style_names).lower()
+        if re.search(r"toc|目录", names):
+            continue
+        heading = level is not None and level.get(W + "val") != "9"
+        heading = heading or bool(re.search(r"heading|标题", names))
+        if heading:
+            started = True
+            if re.search(r"(?:^|\s)(?:附录|附表|附件|appendix|appendices|annex)", text, re.I):
+                appendix = True
+            continue
+        if not started or appendix:
+            continue
+        if re.search(r"caption|题注|图注|表注", names) or re.match(
+            r"\s*(?:图\s*\d|表\s*\d|图说明|图示说明|图注|表注|附表|来源[：:]|注[：:]|figure\b|table\b)", text, re.I
+        ):
+            continue
+        if any(paragraph.find(f".//{W}{tag}") is not None for tag in (
+            "drawing", "pict", "object", "fldChar", "instrText", "txbxContent",
+        )):
+            continue
+        for run in paragraph.findall(W + "r"):
+            if any(run.find(f"{W}rPr/{W}{tag}") is not None for tag in ("vanish", "webHidden")):
+                continue
+            count += len(re.sub(r"\s+", "", "".join(node.text or "" for node in run.findall(W + "t"))))
+    return count
 
 
 def inspect_docx(
@@ -60,7 +116,8 @@ def inspect_docx(
 
     root = ET.fromstring(document_bytes)
     text = "".join(node.text or "" for node in root.iter(W + "t"))
-    characters = len(re.sub(r"\s+", "", text))
+    styles = ET.fromstring(xml_parts["word/styles.xml"]) if "word/styles.xml" in xml_parts else None
+    characters = chapter_body_characters(root, styles)
     non_black_text_runs = []
     for name, payload in xml_parts.items():
         if not (name == "word/document.xml" or name.startswith("word/header")
@@ -112,6 +169,7 @@ def inspect_docx(
         issues.append(f"characters_below_target:{characters}<{minimum_characters}")
     if maximum_characters is not None and characters > maximum_characters:
         issues.append(f"characters_above_target:{characters}>{maximum_characters}")
+    length_issues = list(issues)
     if outline[0] < 1 or outline[1] < 1:
         issues.append(f"heading_depth_missing:h1={outline[0]},h2={outline[1]}")
     if not toc_depth_two:
@@ -150,6 +208,10 @@ def inspect_docx(
     return {
         "path": str(path), "sha256": sha256(path), "bytes": path.stat().st_size,
         "characters_non_whitespace": characters, "heading1_count": outline[0],
+        "character_count_scope": CHARACTER_COUNT_SCOPE,
+        "minimum_characters": minimum_characters,
+        "length_passed": not length_issues,
+        "structural_passed": not issues[len(length_issues):],
         "heading2_count": outline[1], "toc_depth_two": toc_depth_two,
         "heading1_page_breaks": h1_page_breaks, "section_count": len(sections),
         "all_visible_word_text_black": not non_black_text_runs,
@@ -235,11 +297,13 @@ def main() -> int:
     args = parser.parse_args()
     result = {
         "schema": "PRODUCT_DELIVERABLE_QUALITY_V1",
+        "acceptance_scope": "actual_formal_output_length_and_structure",
+        "business_content_and_visual_review": "not_evaluated",
         "technical_solution": inspect_docx(
-            args.technical, minimum_characters=2700, maximum_characters=4000,
+            args.technical, minimum_characters=50000,
             minimum_figures=15, expected_header="技术方案"),
         "feasibility": inspect_docx(
-            args.feasibility, minimum_characters=4500, maximum_characters=6000,
+            args.feasibility, minimum_characters=70000,
             minimum_figures=20, expected_header="可行性研究报告"),
         "presentation": inspect_pptx(args.presentation),
     }

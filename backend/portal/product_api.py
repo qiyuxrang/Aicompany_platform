@@ -338,11 +338,13 @@ def _task_detail(task, user):
             "revisions_remaining": max(0, revision_limit - revision_count),
         },
         "blueprint_knowledge": knowledge,
+        "output_profile": settings.PRODUCT_OUTPUT_PROFILE,
         "output_targets": {
-            "technical-solution": int(getattr(settings, "PRODUCT_TECHNICAL_TARGET_CHARACTERS", 3000)),
-            "feasibility": int(getattr(settings, "PRODUCT_FEASIBILITY_TARGET_CHARACTERS", 5000)),
+            "technical-solution": int(getattr(settings, "PRODUCT_TECHNICAL_TARGET_CHARACTERS", 50000)),
+            "feasibility": int(getattr(settings, "PRODUCT_FEASIBILITY_TARGET_CHARACTERS", 70000)),
         },
         "output_generation": task.checkpoint.get("output_generation", {}),
+        "activity": task.checkpoint.get('analysis_events', []),
         "orchestration": {
             "engine": "langgraph",
             "node": task.checkpoint.get("workflow_graph", {}).get("node", ""),
@@ -720,6 +722,9 @@ def blueprint(request, task_id):
 def _queue(task, action):
     if not isinstance(action, str):
         raise ProductError("invalid_action", "任务动作无效。")
+    start_workflow = action == "start"
+    if start_workflow:
+        action = "blueprint"
     if task.state in {DocumentTask.State.QUEUED, DocumentTask.State.RUNNING, DocumentTask.State.CANCELLED, DocumentTask.State.COMPLETED}:
         raise ProductError("invalid_state", "当前状态不能排队。", 409)
     if action in {"blueprint", "retrieve", "knowledge"}:
@@ -728,11 +733,9 @@ def _queue(task, action):
         task.stage = DocumentTask.Stage.BLUEPRINT if action == "blueprint" else DocumentTask.Stage.INTAKE
         if action == "blueprint":
             require_project_materials(task)
-            # Formal mode is fail-closed at the public boundary.  Once a
-            # separately authorized RAGFlow snapshot is attached, the graph's
-            # mandatory knowledge node revalidates it before generation.
             from .product_blueprint_knowledge import require_blueprint_knowledge
-            require_blueprint_knowledge(_input_revision(task).payload)
+            if not start_workflow:
+                require_blueprint_knowledge(_input_revision(task).payload)
             task.checkpoint = {**task.checkpoint, "analysis_progress": {}}
         elif action == "knowledge":
             require_project_materials(task)
@@ -1010,13 +1013,7 @@ def chapters(request, task_id):
     return Response({"chapter": _revision_data(revision), "task": _task_detail(task, request.user)}, status=201)
 
 
-@api_view(["GET"])
-@product_endpoint
-def download(request, artifact_id):
-    try:
-        artifact = DocumentArtifact.objects.select_related("task").get(pk=artifact_id)
-    except (DocumentArtifact.DoesNotExist, ValueError, TypeError) as error:
-        raise ProductError("not_found", "对象不存在。", 404) from error
+def _artifact_download_response(request, artifact):
     task = task_for(request.user, artifact.task_id)
     if not input_authorized(task, task.revisions.filter(kind="input", sha256=artifact.input_hash).first()):
         raise ProductError("source_permission_changed", "资料授权已变化，成果不可下载。", 404)
@@ -1049,6 +1046,16 @@ def download(request, artifact_id):
     _audit(request, "product_artifact_download", task, target=artifact.pk,
            changes=["current" if current else "history", artifact.family, artifact.sha256])
     return response
+
+
+@api_view(["GET"])
+@product_endpoint
+def download(request, artifact_id):
+    try:
+        artifact = DocumentArtifact.objects.select_related("task").get(pk=artifact_id)
+    except (DocumentArtifact.DoesNotExist, ValueError, TypeError) as error:
+        raise ProductError("not_found", "对象不存在。", 404) from error
+    return _artifact_download_response(request, artifact)
 
 
 @api_view(["GET"])

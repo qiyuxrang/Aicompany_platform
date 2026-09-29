@@ -23,7 +23,6 @@ import {
   unauthorizedEvent,
 } from "./api";
 import OpsWorkspace from "./ops/OpsWorkspace";
-import Icon from "./Icon";
 import ThemeSwitch from "./ThemeSwitch";
 import './password-dialog.css';
 import CenterWorkspace from "./centers/CenterWorkspace";
@@ -31,19 +30,92 @@ import HrHeaderTools from './hr/HrHeaderTools';
 import { centers, isCenterCode } from "./centers/config";
 import CompanyIdentity from "./CompanyIdentity";
 import "./workspace-shell.css";
+import Icon from "./Icon";
+import "./login-page.css";
 
 const statusMeta = {
-  pending: { label: "待接入", tone: "warning", detail: "入口尚在准备中，开放时间以平台通知为准。" },
-  navigation: { label: "导航接入", tone: "info", detail: "平台提供统一导航，目标系统保留原有登录。" },
-  verified: { label: "已验证集成", tone: "success", detail: "平台已完成入口验证，目标系统仍按自身认证策略运行。" },
-  disabled: { label: "已停用", tone: "muted", detail: "该入口当前不可用，请联系平台管理员。" },
+  pending: { label: "待接入", tone: "warning" },
+  navigation: { label: "导航接入", tone: "info" },
+  verified: { label: "已验证集成", tone: "success" },
+  disabled: { label: "已停用", tone: "muted" },
 } as const;
+
+const departmentHomes: Record<string, string> = {
+  product: "/centers/product",
+  hr: "/centers/hr",
+  engineering: "/centers/cost",
+  general_manager: "/centers/business",
+};
+
+const departmentChoices: Record<string, string> = {
+  ...departmentHomes,
+  cost: "/centers/cost",
+  business: "/centers/business",
+};
 
 function departmentHome(user: CurrentUser): string {
   if (user.is_platform_admin) return "/ops";
-  const homes: Record<string, string> = { product: "/centers/product", hr: "/centers/hr", engineering: "/centers/cost", general_manager: "/centers/business" };
-  const destinations = [...new Set(user.roles.map(role => homes[role.code]).filter(Boolean))];
-  return destinations.length === 1 ? destinations[0] : "/";
+  const destinations = [...new Set(user.roles.map(role => departmentHomes[role.code]).filter((home): home is string => Boolean(home)))];
+  const provided = (user as CurrentUser & { default_department?: unknown }).default_department;
+  const preferred = typeof provided === "string" ? departmentChoices[provided] : undefined;
+  return preferred && destinations.includes(preferred) ? preferred : destinations[0] || "/";
+}
+
+function internalPath(value: string | null): string | null {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  try {
+    const target = new URL(value, window.location.origin);
+    if (target.origin !== window.location.origin) return null;
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return null;
+  }
+}
+
+function withNext(path: string, returnTo: string | null): string {
+  return returnTo && returnTo !== "/" && returnTo !== "/login" && returnTo !== "/password"
+    ? `${path}?next=${encodeURIComponent(returnTo)}`
+    : path;
+}
+
+function nextPath(search: string): string | null {
+  return internalPath(new URLSearchParams(search).get("next"));
+}
+
+function authorizedReturnPath(user: CurrentUser, search: string): string | null {
+  const returnTo = nextPath(search);
+  if (!returnTo) return null;
+  const target = new URL(returnTo, window.location.origin);
+  if (user.is_platform_admin) {
+    if (target.pathname === "/workspace" || target.pathname === "/workspace/") return "/ops";
+    if (target.pathname === "/ops" || target.pathname.startsWith("/ops/")) return returnTo;
+    const preview = target.pathname.match(/^\/preview\/([a-zA-Z0-9_-]+)(?:\/|$)/);
+    return preview && isCenterCode(preview[1]) ? returnTo : null;
+  }
+
+  const center = target.pathname.match(/^\/centers\/([a-zA-Z0-9_-]+)(?:\/|$)/);
+  if (center) {
+    const role = { product: "product", cost: "engineering", hr: "hr", business: "general_manager" }[center[1]];
+    return role && user.roles.some(item => item.code === role) ? returnTo : null;
+  }
+
+  const module = target.pathname.match(/^\/modules\/([^/]+)\/?$/);
+  if (module) {
+    let code = "";
+    try {
+      code = decodeURIComponent(module[1]);
+    } catch {
+      return null;
+    }
+    const role = { product: "product", cost: "engineering", hr: "hr", business: "general_manager" }[code];
+    return role && user.roles.some(item => item.code === role) ? returnTo : null;
+  }
+  return null;
+}
+
+function loginPath(pathname: string, search: string, hash: string): string {
+  const returnTo = internalPath(`${pathname}${search}${hash}`);
+  return withNext("/login", returnTo);
 }
 
 function navigate(path: string, replace = false): void {
@@ -54,8 +126,8 @@ function navigate(path: string, replace = false): void {
 
 export const navigationGuardEvent = "portal:navigation-guard";
 
-function useLocation(): { pathname: string; search: string } {
-  const [location, setLocation] = useState(() => ({ pathname: window.location.pathname, search: window.location.search }));
+function useLocation(): { pathname: string; search: string; hash: string } {
+  const [location, setLocation] = useState(() => ({ pathname: window.location.pathname, search: window.location.search, hash: window.location.hash }));
   const accepted = useRef(`${window.location.pathname}${window.location.search}${window.location.hash}`);
   useEffect(() => {
     const update = () => {
@@ -65,7 +137,7 @@ function useLocation(): { pathname: string; search: string } {
         return;
       }
       accepted.current = next;
-      setLocation({ pathname: window.location.pathname, search: window.location.search });
+      setLocation({ pathname: window.location.pathname, search: window.location.search, hash: window.location.hash });
     };
     window.addEventListener("popstate", update);
     return () => window.removeEventListener("popstate", update);
@@ -126,6 +198,7 @@ function LoginPage({
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -147,18 +220,30 @@ function LoginPage({
   };
 
   return (
-    <main className="auth-layout">
+    <main className="auth-layout login-page">
+      <div className="login-theme"><ThemeSwitch /></div>
       <section className="auth-intro" aria-labelledby="login-title">
-        <div className="auth-brand-row"><Brand /><ThemeSwitch /></div>
-        <div>
-          <p className="eyebrow">统一身份 · 授权访问</p>
+        <div className="auth-brand-row"><Brand /></div>
+        <div className="login-welcome">
+          <p className="login-kicker">企业协同 · 智能工作空间</p>
           <h1 id="login-title">欢迎回来</h1>
-          <p className="auth-lead">从一个入口访问已授权的业务系统，权限与可用状态均由平台后端确认。</p>
-          <div className="auth-capabilities" aria-label="平台能力">
-            <span><b>01</b>统一入口</span><span><b>02</b>按角色授权</span><span><b>03</b>独立运行</span>
+          <p className="auth-lead">登录后继续部门工作</p>
+          <span className="login-divider" aria-hidden="true" />
+          <div className="login-features">
+            <div><span><Icon name="portal" /></span><strong>高效协同</strong><small>连接团队与业务</small></div>
+            <div><span><Icon name="usage" /></span><strong>智能驱动</strong><small>让工作更高效</small></div>
+            <div><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></svg></span><strong>安全可靠</strong><small>按角色授权访问</small></div>
           </div>
         </div>
-        <p className="security-note">身份信息仅用于当前会话，不在浏览器本地保存。</p>
+        <div className="login-art" aria-hidden="true">
+          <div className="login-wave wave-back" /><div className="login-wave wave-front" />
+          <div className="login-orbit" />
+          <div className="login-platform platform-back" /><div className="login-platform" />
+          <div className="login-glass glass-back" /><div className="login-glass glass-middle" />
+          <div className="login-glass glass-front"><svg viewBox="0 0 120 100"><defs><linearGradient id="login-cloud" x2="80%" y2="100%"><stop stopColor="#69c9ff"/><stop offset="1" stopColor="#1670ed"/></linearGradient></defs><path d="M31 79C9 79 5 48 25 40 22 6 71 0 80 34c31-3 43 45 9 45Z" fill="url(#login-cloud)"/></svg></div>
+          <span className="login-sphere sphere-one" /><span className="login-sphere sphere-two" /><span className="login-sphere sphere-three" />
+        </div>
+        <p className="login-brand-note">让信息连接价值，让协作创造可能。</p>
       </section>
       <section className="auth-panel" aria-label="登录表单">
         <div className="form-card">
@@ -170,31 +255,41 @@ function LoginPage({
           {error && <div className="notice error" role="alert">{error}</div>}
           <form onSubmit={handleSubmit} noValidate>
             <label htmlFor="username">用户名</label>
+            <div className="login-input">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>
             <input
               id="username"
               name="username"
               autoComplete="username"
+              placeholder="请输入用户名"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               required
               autoFocus
             />
+            </div>
             <label htmlFor="password">密码</label>
+            <div className="login-input">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 7v-3"/></svg>
             <input
               id="password"
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete="current-password"
+              placeholder="请输入密码"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
+            <button className="login-password-toggle" type="button" aria-label={showPassword ? "隐藏密码" : "显示密码"} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{showPassword && <path d="m3 3 18 18"/>}</svg></button>
+            </div>
             <button className="button primary full" type="submit" disabled={pending}>
               {pending ? "正在验证…" : "登录"}
             </button>
           </form>
           <p className="form-footnote">如无法登录，请联系平台管理员核对账号状态。</p>
         </div>
+        <p className="login-panel-note">企业统一门户 · 授权访问</p>
       </section>
     </main>
   );
@@ -328,7 +423,6 @@ function AppShell({ user, onLogout, children }: { user: CurrentUser; onLogout: (
         <nav className="account-nav" aria-label="账户导航">
           <span className="account-name">{user.display_name || user.username}</span>
           {user.is_platform_admin && <AppLink href="/ops">运维工作台</AppLink>}
-          {user.is_platform_admin && <AppLink href="/workspace">员工视图</AppLink>}
           {user.is_platform_admin && <AppLink href="/preview/product">业务页面预览</AppLink>}
           <AppLink href="/password">修改密码</AppLink>
           {user.is_platform_admin && <a href="/admin/">管理后台</a>}
@@ -411,7 +505,7 @@ function ModuleGrid({ onBusinessAccess }: { onBusinessAccess: (allowed: boolean)
           </div>
           <div>
             <h3>{isCenterCode(module.code) ? centers[module.code].name : module.name}</h3>
-            <p>{isCenterCode(module.code) ? centers[module.code].description : module.description || "暂无接入说明。"}</p>
+            <p>{isCenterCode(module.code) ? centers[module.code].description : module.description || "暂无说明。"}</p>
           </div>
           {isCenterCode(module.code) && module.enabled && module.status !== "disabled" && <AppLink href={`/centers/${module.code}`} className="button secondary">打开工作台</AppLink>}
           <AppLink href={`/modules/${encodeURIComponent(module.code)}`} className="module-link">
@@ -424,7 +518,7 @@ function ModuleGrid({ onBusinessAccess }: { onBusinessAccess: (allowed: boolean)
 }
 
 function formatUpdatedAt(value?: string): string {
-  if (!value) return "接口未提供";
+  if (!value) return "暂无";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("zh-CN", {
@@ -471,7 +565,6 @@ function BusinessSummaryPanel() {
         <span className="status muted">未接入 · 未验证</span>
         <strong>经营摘要暂未接入</strong>
         <p>{state.detail}</p>
-        <p>浏览器单点登录：未实现。旧系统保留原生账号登录与会话。</p>
       </div>
     );
   }
@@ -492,7 +585,7 @@ function BusinessSummaryPanel() {
   return (
     <div className="summary-content">
       <dl className="summary-meta">
-        <div><dt>数据来源</dt><dd>{state.summary.source === "legacy-ledger:authorized-projects" ? "原经营系统 · 授权项目查询" : state.summary.source || "接口未提供"}</dd></div>
+        <div><dt>数据来源</dt><dd>{state.summary.source === "legacy-ledger:authorized-projects" ? "项目台账" : state.summary.source || "暂无"}</dd></div>
         <div><dt>更新时间</dt><dd>{formatUpdatedAt(state.summary.updated_at)}</dd></div>
       </dl>
       {metricKeys.length > 0 ? (
@@ -500,15 +593,12 @@ function BusinessSummaryPanel() {
           {metricKeys.map((key) => (
             <div key={key}>
               <dt>{summaryLabels[key]}</dt>
-              <dd>{summary[key] === "" ? "接口返回空值" : summary[key]}</dd>
+              <dd>{summary[key] === "" ? "暂无数据" : summary[key]}</dd>
             </div>
           ))}
         </dl>
       ) : (
-        <p className="summary-empty">接口已启用，但暂无可展示的摘要项。</p>
-      )}
-      {metricKeys.some((key) => key !== "project_count") && (
-        <p className="integration-note">金额按接口原值展示；接口未提供币种或计量单位，不作换算。</p>
+        <p className="summary-empty">暂无摘要数据。</p>
       )}
       <section className="project-section" aria-label="经营项目">
         <h3>项目列表</h3>
@@ -523,7 +613,6 @@ function BusinessSummaryPanel() {
           </ul>
         ) : <p className="summary-empty">暂无项目数据。</p>}
       </section>
-      <p className="integration-note">浏览器单点登录：未实现。此处仅展示后端只读数据，不代表浏览器已登录旧业务系统。</p>
     </div>
   );
 }
@@ -625,7 +714,6 @@ function Workbench({ user }: { user: CurrentUser }) {
             <p className="eyebrow">部门与经营工作台</p>
             <h2 id="modules-title">已授权业务入口</h2>
           </div>
-          <p>前端准备页可先使用；业务接入状态独立展示，不代表生成或审批已可用。</p>
         </div>
         <ModuleGrid onBusinessAccess={setBusinessAccess} />
       </section>
@@ -636,7 +724,6 @@ function Workbench({ user }: { user: CurrentUser }) {
             <p className="eyebrow">只读信息</p>
             <h2 id="summary-title">经营摘要</h2>
           </div>
-          <p>仅呈现接口真实返回，不补齐、不推断缺失数据。</p>
         </div>
         <BusinessSummaryPanel />
       </section>}
@@ -718,32 +805,17 @@ function ModuleDetailPage({ code, backHref }: { code: string; backHref: string }
           </div>
           <StatusBadge module={module} />
         </div>
-        <p className="detail-description">{module.description || "暂无接入说明。"}</p>
+        <p className="detail-description">{module.description || "暂无说明。"}</p>
         <section className="access-panel" aria-labelledby="access-title">
           <div>
             <p className="eyebrow">接入说明</p>
             <h2 id="access-title">{meta.label}</h2>
-            <p>{meta.detail}</p>
-          </div>
+           </div>
           <button className="button primary" type="button" onClick={handleLaunch} disabled={unavailable || launching}>
             {launching ? "正在确认入口…" : module.status === "pending" ? "待接入，暂不可进入" : unavailable ? "入口不可用" : "进入业务系统"}
           </button>
         </section>
         {launchError && <div className="notice error" role="alert">{launchError}</div>}
-        <div className="guardrail-note">
-          <strong>集成边界</strong>
-          <p>点击后平台会先向后端请求入口，不会由浏览器探测旧站。</p>
-          <dl className="boundary-list">
-            <div>
-              <dt>浏览器单点登录</dt>
-              <dd><span className="status muted">未实现</span>旧系统保留自身登录流程。</dd>
-            </div>
-            <div>
-              <dt>撤权生效范围</dt>
-              <dd>撤权仅影响门户及平台发起调用的下一次请求，不会注销旧系统原生账号会话。</dd>
-            </div>
-          </dl>
-        </div>
       </article>
     </main>
   );
@@ -776,7 +848,7 @@ function ForbiddenPage() {
 }
 
 export default function App() {
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [bootstrapError, setBootstrapError] = useState("");
@@ -816,11 +888,12 @@ export default function App() {
       clearApiSession();
       setUser(null);
       setLoginNotice("登录状态已过期，请重新登录。");
-      navigate("/login", true);
+      navigate(loginPath(window.location.pathname, window.location.search, window.location.hash), true);
     };
     const handlePasswordRequired = () => {
       setUser((current) => current ? { ...current, must_change_password: true } : current);
-      navigate("/password", true);
+      const returnTo = internalPath(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+      navigate(withNext("/password", returnTo), true);
     };
     const handleOpsPermissionRevoked = () => {
       void bootstrap(true);
@@ -837,11 +910,11 @@ export default function App() {
 
   let requiredPath = "";
   if (phase === "ready") {
-    if (!user && pathname !== "/login") requiredPath = "/login";
+    if (!user && pathname !== "/login") requiredPath = loginPath(pathname, search, hash);
     if (user?.must_change_password && pathname !== "/password") requiredPath = "/password";
-    if (user && !user.must_change_password && pathname === "/login") requiredPath = departmentHome(user);
-    if (user?.is_platform_admin && !user.must_change_password && pathname === "/") requiredPath = "/ops";
-    if (user && !user.must_change_password && pathname === "/" && departmentHome(user) === "/centers/business") requiredPath = "/centers/business";
+    if (user && !user.must_change_password && pathname === "/login") requiredPath = authorizedReturnPath(user, search) || departmentHome(user);
+    if (user?.is_platform_admin && !user.must_change_password && ["/", "/workspace", "/workspace/"].includes(pathname)) requiredPath = "/ops";
+    if (user && !user.must_change_password && pathname === "/" && !user.is_platform_admin && departmentHome(user) !== "/") requiredPath = departmentHome(user);
     if (user && ["/centers/product/solution", "/centers/product/feasibility", "/centers/product/slides"].includes(pathname)) requiredPath = "/centers/product/documents";
     if (user?.is_platform_admin && ["/preview/product/solution", "/preview/product/feasibility", "/preview/product/slides"].includes(pathname)) requiredPath = "/preview/product/documents";
   }
@@ -856,7 +929,7 @@ export default function App() {
   const handleAuthenticated = (currentUser: CurrentUser) => {
     setUser(currentUser);
     setLoginNotice("");
-    navigate(currentUser.must_change_password ? "/password" : departmentHome(currentUser), true);
+    navigate(currentUser.must_change_password ? withNext("/password", nextPath(search)) : authorizedReturnPath(currentUser, search) || departmentHome(currentUser), true);
   };
 
   const handleLogout = async () => {
@@ -871,7 +944,7 @@ export default function App() {
     clearApiSession();
     setUser(null);
     setLoginNotice(detail || "密码已修改，请重新登录。");
-    navigate("/login", true);
+    navigate(withNext("/login", nextPath(search)), true);
   };
 
   if (!user) return <LoginPage notice={loginNotice} onAuthenticated={handleAuthenticated} />;
@@ -884,7 +957,7 @@ export default function App() {
   let content: ReactNode;
   const moduleMatch = pathname.match(/^\/modules\/([^/]+)\/?$/);
   const centerMatch = pathname.match(/^\/(centers|preview)\/([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?\/?$/);
-  if (pathname === "/" || (user.is_platform_admin && pathname === "/workspace")) content = <Workbench user={user} />;
+  if (pathname === "/") content = <Workbench user={user} />;
   else if (pathname === "/ops" || pathname.startsWith("/ops/")) {
     content = user.is_platform_admin ? <OpsWorkspace user={user} pathname={pathname} /> : <ForbiddenPage />;
   }
@@ -898,7 +971,7 @@ export default function App() {
     } catch {
       code = "";
     }
-    content = isModuleCode(code) ? <ModuleDetailPage key={code} code={code} backHref={user.is_platform_admin ? "/workspace" : "/"} /> : (
+    content = isModuleCode(code) ? <ModuleDetailPage key={code} code={code} backHref={user.is_platform_admin ? "/ops" : "/"} /> : (
       <main className="workspace compact">
         <div className="notice error" role="alert">模块参数无效，请从工作台重新选择入口。</div>
         <AppLink href="/" className="back-link">返回工作台</AppLink>

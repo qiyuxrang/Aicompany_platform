@@ -55,6 +55,18 @@ class CenterPageAuthorizationTests(PortalTestCase):
         self.assertEqual(self.client.get("/api/business/summary/").status_code, 403)
         self.assertFalse(admin.roles.exclude(code="platform_admin").exists())
 
+    @override_settings(DEBUG=True)
+    def test_unauthorized_center_shows_chinese_guidance_without_debug_details(self):
+        admin = self.create_admin()
+        self.login(self.client, admin, ADMIN_PASSWORD)
+        response = self.client.get("/centers/product")
+        self.assertContains(response, "当前账号未获得此工作台的访问权限", status_code=404)
+        self.assertContains(response, 'href="/"', status_code=404)
+        self.assertNotContains(response, "No Module matches", status_code=404)
+        self.assertNotContains(response, "URLconf", status_code=404)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertEqual(self.client.get("/api/modules/product/").status_code, 404)
+
     def test_pending_center_allows_preparation_but_not_old_system_launch(self):
         user = self.create_user("center-pending", "product")
         self.login(self.client, user)

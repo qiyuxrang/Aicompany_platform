@@ -1,10 +1,12 @@
 import copy
+import json
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from backend.portal.model_messages import TEXT_REQUEST_LIMIT
 from model_gateway.app import app, slots
 from model_gateway.errors import GatewayError
 
@@ -51,9 +53,15 @@ class GatewayAppTests(unittest.TestCase):
 
     @patch("model_gateway.app.chat_completion")
     def test_request_size_limit_precedes_parsing(self, call):
-        response = self.client.post("/v1/generate", content=b"x" * 65537, headers=self.headers)
+        response = self.client.post("/v1/generate", content=b"x" * (TEXT_REQUEST_LIMIT + 65537), headers=self.headers)
         self.assertEqual(response.status_code, 413)
         call.assert_not_called()
+
+    @patch("model_gateway.app.list_models")
+    def test_non_generation_request_size_limit_remains_64k(self, listing):
+        response = self.client.post("/v1/models", content=b"x" * 65537, headers=self.headers)
+        self.assertEqual(response.status_code, 413)
+        listing.assert_not_called()
 
     @patch("model_gateway.app.chat_completion")
     def test_validation_does_not_echo_secrets(self, call):
@@ -73,6 +81,15 @@ class GatewayAppTests(unittest.TestCase):
         payload["messages"][0]["role"] = "tool"
         self.assertEqual(self.post(payload).status_code, 422)
 
+    @patch("model_gateway.app.chat_completion")
+    def test_invalid_message_content_still_fails_closed(self, call):
+        for content in ("", [], {"invalid": True}):
+            payload = copy.deepcopy(self.payload)
+            payload["messages"][0]["content"] = content
+            with self.subTest(content=content):
+                self.assertEqual(self.post(payload).status_code, 422)
+        call.assert_not_called()
+
     @patch("model_gateway.app.chat_completion", return_value={"content": "synthetic-result", "prompt_tokens": None, "completion_tokens": None})
     def test_business_call_and_missing_usage(self, call):
         response = self.post()
@@ -81,6 +98,53 @@ class GatewayAppTests(unittest.TestCase):
         self.assertIsNone(response.json()["prompt_tokens"])
         self.assertGreaterEqual(response.json()["duration_ms"], 0)
         self.assertEqual(call.call_args.args[2], self.payload["messages"])
+
+    @patch("model_gateway.app.chat_completion", return_value={"content": "synthetic-result", "prompt_tokens": 1, "completion_tokens": 1})
+    def test_business_call_forwards_long_utf8_message(self, call):
+        text = "中文" * 12000
+        payload = copy.deepcopy(self.payload)
+        payload["messages"] = [{"role": "user", "content": text}]
+
+        response = self.post(payload)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertGreater(len(text), 16000)
+        self.assertGreater(len(text.encode("utf-8")), 65536)
+        self.assertEqual(call.call_args.args[2], payload["messages"])
+
+    @patch("model_gateway.app.stream_completion")
+    def test_stream_forwards_long_utf8_message(self, call):
+        text = "中文" * 12000
+        payload = copy.deepcopy(self.payload)
+        payload["messages"] = [{"role": "user", "content": text}]
+        stream = MagicMock()
+        stream.__next__.side_effect = [
+            {"delta": "收到"}, {"done": True, "prompt_tokens": 1, "completion_tokens": 1}, StopIteration,
+        ]
+        call.return_value = stream
+
+        response = self.client.post("/v1/generate-stream", json=payload, headers=self.headers)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("收到", response.text)
+        self.assertGreater(len(text), 16000)
+        self.assertGreater(len(text.encode("utf-8")), 65536)
+        self.assertEqual(call.call_args.args[2], payload["messages"])
+
+    @patch("model_gateway.app.chat_completion")
+    def test_generate_total_body_limit_rejects_before_outbound(self, call):
+        total_limit = TEXT_REQUEST_LIMIT + 65536
+        text = "长" * (total_limit // 3 + 1)
+        payload = copy.deepcopy(self.payload)
+        payload["messages"] = [{"role": "user", "content": text}]
+        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+        self.assertGreater(len(body), total_limit)
+        response = self.client.post("/v1/generate", content=body,
+                                    headers={**self.headers, "Content-Type": "application/json"})
+
+        self.assertEqual(response.status_code, 413)
+        call.assert_not_called()
 
     @patch("model_gateway.app.chat_completion", return_value={"content": "do-not-return-test-output", "prompt_tokens": 8, "completion_tokens": 1})
     def test_connection_probe_overrides_input_and_restricts_tokens(self, call):

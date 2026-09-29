@@ -7,7 +7,7 @@
     "feasibility"
   ],
   "approved_source": "user_acceptance_2026-09-27",
-  "scope_note": "本规则固化用户于2026-09-27确认通过的技术方案、可行性研究报告测试版格式基线。",
+  "scope_note": "沿用已确认格式；2026-09-29起仅生成正式篇幅，技术方案正文不少于50000字，可行性研究报告正文不少于70000字。历史格式样例不是正式篇幅验收。",
   "company_identity": {
     "name": "陕西省一二三数字信息技术有限公司",
     "logo_path": "assets/company/company-logo.png",
@@ -124,17 +124,15 @@
     "heading2_starts_new_page": false,
     "heading3_starts_new_page": false
   },
-  "test_version_targets": {
+  "formal_version_targets": {
     "technical_solution": {
-      "target_characters": 3000,
-      "minimum_characters": 2700,
-      "maximum_characters": 4000,
+      "target_characters": 50000,
+      "minimum_characters": 50000,
       "minimum_diagrams": 15
     },
     "feasibility_report": {
-      "target_characters": 5000,
-      "minimum_characters": 4500,
-      "maximum_characters": 6000,
+      "target_characters": 70000,
+      "minimum_characters": 70000,
       "minimum_diagrams": 20
     },
     "presentation": {

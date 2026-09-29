@@ -10,6 +10,7 @@ import traceback
 import unittest
 from unittest.mock import MagicMock, patch
 
+from backend.portal.model_messages import TEXT_REQUEST_LIMIT
 from model_gateway import transport
 from model_gateway.errors import GatewayError
 
@@ -279,8 +280,7 @@ class TransportProtocolSimulationTests(unittest.TestCase):
     def test_request_shape_size_and_configuration(self):
         with patch.object(transport, "_PinnedHTTPSConnection") as connection:
             for messages in ([], [{"role": "tool", "content": "x"}], [{"role": "user", "content": []}],
-                             [{"role": "user", "content": " "}], [{"role": "user", "content": "x", "tools": []}],
-                             [{"role": "user", "content": "界" * 24000}]):
+                             [{"role": "user", "content": " "}], [{"role": "user", "content": "x", "tools": []}]):
                 self.messages = messages
                 self.assert_code("invalid_request")
             self.messages = [{"role": "user", "content": "x"}]
@@ -294,6 +294,31 @@ class TransportProtocolSimulationTests(unittest.TestCase):
             self.provider["protocol"] = "unknown"
             self.assert_code("unsupported_protocol")
             connection.assert_not_called()
+
+    def test_long_utf8_message_is_serialized_and_sent_without_truncation(self):
+        text = "中文" * 12000
+        self.messages = [{"role": "user", "content": text}]
+        connection = self.exchange(self.response())
+
+        result = self.call()
+
+        self.assertEqual(result["content"], "hello")
+        self.assertGreater(len(text), 16000)
+        self.assertGreater(len(text.encode("utf-8")), 65536)
+        method, path = connection.request.call_args.args[:2]
+        self.assertEqual((method, path), ("POST", "/v1/chat/completions"))
+        body = connection.request.call_args.kwargs["body"]
+        self.assertGreater(len(body), 65536)
+        self.assertEqual(json.loads(body)["messages"], self.messages)
+
+    def test_serialized_request_over_total_limit_never_reaches_upstream(self):
+        total_limit = TEXT_REQUEST_LIMIT + 65536
+        self.model["model_name"] = "m" * (total_limit + 1)
+
+        with patch.object(transport, "_PinnedHTTPSConnection") as connection:
+            self.assert_code("invalid_request")
+
+        connection.assert_not_called()
 
     def test_key_namespace_and_invalid_secret_never_leave_process(self):
         for name in ("PATH", "SECRET", "PORTAL_MODEL_KEY_", "PORTAL_MODEL_KEY_lower", "PORTAL_MODEL_KEY_X\n"):

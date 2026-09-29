@@ -21,10 +21,11 @@ export function useProductOverview(query = "", enabled = true) {
   const [data, setData] = useState<ProductOverview | null>(null);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  useEffect(() => { setData(null); setError(""); }, [query, enabled]);
   useEffect(() => {
     if (!enabled) { setData(null); setError(""); return; }
     const controller = new AbortController();
-    setData(null); setError("");
+    setError("");
     void getProductOverview(query, controller.signal).then(value => {
       if (!value || !Array.isArray(value.projects) || !value.metrics || !value.capabilities) throw new Error("服务端工作台数据不完整，请重新加载。");
       if (!controller.signal.aborted) setData(value);

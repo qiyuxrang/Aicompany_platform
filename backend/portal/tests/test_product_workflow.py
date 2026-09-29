@@ -1,6 +1,8 @@
 from unittest.mock import patch
+from datetime import timedelta
 
 from django.test import override_settings
+from django.utils import timezone
 
 from portal.product_blueprint_knowledge import (
     RAGFLOW_REQUIRED,
@@ -14,9 +16,11 @@ from portal.product_workflow import run_product_workflow
 from .base import PortalTestCase
 
 
+@override_settings(PRODUCT_P1_ENABLED=True)
 class ProductWorkflowTests(PortalTestCase):
     def setUp(self):
         self.owner = self.create_user("workflow-owner", "product")
+        self.owner.refresh_from_db()
         self.payload = {
             "project": "workflow project",
             "requirements": "use authorized evidence",
@@ -33,6 +37,8 @@ class ProductWorkflowTests(PortalTestCase):
             stage=DocumentTask.Stage.BLUEPRINT,
             pending_action="blueprint",
             fence=2,
+            lease_until=timezone.now() + timedelta(seconds=180),
+            checkpoint={'grant_version': self.owner.grant_version},
         )
         revision = append_revision(self.task, "input", self.payload, actor=self.owner)
         self.task.input_version = revision.version
@@ -79,6 +85,26 @@ class ProductWorkflowTests(PortalTestCase):
         self.task.refresh_from_db()
         self.assertEqual(entered, ["knowledge", "complete"])
         self.assertEqual(self.task.checkpoint["workflow_graph"]["node"], "knowledge_complete")
+
+    def test_empty_knowledge_stops_before_blueprint_when_web_search_is_not_configured(self):
+        from portal.product_service import ProductError
+
+        with patch('portal.product_worker._analysis_progress') as progress, patch('portal.product_worker._execute_claim_action') as execute:
+            with self.assertRaises(ProductError) as caught:
+                run_product_workflow(self.task.pk, 2, '00000000-0000-0000-0000-000000000003',
+                    prepare_blueprint_knowledge=lambda task_id, fence: {'ragflow_used': True, 'source_count': 0},
+                    execute_action=execute)
+        self.assertEqual(caught.exception.code, 'web_search_unconfigured')
+        execute.assert_not_called()
+        self.assertEqual(progress.call_args.args[2:4], ('web_search', 'blocked'))
+
+    def test_knowledge_hits_skip_web_search_without_claiming_search_completed(self):
+        with patch('portal.product_worker._analysis_progress') as progress, patch('portal.product_worker._execute_claim_action') as execute:
+            run_product_workflow(self.task.pk, 2, '00000000-0000-0000-0000-000000000004',
+                prepare_blueprint_knowledge=lambda task_id, fence: {'ragflow_used': True, 'source_count': 2},
+                execute_action=execute)
+        execute.assert_called_once()
+        self.assertEqual(progress.call_args.args[2:4], ('web_search', 'skipped'))
 
     @override_settings(PRODUCT_BLUEPRINT_KNOWLEDGE_MODE=RAGFLOW_REQUIRED)
     @patch("portal.product_knowledge_service.retrieve")

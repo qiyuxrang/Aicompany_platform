@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import userEvent from "@testing-library/user-event";
-import { clearApiSession } from "./api";
+import { clearApiSession, unauthorizedEvent } from "./api";
 import { COMPANY_NAME, COMPANY_ENGLISH_NAME } from "./CompanyIdentity";
 
 function json(body: unknown, status = 200): Response {
@@ -76,6 +76,22 @@ function mockSummary(body: unknown, status = 200) {
   return fetchMock;
 }
 
+function mockLogin(user: unknown, code: string, initialPath = "/login") {
+  window.history.replaceState({}, "", initialPath);
+  const module = { code, name: code, description: "", status: "verified", enabled: true };
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const path = String(input);
+    if (path === "/api/me/") return Promise.resolve(json({ detail: "未登录" }, 401));
+    if (path === "/api/login/") return Promise.resolve(json(user));
+    if (path === "/api/csrf/") return Promise.resolve(json({ csrfToken: "test-token" }));
+    if (path === "/api/modules/") return Promise.resolve(json([module]));
+    if (path === `/api/modules/${code}/`) return Promise.resolve(json(module));
+    return Promise.resolve(json({ detail: "未找到" }, 404));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 describe("portal routing", () => {
   beforeEach(() => {
     clearApiSession();
@@ -103,6 +119,128 @@ describe("portal routing", () => {
     expect(screen.queryByRole("heading", { name: "工作摘要" })).toBeNull();
   });
 
+  it("普通用户登录后直接进入唯一授权部门工作台", async () => {
+    mockLogin({ ...baseUser, roles: [{ code: "product", name: "产品人员" }] }, "product");
+    render(<App />);
+    await userEvent.type(await screen.findByLabelText("用户名"), "tester");
+    await userEvent.type(screen.getByLabelText("密码"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/centers/product"));
+  });
+
+  it("未登录访问部门深链接时转登录并保留目标", async () => {
+    window.history.replaceState({}, "", "/centers/product/documents?task=one#review");
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => String(input) === "/api/me/"
+      ? Promise.resolve(json({ detail: "未登录" }, 401))
+      : Promise.resolve(json({ detail: "未找到" }, 404))));
+    render(<App />);
+    await screen.findByLabelText("用户名");
+    expect(window.location.pathname).toBe("/login");
+    expect(window.location.search).toBe("?next=%2Fcenters%2Fproduct%2Fdocuments%3Ftask%3Done%23review");
+  });
+
+  it("登录页支持显示与隐藏密码且不会提交表单", async () => {
+    mockLogin(baseUser, "product");
+    render(<App />);
+    const password = await screen.findByLabelText("密码") as HTMLInputElement;
+    await userEvent.type(password, "test-password");
+    expect(password.type).toBe("password");
+    await userEvent.click(screen.getByRole("button", { name: "显示密码" }));
+    expect(password.type).toBe("text");
+    expect(password.value).toBe("test-password");
+    await userEvent.click(screen.getByRole("button", { name: "隐藏密码" }));
+    expect(password.type).toBe("password");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "登录" })).toBeTruthy();
+  });
+
+  it("登录页只保留必要欢迎语和表单信息", async () => {
+    mockLogin(baseUser, "product");
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "欢迎回来" })).toBeTruthy();
+    expect(screen.getByText("登录后继续部门工作")).toBeTruthy();
+    for (const copy of ["统一身份 · 授权访问", "从一个入口访问已授权的业务系统，权限与可用状态均由平台后端确认。", "平台能力", "统一入口", "按角色授权", "独立运行", "身份信息仅用于当前会话，不在浏览器本地保存。"]) {
+      expect(screen.queryByText(copy)).toBeNull();
+    }
+    expect(screen.getByLabelText("用户名")).toBeTruthy();
+    expect(screen.getByLabelText("密码")).toBeTruthy();
+  });
+
+  it("多部门用户优先进入已提供且仍获授权的默认部门", async () => {
+    mockLogin({ ...baseUser, default_department: "product", roles: [
+      { code: "hr", name: "人事人员" },
+      { code: "product", name: "产品人员" },
+    ] }, "product");
+    render(<App />);
+    await userEvent.type(await screen.findByLabelText("用户名"), "tester");
+    await userEvent.type(screen.getByLabelText("密码"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/centers/product"));
+  });
+
+  it("多部门用户未提供默认部门时沿用现有角色顺序", async () => {
+    mockLogin({ ...baseUser, roles: [
+      { code: "hr", name: "人事人员" },
+      { code: "product", name: "产品人员" },
+    ] }, "hr");
+    render(<App />);
+    await userEvent.type(await screen.findByLabelText("用户名"), "tester");
+    await userEvent.type(screen.getByLabelText("密码"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/centers/hr"));
+  });
+
+  it("登录后保留仍获授权的部门深链接及查询参数", async () => {
+    mockLogin(
+      { ...baseUser, roles: [{ code: "product", name: "产品人员" }] },
+      "product",
+      "/login?next=%2Fcenters%2Fproduct%2Fdocuments%3Ftask%3Done",
+    );
+    render(<App />);
+    await userEvent.type(await screen.findByLabelText("用户名"), "tester");
+    await userEvent.type(screen.getByLabelText("密码"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/centers/product/documents");
+      expect(window.location.search).toBe("?task=one");
+    });
+  });
+
+  it("未授权部门深链接不会绕过权限并回到授权首页", async () => {
+    mockLogin(
+      { ...baseUser, roles: [{ code: "product", name: "产品人员" }] },
+      "product",
+      "/login?next=%2Fcenters%2Fhr%2Fhistory",
+    );
+    render(<App />);
+    await userEvent.type(await screen.findByLabelText("用户名"), "tester");
+    await userEvent.type(screen.getByLabelText("密码"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/centers/product"));
+  });
+
+  it.each(["/login", "/login?next=%2Fworkspace", "/login?next=%2Fworkspace%2F"])("平台管理员从 %s 登录后直接进入运维工作台", async (path) => {
+    mockLogin({ ...baseUser, is_platform_admin: true, roles: [] }, "product", path);
+    render(<App />);
+    await userEvent.type(await screen.findByLabelText("用户名"), "admin");
+    await userEvent.type(screen.getByLabelText("密码"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/ops"));
+  });
+
+  it("会话过期返回登录时保留当前部门深链接", async () => {
+    window.history.replaceState({}, "", "/centers/product/documents?task=one");
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => String(input) === "/api/me/"
+      ? Promise.resolve(json(baseUser))
+      : Promise.resolve(json({ detail: "未找到" }, 404))));
+    render(<App />);
+    expect(await screen.findByText("测试用户")).toBeTruthy();
+    window.dispatchEvent(new Event(unauthorizedEvent));
+    await screen.findByLabelText("用户名");
+    expect(window.location.pathname).toBe("/login");
+    expect(window.location.search).toBe("?next=%2Fcenters%2Fproduct%2Fdocuments%3Ftask%3Done");
+  });
+
   it("待接入模块禁止启动并保留返回工作台", async () => {
     window.history.replaceState({}, "", "/modules/product");
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -120,7 +258,7 @@ describe("portal routing", () => {
     expect(fetchMock.mock.calls.some(([path]) => String(path).includes("launch"))).toBe(false);
     expect(screen.getByRole("link", { name: "← 返回工作台" }).getAttribute("href")).toBe("/");
     expect(screen.queryByText("Enterprise Workspace")).toBeNull();
-    expect(screen.getByText("浏览器单点登录")).toBeTruthy();
+    expect(screen.queryByText("浏览器单点登录")).toBeNull();
   });
 
   it("强制首次改密用户不能进入工作台", async () => {
@@ -161,7 +299,7 @@ describe("portal routing", () => {
     expect(screen.getByText(validSummary.projects[0].name)).toBeTruthy();
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText(/2026\/09\/20/)).toBeTruthy();
-    expect(screen.getByText(/接口未提供币种或计量单位/)).toBeTruthy();
+    expect(screen.queryByText(/接口未提供币种或计量单位/)).toBeNull();
   });
 
   it("工作摘要展示真实数量、对象链接及部分授权说明", async () => {
@@ -268,7 +406,7 @@ describe("portal routing", () => {
     mockSummary({ ...validSummary, projects: [], summary: {} });
     const { container } = render(<App />);
     expect(await screen.findByText("暂无项目数据。")).toBeTruthy();
-    expect(screen.getByText("接口已启用，但暂无可展示的摘要项。")).toBeTruthy();
+    expect(screen.getByText("暂无摘要数据。")).toBeTruthy();
     expect(container.querySelector(".metric-grid")).toBeNull();
   });
 
@@ -276,7 +414,7 @@ describe("portal routing", () => {
     mockSummary({ detail: "集成尚未配置", code: "integration_not_configured" }, 503);
     render(<App />);
     expect(await screen.findByText("未接入 · 未验证")).toBeTruthy();
-    expect(screen.getByText(/浏览器单点登录：未实现/)).toBeTruthy();
+    expect(screen.queryByText(/浏览器单点登录：未实现/)).toBeNull();
     expect(screen.queryByText("经营摘要加载失败")).toBeNull();
   });
 

@@ -1,8 +1,9 @@
 {
   "schema": "PRODUCT_DELIVERY_BASELINE_V1",
-  "status": "accepted_and_frozen",
-  "accepted_at": "2026-09-27T00:00:00+08:00",
-  "acceptance_source": "user_acceptance_in_product_thread",
+  "status": "formal_length_required_pending_live_acceptance",
+  "accepted_at": "2026-09-29T00:00:00+08:00",
+  "acceptance_source": "user_confirmed_formal_minimum_length_2026-09-29",
+  "character_count_scope": "chapter_body_non_whitespace_only_excludes_titles_diagrams_tables_appendices",
   "format_policy": "document-format-policy.json",
   "scope": [
     "technical-solution",
@@ -13,9 +14,8 @@
   "deliverables": {
     "technical-solution": {
       "filename": "technical-solution.docx",
-      "target_characters": 3000,
-      "minimum_characters": 2700,
-      "maximum_characters": 4000,
+      "target_characters": 50000,
+      "minimum_characters": 50000,
       "minimum_diagrams": 15,
       "required_heading_levels": [
         1,
@@ -28,9 +28,8 @@
     },
     "feasibility": {
       "filename": "feasibility-report.docx",
-      "target_characters": 5000,
-      "minimum_characters": 4500,
-      "maximum_characters": 6000,
+      "target_characters": 70000,
+      "minimum_characters": 70000,
       "minimum_diagrams": 20,
       "required_heading_levels": [
         1,
@@ -99,7 +98,7 @@
       "scope_hash"
     ]
   },
-  "accepted_artifacts": {
+  "historical_format_reference_artifacts_not_formal_length_acceptance": {
     "root": "docs/product/T-P09/evidence/format-governance-acceptance-20260927-v10/artifacts",
     "technical-solution": {
       "sha256": "2426bfc08d3b499cac63b1666f5506561df9abf5433b721fe664e7f098ca7949",

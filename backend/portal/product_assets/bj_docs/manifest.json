@@ -124,15 +124,15 @@
     {
       "path": "assets/document-format-policy.json",
       "source": "user acceptance 2026-09-27",
-      "sha256": "28a8059b2d8cec3afdf8dd459419a63aa22d228635310fe8408f95f69f60840d",
-      "bytes": 5737,
+      "sha256": "4b2082b8057957013b036c6ccaa7c15f1df53f74db059758e72103c7d527b582",
+      "bytes": 5757,
       "source_status": "approved format baseline v4; acceptance evidence v10"
     },
     {
       "path": "assets/delivery-baseline.json",
       "source": "user acceptance 2026-09-27",
-      "sha256": "078afb98670e1de042db1c9673bb9a3f79c8029262b0dcc1e44eea2b505dbcf9",
-      "bytes": 3210,
+      "sha256": "298d870b54d23bee1aad4fbaa2d92b05c7a5e824cf0fdadfddddf2c5e5a7e130",
+      "bytes": 3341,
       "source_status": "accepted and frozen delivery baseline v1"
     },
     {
