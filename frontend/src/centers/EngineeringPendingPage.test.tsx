@@ -95,7 +95,8 @@ describe("EngineeringPendingPage", () => {
     expect(await screen.findByText(/知识库状态：待解锁 · 尚未授权/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /^清单 · 成本测算/ }));
     await screen.findByText("任务错误：preflight_failed · 工程清单预检未通过，未执行测算。");
-    expect(screen.getAllByText("待复核")).toHaveLength(2);
+    // 列表项 1 处 + 详情 1 处「待复核」徽章；概览的统计卡另有同名标签，故按类名精确计数。
+    expect([...document.querySelectorAll("span.status.warning")].filter((el) => el.textContent === "待复核")).toHaveLength(2);
     expect(screen.getByText("缺少设备数量")).toBeTruthy();
     expect(screen.getByText("单位不完整")).toBeTruthy();
     expect(screen.getByText("数量无效")).toBeTruthy();
@@ -112,29 +113,51 @@ describe("EngineeringPendingPage", () => {
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="overview" />);
     await user.click(await screen.findByRole("button", { name: /^电力电缆清单 · 成本测算/ }));
-    expect(screen.getAllByText("待复核")).toHaveLength(2);
+    expect([...document.querySelectorAll("span.status.warning")].filter((el) => el.textContent === "待复核")).toHaveLength(2);
     expect(screen.getByText("审计结论：可疑")).toBeTruthy();
     expect(screen.getByText("报价来源待核验")).toBeTruthy();
     expect(screen.getByText("零价项：2")).toBeTruthy();
     expect(screen.getByText("来源分布：历史清单：3；询价：0")).toBeTruthy();
   });
 
-  it("keeps the knowledge base unavailable and quota unimplemented", async () => {
+  it("keeps the knowledge base unavailable and states the quota page boundary", async () => {
     const view = render(<EngineeringPendingPage section="estimate" />);
     await screen.findByText(/知识库状态：待解锁 · 尚未授权/);
-    expect(screen.getByText(/上传清单并预检通过、工程文档解析完成后，知识库才可能解锁；定额推荐和正式报价仍未开放/)).toBeTruthy();
+    // 知识库不可用时必须说明解锁路径，而不是只把检索框灰掉。
+    expect(screen.getByText(/如需开通请联系平台管理员/)).toBeTruthy();
     view.rerender(<EngineeringPendingPage section="quota" />);
-    expect(screen.getByText("未实现")).toBeTruthy();
-    expect(screen.getByText(/不导入、不推荐，也不宣称任何定额已审定/)).toBeTruthy();
-    expect(screen.getByText(/套用定额 D-05 尚未实现/)).toBeTruthy();
+    // D-05 是可查询但不推荐的刻意边界，措辞不能写成"未实现"（那会与可用的查询框自相矛盾）。
+    expect(screen.getByText("仅查询 · 不推荐")).toBeTruthy();
+    expect(screen.getByText(/不生成推荐结论、不导入清单、不输出审定结果/)).toBeTruthy();
+    expect(screen.getByText(/定额推荐能力保持隔离（D-05）/)).toBeTruthy();
   });
 
   it("locks retrieval and preserves D-05 on the quota route", async () => {
     render(<EngineeringPendingPage section="quota" />);
     expect(await screen.findByText(/知识库状态：待解锁 · 尚未授权/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "检索资料" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText(/套用定额 D-05 尚未实现/)).toBeTruthy();
+    expect(screen.getByText(/定额推荐能力保持隔离（D-05）/)).toBeTruthy();
     expect(request.mock.calls.some(([path]) => path === root)).toBe(false);
+  });
+
+  it("renders an overview distinct from the estimate page", async () => {
+    // 此前「工作概览」与「成本测算」渲染完全相同的整页内容，用户无法分辨点了哪个菜单。
+    // 现两页各自渲染 h1 与不同内容（与其它部门页面一致的写法）。
+    request.mockImplementation(async (path) => path === knowledgeRoot
+      ? { status: "locked", detail: "等待解析" }
+      : { jobs: [completed], capabilities });
+    const view = render(<EngineeringPendingPage section="overview" />);
+    expect(await screen.findByRole("heading", { level: 1, name: "工作概览" })).toBeTruthy();
+    expect(screen.getByText("全部任务")).toBeTruthy();
+    expect(screen.getByText("去上传清单")).toBeTruthy();
+    expect(screen.getByLabelText("最近任务")).toBeTruthy();
+    // 概览页不出现上传表单（上传只在成本测算页）。
+    expect(screen.queryByLabelText("清单文件")).toBeNull();
+
+    view.rerender(<EngineeringPendingPage section="estimate" />);
+    expect(screen.getByRole("heading", { level: 1, name: "成本测算" })).toBeTruthy();
+    expect(await screen.findByLabelText("清单文件")).toBeTruthy();
+    expect(screen.queryByLabelText("最近任务")).toBeNull();
   });
 
   it("manually queries bounded internal unapproved quota candidates without applying or claiming prices", async () => {
@@ -145,18 +168,32 @@ describe("EngineeringPendingPage", () => {
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="quota" />);
     const name = screen.getByLabelText("名称") as HTMLInputElement;
-    const unit = screen.getByLabelText("单位") as HTMLInputElement;
+    const unit = screen.getByLabelText(/^单位/) as HTMLInputElement;
     expect(name.maxLength).toBe(100);
     expect(unit.maxLength).toBe(20);
     await user.type(name, "  防火墙设备  ");
     await user.type(unit, " 台 ");
-    await user.click(screen.getByRole("button", { name: "查询内部候选" }));
-    expect(await screen.findByText("A-01 · 防火墙设备")).toBeTruthy();
-    expect(screen.getByText("专业：安防 · 单位：台 · 匹配分：0.98")).toBeTruthy();
-    expect(screen.getByText("原始来源：历史内部清单")).toBeTruthy();
-    expect(screen.getByText("单位兼容：兼容")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "查询定额候选" }));
+    // 编号与名称分列显示（编号为强标识），描述行含专业/单位/匹配分与单位一致性提示。
+    expect(await screen.findByText("A-01")).toBeTruthy();
+    expect(screen.getByText("防火墙设备")).toBeTruthy();
+    expect(screen.getByText(/专业：安防 · 单位：台 · 匹配分：0.98 · 单位一致/)).toBeTruthy();
+    expect(screen.getByText(/来源：历史内部清单/)).toBeTruthy();
     expect(request.mock.calls.some(([path]) => path === `${quotaRoot}?${new URLSearchParams({ name: "防火墙设备", unit: "台" })}`)).toBe(true);
     expect(screen.queryByRole("button", { name: /套用|应用|生成价格/ })).toBeNull();
+  });
+
+  it("queries by name only when the unit is left blank", async () => {
+    // 单位是可选的：留空时应只提交 name，且不发送空 unit 键。
+    request.mockImplementation(async (path) => path.startsWith(quotaRoot)
+      ? { status: "candidates", classification: "internal_unapproved", candidates: [] }
+      : path === knowledgeRoot ? { status: "locked", detail: "尚未授权" } : { jobs: [], capabilities });
+    const user = userEvent.setup();
+    render(<EngineeringPendingPage section="quota" />);
+    await screen.findByText(/定额候选查询/);
+    await user.type(screen.getByLabelText("名称"), "电缆");
+    await user.click(screen.getByRole("button", { name: "查询定额候选" }));
+    expect(request.mock.calls.some(([path]) => path === `${quotaRoot}?${new URLSearchParams({ name: "电缆" })}`)).toBe(true);
   });
 
   it("shows an empty internal unapproved quota candidate search", async () => {
@@ -166,9 +203,9 @@ describe("EngineeringPendingPage", () => {
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="quota" />);
     await user.type(screen.getByLabelText("名称"), "门禁");
-    await user.type(screen.getByLabelText("单位"), "套");
-    await user.click(screen.getByRole("button", { name: "查询内部候选" }));
-    expect(await screen.findByText("未找到符合条件的内部未审批定额候选。")).toBeTruthy();
+    await user.type(screen.getByLabelText(/^单位/), "套");
+    await user.click(screen.getByRole("button", { name: "查询定额候选" }));
+    expect(await screen.findByText(/未找到匹配条目/)).toBeTruthy();
   });
 
   it("shows quota candidate search errors without displaying untrusted results", async () => {
@@ -179,10 +216,10 @@ describe("EngineeringPendingPage", () => {
     const user = userEvent.setup();
     render(<EngineeringPendingPage section="quota" />);
     await user.type(screen.getByLabelText("名称"), "摄像机");
-    await user.type(screen.getByLabelText("单位"), "台");
-    await user.click(screen.getByRole("button", { name: "查询内部候选" }));
+    await user.type(screen.getByLabelText(/^单位/), "台");
+    await user.click(screen.getByRole("button", { name: "查询定额候选" }));
     expect(await screen.findByText("候选查询失败：候选服务暂不可用")).toBeTruthy();
-    expect(screen.queryByLabelText("内部未审批定额候选结果")).toBeNull();
+    expect(screen.queryByLabelText("定额候选结果")).toBeNull();
   });
 
   it("polls the job list so a task completed by the worker shows up without a manual reload", async () => {
@@ -200,8 +237,10 @@ describe("EngineeringPendingPage", () => {
       status = "completed";
       await act(async () => { vi.advanceTimersByTime(5000); });
 
-      expect(await screen.findByText("已完成")).toBeTruthy();
-      expect(screen.getByText(/电力电缆清单 · 成本测算/)).toBeTruthy();
+      // 任务按钮内的状态文字应更新为「已完成」。
+      // 注意筛选栏按钮与删除按钮也会命中同名文本/前缀，故锚定 ^ 并排除「删除：」前缀。
+      const taskButton = await screen.findByRole("button", { name: /^电力电缆清单 · 成本测算/ });
+      expect(taskButton.textContent).toContain("已完成");
     } finally {
       vi.useRealTimers();
     }
@@ -289,6 +328,35 @@ describe("EngineeringPendingPage", () => {
     render(<EngineeringPendingPage section="estimate" />);
     const remove = await screen.findByRole("button", { name: "删除：电力电缆清单 · 成本测算" }) as HTMLButtonElement;
     expect(remove.disabled).toBe(true);
+  });
+
+  it("filters the job list by status", async () => {
+    // 任务多了以后需要快速定位，不能只靠滚动长列表。
+    const running = { ...completed, id: "44444444-4444-4444-8444-444444444444", status: "running",
+      files: [{ name: "处理中清单.xlsx", size: 1, sha256: "d".repeat(64) }],
+      result: { ...completed.result, download_available: false } };
+    request.mockImplementation(async (path) => path === knowledgeRoot
+      ? { status: "locked", detail: "等待解析" }
+      : { jobs: [completed, running], capabilities });
+    const user = userEvent.setup();
+    render(<EngineeringPendingPage section="estimate" />);
+    await screen.findByText(/电力电缆清单 · 成本测算/);
+    expect(screen.getByText(/处理中清单 · 成本测算/)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /^已完成/ }));
+
+    // 只看已完成时，处理中的任务不出现。
+    expect(screen.getByText(/电力电缆清单 · 成本测算/)).toBeTruthy();
+    expect(screen.queryByText(/处理中清单 · 成本测算/)).toBeNull();
+  });
+
+  it("shows how long ago each job was created", async () => {
+    const old = { ...completed, created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() };
+    request.mockImplementation(async (path) => path === knowledgeRoot
+      ? { status: "locked", detail: "等待解析" }
+      : { jobs: [old], capabilities });
+    render(<EngineeringPendingPage section="estimate" />);
+    expect(await screen.findByText("3 小时前")).toBeTruthy();
   });
 
   it("refreshes from locked to ready after the worker completes without reloading jobs", async () => {

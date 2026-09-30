@@ -37,6 +37,8 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
     : requestedSection;
   const selected = config.sections.find((item) => item.code === activeSection);
   const pageOwnsHeading = (code === "product" && !preview && ["overview", "projects", "knowledge", "opportunities", "outputs", "new", "documents", "history"].includes(activeSection))
+    // 工程部各页自带 h1（与产品部新页面同一写法）；预览模式走固定的说明面板，仍由外层渲染标题。
+    || (code === "cost" && !preview)
     || (code === "business" && ["finance", "presales", "engineering"].includes(activeSection));
   const back = user.is_platform_admin ? "/ops" : "/";
   const base = preview ? "/preview" : "/centers";

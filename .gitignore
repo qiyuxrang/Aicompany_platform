@@ -14,3 +14,8 @@ test-results/
 *.log
 backups/
 .workbuddy/
+
+# 成本引擎的运行产物与临时状态（引擎本体在 tools/cost-engine/，已入库）
+tools/cost-engine/output/
+tools/cost-engine/source/
+tools/cost-engine/**/__pycache__/
