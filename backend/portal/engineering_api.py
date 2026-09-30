@@ -289,10 +289,12 @@ def _quota_candidates(payload):
 def quota_candidates(request):
     _require_engineering(request)
     query = request.query_params
-    if set(query) != {"name", "unit"} or any(len(query.getlist(key)) != 1 for key in query):
-        raise EngineeringError("invalid_request", "仅接受 name 和 unit 参数。")
+    # name 必填；unit 可选（留空时只按名称匹配，候选的 unit_compatible 一律为 false）。
+    if set(query) - {"name", "unit"} or "name" not in query or any(len(query.getlist(key)) != 1 for key in query):
+        raise EngineeringError("invalid_request", "仅接受 name 与可选的 unit 参数。")
     try:
-        name, unit = _quota_text(query["name"], 100), _quota_text(query["unit"], 20)
+        name = _quota_text(query["name"], 100)
+        unit = _quota_text(query["unit"], 20) if query.get("unit") else ""
     except ValueError:
         raise EngineeringError("invalid_request", "name 或 unit 格式无效。") from None
     if not EngineeringJob.objects.filter(owner=request.user, inspection__ok=True).exists():
@@ -301,8 +303,9 @@ def quota_candidates(request):
     if config["status"] != "ready":
         raise EngineeringError("quota_unavailable", "工程定额候选服务暂时不可用。", 503)
     try:
+        invocation = ("--name", name) if not unit else ("--name", name, "--unit", unit)
         returncode, payload = engineering_worker._invoke(
-            config, "quota-candidates", (), ("--name", name, "--unit", unit))
+            config, "quota-candidates", (), invocation)
         if returncode != 0:
             raise ValueError
         candidates = _quota_candidates(payload)
