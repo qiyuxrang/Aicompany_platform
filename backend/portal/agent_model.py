@@ -5,6 +5,7 @@ import uuid
 from typing import Any, Callable, Literal
 
 from asgiref.sync import sync_to_async
+
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, convert_to_openai_messages
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -12,6 +13,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import ConfigDict, Field
 
 from .agent_runtime import AgentDenied
+from .agent_db import database_boundary
 
 
 class GatewayChatModel(BaseChatModel):
@@ -50,14 +52,15 @@ class GatewayChatModel(BaseChatModel):
             message.pop("name", None)
         validate_messages(wire, names)
         physical_id = str(uuid.uuid4())
-        self.guard.admit("model", physical_id)
+        database_boundary(self.guard.admit)("model", physical_id)
         status = "error"
+        failure = None
         try:
             result = self.transport(messages=wire, tools=tools, tool_choice=choice,
                                     physical_call_id=physical_id)
             validate_result({key: result[key] for key in
                 ("content", "tool_calls", "prompt_tokens", "completion_tokens")}, names)
-            self.guard.check()
+            database_boundary(self.guard.check)()
             calls = [{"name": call["function"]["name"], "args": json.loads(call["function"]["arguments"]),
                       "id": call["id"], "type": "tool_call"} for call in result["tool_calls"]]
             usage = None
@@ -70,12 +73,18 @@ class GatewayChatModel(BaseChatModel):
             status = "finished"
             return ChatResult(generations=[ChatGeneration(message=message)])
         except Exception as error:
+            failure = error
             if isinstance(error, (TimeoutError, ConnectionError)) or getattr(error, "code", "") in {"timeout", "gateway_unavailable"}:
                 status = "unknown"
             raise
         finally:
             if status != "unknown":
-                self.guard.finish(physical_id, status)
+                try:
+                    database_boundary(self.guard.finish)(physical_id, status)
+                except Exception as finish_error:
+                    if failure is None:
+                        raise
+                    failure.add_note("Agent model action finalization failed: " + type(finish_error).__name__)
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         return await sync_to_async(self._generate, thread_sensitive=False)(messages, stop, None, **kwargs)
@@ -86,8 +95,8 @@ def gateway_transport(user, route_code, selection, guard):
     from . import model_gateway as gateway
     from .security import audit
 
-    def invoke(*, messages, tools, tool_choice, physical_call_id):
-        from time import monotonic
+    @database_boundary
+    def prepare(physical_call_id):
         from django.db import transaction
         from .agent_models import AgentRootAction
         from .models import ModelCallLog
@@ -111,27 +120,49 @@ def gateway_transport(user, route_code, selection, guard):
             record.conversation_id, record.work_id, record.requirement_id = run.conversation_id, run.work_id, run.requirement_id
             record.physical_call_id = physical_call_id
             record.save(update_fields=["root", "run", "conversation", "work", "requirement", "physical_call_id"])
+        return fresh, model, version, config, record
+
+    @database_boundary
+    def authorize_result(fresh, model, version, config):
+        guard.check()
+        current, current_route = gateway._route_for(user, route_code)
+        current_model, _, current_version = gateway._select_route_model(current, current_route, selection)
+        if (current.grant_version != fresh.grant_version or current_version != version
+                or current_model.pk != model.pk or gateway._model_config(current_model) != config):
+            raise AgentDenied("model_authorization_changed")
+
+    @database_boundary
+    def finalize(record, duration_ms):
+        record.duration_ms = duration_ms
+        record.save(update_fields=["status", "duration_ms", "prompt_tokens", "completion_tokens"])
+        audit(user, "agent_model_call", record.pk, result=record.status)
+
+    def invoke(*, messages, tools, tool_choice, physical_call_id):
+        from time import monotonic
+        fresh, model, version, config, record = prepare(physical_call_id)
         started = monotonic()
+        failure = None
         try:
             result = request_agent_gateway({**config, "messages": messages, "tools": tools,
                 "tool_choice": tool_choice, "purpose": "business"})
-            guard.check()
-            current, current_route = gateway._route_for(user, route_code)
-            current_model, _, current_version = gateway._select_route_model(current, current_route, selection)
-            if (current.grant_version != fresh.grant_version or current_version != version
-                    or current_model.pk != model.pk or gateway._model_config(current_model) != config):
-                raise AgentDenied("model_authorization_changed")
+            authorize_result(fresh, model, version, config)
             record.status = "success"
             record.prompt_tokens, record.completion_tokens = result["prompt_tokens"], result["completion_tokens"]
             return result
         except Exception as error:
+            failure = error
             record.status = "outcome_unknown" if isinstance(error, (TimeoutError, ConnectionError)) or getattr(
                 error, "code", "") in {"timeout", "gateway_unavailable"} else "agent_error"
             raise
         finally:
-            record.duration_ms = max(0, int((monotonic() - started) * 1000))
-            record.save(update_fields=["status", "duration_ms", "prompt_tokens", "completion_tokens"])
-            audit(user, "agent_model_call", record.pk, result=record.status)
+            try:
+                finalize(record, max(0, int((monotonic() - started) * 1000)))
+            except Exception as finalize_error:
+                if failure is None:
+                    raise
+                # Preserve an unknown physical result so the adapter cannot
+                # mistake a failed audit/save for an unexecuted model request.
+                failure.add_note("Agent model log finalization failed: " + type(finalize_error).__name__)
 
     return invoke
 

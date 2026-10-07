@@ -31,6 +31,49 @@ server {
 
     client_max_body_size 64k;
 
+    # The importer accepts a 64KiB JSON file. Its multipart envelope and CSRF
+    # field need bounded additional space; other admin routes keep 64KiB.
+    location = /admin/portal/gatewaymodel/import/ {
+        client_max_body_size 128k;
+        proxy_pass http://127.0.0.1:8100;
+        proxy_set_header Host portal.example.com;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 60s;
+    }
+
+    # Only upload endpoints receive a larger request limit. Application checks
+    # retain the per-file limits (20MiB product, 2MiB resume/JD, 20MiB engineering).
+    location ~ ^/api/(product/tasks/[0-9a-f-]+/sources/|agent/attachments/)$ {
+        client_max_body_size 21m;
+        proxy_pass http://127.0.0.1:8100;
+        proxy_set_header Host portal.example.com;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 180s;
+    }
+
+    # Up to 20 resumes x 2MiB, or 2 engineering workbooks x 20MiB,
+    # plus bounded multipart overhead.
+    location ~ ^/api/(hr/recruitment/batches/[0-9a-f-]+/resumes/|engineering/jobs/)$ {
+        client_max_body_size 41m;
+        proxy_pass http://127.0.0.1:8100;
+        proxy_set_header Host portal.example.com;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 180s;
+    }
+
+    # A single 2MiB JD or CSV ledger plus multipart metadata.
+    location ~ ^/api/(hr/recruitment/requests/upload-jd/|business/ledgers/(finance|engineering|presales)/import/)$ {
+        client_max_body_size 3m;
+        proxy_pass http://127.0.0.1:8100;
+        proxy_set_header Host portal.example.com;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 180s;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8100;
         proxy_http_version 1.1;

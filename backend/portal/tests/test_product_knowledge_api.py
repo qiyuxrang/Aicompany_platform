@@ -6,10 +6,14 @@ Real ORM authorization and conditional UPDATEs run against the Django test datab
 import json
 import uuid
 from datetime import timedelta
+from io import StringIO
 from unittest.mock import patch
 
-from django.test import Client, override_settings
+from django.core.management import call_command
+from django.db import connection
+from django.test import Client, TransactionTestCase, override_settings
 from django.utils import timezone
+from psycopg.pq import TransactionStatus
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from portal import product_knowledge_api as api
@@ -22,7 +26,7 @@ from .base import PortalTestCase
 from .test_product_knowledge_service import CONFIG, Response, wire
 
 
-class ProductKnowledgeApiTests(PortalTestCase):
+class _ProductKnowledgeApiFixture:
     def setUp(self):
         self.owner = self.create_user("knowledge-owner", "product")
         self.other = self.create_user("knowledge-other", "product")
@@ -73,6 +77,8 @@ class ProductKnowledgeApiTests(PortalTestCase):
         self.assertIsNone(conversation.pending_id)
         self.assertIsNone(conversation.pending_until)
 
+
+class ProductKnowledgeApiTests(_ProductKnowledgeApiFixture, PortalTestCase):
     def test_permissions_and_non_owner_never_call_external_services(self):
         item = self.create()
         for view, conversation in ((api.status, None), (api.datasets, None),
@@ -120,25 +126,6 @@ class ProductKnowledgeApiTests(PortalTestCase):
         item.refresh_from_db()
         self.assertEqual(item.version, 1)
         self.assertIsNone(item.pending_id)
-
-    def test_closed_stream_releases_lease_without_saving_partial_answer(self):
-        item = self.create()
-        closed = []
-        def events():
-            try:
-                yield {"delta": '{"answer":"草稿'}
-                yield {"done": True, "prompt_tokens": 1, "completion_tokens": 1}
-            finally:
-                closed.append(True)
-        with patch("portal.model_gateway.stream_for_use", return_value=events()):
-            request = self.factory.post("/api/product/knowledge/", {
-                "question": "问题", "version": 0, "request_id": str(uuid.uuid4()), "stream": True}, format="json")
-            force_authenticate(request, user=self.owner)
-            response = api.conversation(request, conversation_id=item.pk)
-            self.assertIn(b'data: {"delta":', next(iter(response.streaming_content)))
-            response.close()
-        self.assertEqual(closed, [True])
-        self.assert_unchanged(item)
 
     def test_stream_rechecks_scope_and_route_before_releasing_next_chunk(self):
         for change in ("scope", "route"):
@@ -472,3 +459,60 @@ class ProductKnowledgeApiTests(PortalTestCase):
         self.assertEqual(accepted.status_code, 200, accepted.content)
         self.assertEqual(self.outbound.call_count, 1)
         self.assertEqual(self.gateway.call_count, 1)
+
+
+class ProductKnowledgeStreamLifecycleTests(_ProductKnowledgeApiFixture, TransactionTestCase):
+    """Response.close sends request_finished; no test-owned outer atomic may survive it."""
+    create_user = PortalTestCase.create_user
+
+    def setUp(self):
+        call_command("seed_portal", stdout=StringIO())
+        super().setUp()
+
+    def test_closed_stream_releases_lease_without_saving_partial_answer(self):
+        self.assertFalse(connection.in_atomic_block)
+        item = self.create()
+        closed = []
+
+        def events():
+            try:
+                yield {"delta": '{"answer":"草稿'}
+                yield {"done": True, "prompt_tokens": 1, "completion_tokens": 1}
+            finally:
+                closed.append(True)
+
+        with patch("portal.model_gateway.stream_for_use", return_value=events()):
+            request = self.factory.post("/api/product/knowledge/", {
+                "question": "问题", "version": 0, "request_id": str(uuid.uuid4()), "stream": True}, format="json")
+            force_authenticate(request, user=self.owner)
+            response = api.conversation(request, conversation_id=item.pk)
+            self.assertIn(b'data: {"delta":', next(iter(response.streaming_content)))
+            old_connection = connection.connection
+            request_pool = connection.pool if connection.vendor == "postgresql" else None
+            pool_requests = request_pool.get_stats()["requests_num"] if request_pool else None
+            response.close()
+        self.assertTrue(response.closed)
+        if connection.vendor == "postgresql":
+            self.assertIsNone(connection.connection)
+            self.assertFalse(connection.in_atomic_block)
+            self.assertFalse(connection.closed_in_transaction)
+            if request_pool:
+                # Request close returns a checkout; the physical connection may
+                # remain open and may be reused by the next authorized request.
+                if not old_connection.closed:
+                    self.assertEqual(old_connection.info.transaction_status, TransactionStatus.IDLE)
+            else:
+                self.assertTrue(old_connection.closed)
+        self.assertEqual(closed, [True])
+        self.assert_unchanged(item)
+        following = self.request(api.conversation, conversation=item)
+        self.assertEqual(following.status_code, 200)
+        self.assertEqual(following.data["turns"], [])
+        if connection.vendor == "postgresql":
+            self.assertTrue(connection.is_usable())
+            self.assertTrue(connection.get_autocommit())
+            self.assertEqual(connection.connection.info.transaction_status, TransactionStatus.IDLE)
+            if request_pool:
+                self.assertGreater(request_pool.get_stats()["requests_num"], pool_requests)
+            else:
+                self.assertIsNot(connection.connection, old_connection)

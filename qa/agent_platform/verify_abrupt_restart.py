@@ -4,6 +4,7 @@ import importlib.metadata
 import json
 import os
 import socket
+import secrets
 import subprocess
 import sys
 import time
@@ -17,14 +18,20 @@ def main():
     directory = Path(__file__).resolve().parent
     repository = directory.parents[1]
     suffix = "crash-" + uuid.uuid4().hex
-    environment = {**os.environ, "PYTHONPATH": str(repository / "backend") + os.pathsep + str(repository),
-        "DJANGO_SETTINGS_MODULE": "qa.agent_platform.test_settings", "PYTHONUTF8": "1",
-        "A0_DATABASE_NAME": suffix + ".sqlite3", "A0_RUNTIME_DIRECTORY": suffix,
-        "A0_AUTO_RECONCILE": "1", "A0_SERVICE_TOKEN": "a0-synthetic-loopback-service-token-never-production"}
     with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 18743))
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
     output = directory / ".runtime" / suffix
     output.mkdir(parents=True)
+    clean_environment = {key: value for key, value in os.environ.items()
+        if not key.startswith(("PORTAL_", "MODEL_GATEWAY_", "LANGSMITH_", "LANGCHAIN_", "LANGGRAPH_", "A0_"))
+        and key != "DJANGO_SETTINGS_MODULE"}
+    environment = {**clean_environment, "PYTHONPATH": str(repository / "backend") + os.pathsep + str(repository),
+        "DJANGO_SETTINGS_MODULE": "qa.agent_platform.test_settings", "PYTHONUTF8": "1",
+        "A0_DATABASE_NAME": suffix + ".sqlite3", "A0_RUNTIME_DIRECTORY": suffix,
+        "A0_AUTO_RECONCILE": "1", "A0_SERVICE_TOKEN": secrets.token_urlsafe(48),
+        "A0_RUNTIME_PORT": str(port), "A0_EVIDENCE_DIRECTORY": str(output)}
+    base_url = f"http://127.0.0.1:{port}"
 
     def command(script, *arguments):
         with (output / (Path(script).stem + ".log")).open("a", encoding="utf-8") as log:
@@ -33,14 +40,15 @@ def main():
 
     def start(label):
         log = (output / (label + ".log")).open("w", encoding="utf-8")
-        process = subprocess.Popen([sys.executable, str(directory / "native_server.py"), "18743"],
-            env=environment, cwd=repository, stdout=log, stderr=subprocess.STDOUT)
+        process = subprocess.Popen([sys.executable, str(directory / "native_server.py"), str(port)],
+            env=environment, cwd=repository, stdout=log, stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         try:
             for attempt in range(120):
                 if process.poll() is not None:
                     raise RuntimeError(f"native server exited: {process.returncode}; see {log.name}")
                 try:
-                    response = httpx.get("http://127.0.0.1:18743/ok", trust_env=False, timeout=1)
+                    response = httpx.get(base_url + "/ok", trust_env=False, timeout=1)
                     if response.status_code == 200:
                         return process, log
                 except httpx.HTTPError:
@@ -73,14 +81,14 @@ def main():
             "versions": {name: importlib.metadata.version(name) for name in
                 ("langgraph-api", "langgraph-runtime-inmem", "langgraph-sdk")},
             "wait_before_first_run_seconds": 12, "wait_after_state_reads_seconds": 12,
-            "files_before_kill": files, "restart": json.loads((directory / "restart-evidence.json").read_text()),
+            "files_before_kill": files, "restart": json.loads((output / "restart-evidence.json").read_text(encoding="utf-8")),
             "result": "PASS", "scope": "periodically flushed native dev checkpoint, not synchronous crash durability"}
-        (directory / "abrupt-restart-evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        (output / "abrupt-restart-evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
         print(json.dumps(evidence, indent=2))
     finally:
         if process.poll() is None:
             try:
-                response = httpx.post("http://127.0.0.1:18743/a0/shutdown", trust_env=False,
+                response = httpx.post(base_url + "/a0/shutdown", trust_env=False,
                     headers={"Authorization": "Bearer " + environment["A0_SERVICE_TOKEN"]}, timeout=5)
                 response.raise_for_status()
                 process.wait(timeout=30)

@@ -6,6 +6,7 @@ from pathlib import Path
 import django
 from asgiref.sync import sync_to_async
 from langgraph_sdk import get_client
+from qa.agent_platform.evidence_paths import evidence_path, runtime_url
 
 if os.environ.get("DJANGO_SETTINGS_MODULE") != "qa.agent_platform.test_settings":
     raise RuntimeError("A0 isolated settings required")
@@ -16,13 +17,13 @@ from portal.agent_runtime import RuntimeGuard, bind_run, NativeRuntime
 
 
 async def verify():
-    path = Path(__file__).parent / "native-evidence.json"
+    path = evidence_path("native-evidence.json")
     evidence = json.loads(path.read_text(encoding="utf-8"))
     root = await sync_to_async(AgentRun.objects.select_related("conversation").get)(pk=evidence["root_id"])
     binding = await sync_to_async(bind_run)(root.pk, root.conversation.owner_id)
     before = (root.action_count, root.model_count, root.tool_count, root.launch_count)
     event_count = await sync_to_async(AgentEvent.objects.filter(root=root).count)()
-    async with get_client(url="http://127.0.0.1:18743", api_key=None, headers={
+    async with get_client(url=runtime_url(), api_key=None, headers={
         "Authorization": "Bearer " + os.environ["A0_SERVICE_TOKEN"], "X-Agent-Binding": binding.token()}) as client:
         state = await client.threads.get_state(root.native_thread_id)
         assert state["values"]["messages"]

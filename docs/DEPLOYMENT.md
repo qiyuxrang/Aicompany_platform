@@ -153,7 +153,7 @@ corepack pnpm install --frozen-lockfile
 Pop-Location
 ```
 
-迁移由 backend 容器启动命令幂等执行。初始管理员必须通过交互命令创建，不存在默认账号或默认密码：
+迁移由独立 `migrate` 一次性服务执行，Web 等待其成功；Web 副本重启不执行迁移。静态资源在镜像构建时生成。初始管理员必须通过交互命令创建，不存在默认账号或默认密码：
 
 ```powershell
 .\scripts\manage.ps1 -AppEnvFile .runtime/validation.env bootstrap_admin admin
@@ -277,3 +277,87 @@ try {
 ```
 
 owner 清单一致只证明对象及所有者恢复一致；仍应由业务负责人补充固定数据量、关键记录和登录只读验证，并把最终结果写入 `docs/evidence/postgres-restore-final.json`。整个过程不改变应用的 `PORTAL_DB_NAME=portal_phase1`，也不删除 `portal_phase1_restore` 或 `portal_phase1_restore_final`。
+
+## 2026-10 云发布候选：完整服务与门禁
+
+本节补充现有部署，不将上述历史演练视为当前 Agent/0034 全量生产验收。生产候选需要同时验收功能、隔离、恢复与容量；配置检查和镜像构建成功均不表示已批准上线。规划约束见 `项目规划/Agent平台/2026-09-30-agent-platform-detailed-design.md`。
+
+### Portal 与领域 Worker
+
+现有 Compose 保持 Agent 关闭时可独立运行。`db → migrate → backend → hr-worker` 是基础链；产品、招标、模型网关分别以 `product`、`tender`、`models` profile 启用。工程 profile 为 `engineering`，只运行既有工程任务：成本 CLI/受信 Python 由工程负责人交付，配置容器内绝对路径；平台不制造成本算法或工程助手。
+
+工程启用时设置 `PORTAL_ENGINEERING_ENABLED=1`、`PORTAL_ENGINEERING_PYTHON`、`PORTAL_ENGINEERING_COST_CLI`，并将已准备的受信 Linux 运行时目录通过 `ENGINEERING_RUNTIME_DIR` 只读挂载到 `/opt/engineering`。空/不存在宿主目录不能被 Compose 自动创建冒充交付。不要把 Windows 虚拟环境复制到 Linux 容器。工程文件使用新增 `engineering_private_data`；产品、HR、招标仍各自使用私有卷。
+
+新版本发布先停止新 Agent 派发及相关长任务领取，确认在途任务排空或按守卫收尾，记录维护窗口和恢复点。只执行一次 `docker compose run --rm migrate`，成功后用 `docker compose up --no-deps -d backend` 及已启用 Worker 更新应用（数据库需预先健康）；不得同时运行多个发布进程。首次 `compose up` 使用一次性服务依赖；升级现有已完成服务时必须显式运行该步骤，不能以旧容器的成功退出码代替新迁移。Web 启动不再迁移，镜像静态文件一致。回退首先关闭 Agent 新入口，保留原业务与历史；不自动降迁移、删表或删除已关联任务。
+
+`deploy/nginx.conf.example` 保留默认64KiB，产品来源/Agent附件21MiB、HR批次/工程任务41MiB、JD/台账CSV导入3MiB；仅精确管理路由 `/admin/portal/gatewaymodel/import/` 使用128KiB请求上限，为允许的64KiB配置JSON文件保留multipart/CSRF余量，其它管理路由不放宽。应用仍执行每文件/数量限制。部署时替换域名、证书和可信代理地址，验证完整multipart上限、超限413、CSRF及撤权下载。长解析上传拥有有限180秒代理超时；其他请求仍为60秒。不能只在直连Web端测试上传。
+
+### 正式三件套：Office 渲染是独立部署阻塞
+
+**当前单 Linux Compose 不能承诺正式三件套已可运行。** 冻结 PACK 的 `scripts/office_render.py` 使用 `win32com.client` 与 Microsoft Word/PowerPoint COM，`document-runtime.txt` 仅在 Windows 安装 pywin32；Debian Docker 镜像安装的是 Chromium、字体和 OOXML 文档库，没有 Microsoft Office。Mermaid 真实绘图及 DOCX/PPTX 结构生成成功不等于 Word 目录/分页和 PowerPoint 逐页渲染成功。不能通过设置一个启用开关、复用本机 Word 成功报告或安装 LibreOffice 宣称当前冻结模板与渲染脚本已获支持。
+
+`PORTAL_PRODUCT_FORMAL_RELEASE_ENABLED=1` 与 `PORTAL_PRODUCT_OFFICE_RENDER_ENABLED=1` 现在分别触发 readiness Office 依赖检查，不能依赖是否开启模型调用。正式发布要求 Office 开关启用（`product_formal_office_enabled`）；任一开关启用都检查受信文档解释器（`product_document_runtime`）和本地平台（`product_office_platform`），当前 COM-only renderer 在 Linux 或未知平台明确报告配置阻塞。Windows 文件/Python 路径存在也仅是配置条件，真实 Word/PPT 渲染、授权、执行路由与目标运行方式的支持性仍是 `product_office_acceptance` 独立门禁。未完成这些条件时关闭正式能力，保留已授权的原业务与诚实标注的结构生成结果，不增加蓝图以外的成稿人工审批。仅启用模型调用、两项正式/Office 开关均关闭时，Linux 结构生成不因缺少 Office 被阻塞。
+
+与现有架构相容的候选路径是将**已有领域 `run_product_worker`** 放到专属受信 Windows 文档执行环境，Linux 继续运行 Portal、业务 PostgreSQL、网关与官方 Native Runtime。该路径只是部署方案，尚未云端验收；不增加通用 Harness/Runtime，也不修改冻结 PACK：
+
+1. Windows 节点使用相同发布版本、锁定 Python/Node 依赖、经过核验的 Mermaid bundle/manifest，以及获准安装和授权的 Word、PowerPoint 与公司字体。不能复制 Linux venv 到 Windows。执行者使用专属工作身份和受控桌面/用户配置，Office 工作串行化；只创建、关闭自己的 Office 实例，不能清理用户已有会话。
+2. Worker 连接**同一 Portal PostgreSQL**和相同任务/账号/根守卫，不克隆一个业务库或补另一套排队系统。云端私有 DNS、可达性、数据库身份与 TLS 证书校验必须实际验证；Compose 内部名 `db` 不能直接当作跨主机地址。凭据通过受控部署配置提供，不写进 CLI 或验收输出。模型出口仍走获准网关、权限与计量守卫。
+3. Portal、Native Runtime 与该 Worker 的产品私有根指向**同一持久文件内容**。跨系统可评估受控共享文件系统/SMB 等方案，但要实测 Windows ACL、Linux UID/GID、相对路径、文件锁、原子替换和故障恢复；本机 Compose named volume 不自动成为跨主机共享卷，现有路径存储也不冒称支持 S3。仅共享必要产品目录，不暴露宿主根、用户桌面或其它员工材料。
+4. 必须补齐部署中的执行能力路由和 Worker 身份/健康证据，防止同一正式任务被 Linux `product-worker` 领取并错误调用 COM。Linux 上不应仅因 Windows Worker 存在就将本地 Office 配置判为可用；Web/API 需要与领域执行者的能力配置对应，现有单 Compose 并没有提供这个跨主机能力证明。部署迁移时先停写/排空相关领取，再调整 Worker；保留输入、蓝图、章节与模板哈希绑定及撤权/取消/fence 检查。
+5. 在目标运行方式中实际生成规定长度的两份 Word 与 PPT，刷新并核验 Word TOC/页数/全黑文本，使用冻结 PACK 的 PowerPoint renderer 对全部页面导出并核对。现有 PPT structural quality pass、`office_render=not_run` 不能替代这一步；需要自动编排真实 PPT 渲染、保存与该版本绑定的文件/页图摘要，并检验异常弹窗、超时、进程中断、撤权、多任务与恢复。验收证据记录真实 Office/操作系统/字体/脚本版本和输入/输出哈希，不成为用户下载前的第二次人工审批。
+
+Windows 不自动消除支持性问题。Microsoft 明确说明[不支持无人值守、非交互组件的 Office server-side Automation](https://support.microsoft.com/en-us/visio/considerations-for-server-side-automation-of-office)，并指出交互桌面、并发、挂起与许可限制。把当前 COM 脚本放到 Windows SYSTEM 服务或非交互计划任务，或者只设置超时/串行化，不能据此承诺受支持的生产服务。若终态要求完全无人值守云部署，必须先确定真正受支持且获准的私有渲染服务/授权、数据边界及冻结模板一致性方案；未取得该能力前，正式三件套维持明确阻塞，不自动采购或外发资料，也不伪造 LibreOffice 兼容结论。
+
+Word 生成链在冻结 PACK 输出之后、真实 Office 更新之前执行 `generated-ooxml-layout-v1` 规范化：仅为内容版本书签明确对应的正文标题设置 keepNext/keepLines，将纯 TOC 外层结束标记移入显式1pt、零段距段，并收紧其后无内容的分节段，关闭继承的绑定和网格吸附。原始模板、manifest、章节内容哈希、全部文字/字段/书签/图片及分节保持；其它 ZIP part（含图片、关系、样式）逐字节保持。遇到缺失/重复书签、不平衡字段、带正文的分节段或不支持的 TOC 边界必须失败，不能删页或删内容“修复”。质量报告与工件记录生成前/规范化后 SHA、内容保留摘要和改动数量；Office 随后重新更新 TOC、渲染并绑定最终文件 SHA。该规范化证据始终标注 `visual_review=not_run`，实际 Word 目录、空白页与标题/图片同行必须重新查看全部目标页，不能沿用旧版页图或将结构测试当作视觉通过。
+
+### Agent：官方 Helm/Kubernetes 生产主路径
+
+使用官方 `langchain/langgraph-cloud` chart **0.3.3** 和本仓库 `deploy/agent/helm-values.example.yaml`，生产需要 Kubernetes、原生 PostgreSQL/Redis、内部TLS入口、私有共享卷和有效Runtime许可。官方生产路径为[Helm/Kubernetes](https://docs.langchain.com/langsmith/deploy-standalone-server)，Compose/inmem开发恢复证据不能替代生产PG恢复。
+
+`deploy/agent/Dockerfile` 继承官方生产 Agent Server 的API/队列入口，加载现有DeepAgents图、自定义认证和HTTP收尾入口，使用主依赖冻结锁及官方 `/api/constraints.txt`；不安装 `agent-runtime` 开发依赖组。构建时用 `deploy/agent/build-image.ps1 -BaseImage <稳定官方tag@sha256> -ImageTag <候选仓库tag>`，base必须为已核对的官方稳定Python3.13生产镜像摘要。依赖冲突应使构建失败并阻塞发布，不能覆盖/关闭许可或偷偷换Harness。推送与发布另按当前任务授权执行；本节命令不自动执行服务。
+
+镜像认证配置必须与 `langgraph.json` 保持一致，禁止覆盖为noop；图、auth或HTTP配置变更后重新核对镜像。许可证必须实际支持本项目自定义认证及正式部署，不以普通模型key、开发key存在或SDK开源许可代替。无许可时记录 `BLOCKED_LICENSE`；不填写假key、绕过校验或自动购买服务。
+
+将example镜像仓库/tag替换为经验证的不可变发布，并执行 `helm template portal-agent langchain/langgraph-cloud --version 0.3.3 -f <本地受控values>` 做离线审阅。API和queue采用同一镜像和根身份，最小副本数为1；禁止scale-to-zero。副本数、jobs/worker与600秒排空窗口是候选部署参数，需根据压力与最长在途调用验证后固定；不新建第二套通用调度器。
+
+Secret分开保存，均不提交Git，不把真实值写入命令行日志：
+
+| Secret | 契约 |
+| --- | --- |
+| `portal-agent-license` | 官方chart的 `api_key` / `langgraph_cloud_license_key`（所需有效授权）；不要再通过extraEnv/envFrom注入同名Runtime许可变量 |
+| `portal-agent-postgres` | `postgres_connection_url`；数据库与Portal业务库、其他Runtime独立，生产TLS连接与备份 |
+| `portal-agent-redis` | `redis_connection_url`；独立Redis库编号、认证/TLS与可恢复配置 |
+| `portal-agent-application` | Portal DB配置、与Portal相同的签名SECRET_KEY、Agent服务token、允许列表、获准模型preset及必要网关身份；不含模型供应商凭据或Runtime许可变量 |
+| `portal-agent-tls` | 内部域名有效证书及私钥；Portal信任其CA，不能关闭证书验证 |
+
+官方chart 0.3.3管理 `POSTGRES_URI` / `REDIS_URI` 与许可注入（独立Docker文档称数据库变量为 `DATABASE_URI`，必须以最终官方镜像与固定chart兼容性验收为准）。已核对官方API/queue模板的连接Secret键；正式部署仍需渲染固定chart并验证双方实际注入，不沿用其他版本假定。许可证必需出网仅在获准出口开放，默认禁发外部追踪（`LANGSMITH_TRACING=false`、`LANGCHAIN_TRACING_V2=false`）和内容日志；网络验证需证明附件/提示/工具正文未外发至遥测服务。
+
+`internal-tls.yaml` 由**私有**Ingress controller处理，域名 `agent.portal.internal` 不对公网路由；Runtime原生端口仅ClusterIP。Portal配置 `PORTAL_AGENT_RUNTIME_URL=https://agent.portal.internal`，同地址加入允许列表，设置 `PORTAL_AGENT_DEPLOYMENT_MODE=helm_kubernetes`。只在本机开发允许loopback明文HTTP，不把 `http://agent-runtime:2024` 填成生产地址。Bearer服务token与签名binding由现有代码逐请求校验；TLS不会替代对象授权。`network-policy.yaml` 限制入口，只允许同namespace协调与指定私有Ingress namespace；需部署有效CNI并按实际namespace调整。出口按数据库/Redis/Portal网关/获准许可验证服务另设置明确规则，不能因DNS或证书问题改成全网开放。
+
+Portal Web、产品/HR Worker、Runtime API/queue需看到同一产品/HR私有文件；example引用 `portal-product-private` / `portal-hr-private` PVC，PVC由集群存储负责人按现有数据导入与权限提供。多主机使用满足访问模式的共享文件系统/RWX，不能假定每节点local卷自动一致；不直接将现有路径API声称为S3支持。Runtime只挂需要的两类私有卷，不挂宿主根目录、平台凭据目录或员工私人目录。Portal候选镜像与Runtime统一非root UID/GID10001，chart使用fsGroup10001；既有卷可能属于旧镜像UID，升级前在备份与维护窗口内显式核对/迁移卷权限，不能直接重启后发现无权读写。官方镜像继承的API/队列入口及健康检查在该非root身份下必须真实测试，若需其受信目录权限只能在构建阶段定点调整，不改为生产root运行。
+
+### 分层检查与可发布证据
+
+`check_production_readiness` 在Agent/产品生成/知识服务/工程显式启用后追加相关身份、预设、受信本地运行时/目录检查；无功能启用不强迫安装外部工程能力。输出仍为 `configuration_only_no_network_calls`，`release_approved=false`。Agent许可、PG/Redis恢复、AG-15/16、真实产品质量和工程准确性均保持独立external_gate；目录存在或密钥配置绝不当作现场测试通过。
+
+模型网关配置由 readiness 与真实请求构造器共用同一个纯校验函数：地址必须符合既有 HTTPS 或明确私有本地 HTTP 规则、准确匹配允许名单，且服务令牌符合既有长度/字符条件。允许名单不能让无协议/主机、嵌入凭据、查询/片段或非法令牌变成“配置通过”。这一步不创建网络客户端、不检查供应商连通性，也不证明真实模型质量；实际调用仍保留 `unconfigured`/503 错误契约。
+
+正式启用前在相同发布镜像/拓扑独立证明：AG-15/16全部默认工具与后端正负例及根累计终止；两个不同获准模型真实并行且主运行继续工作；断线更正/取消/撤权、未知调用/副作用对账、强杀与跨副本恢复；本人精确财务发布及GM只读隔离；HR长期有效且旧失效/已删除资料不恢复；真实50k/70k三件套、PPT/Word渲染与内容核对。人工签收不成为产品生成/下载二次审批。只在获准试点与模型范围用真实资料，不扩大全库外发。
+
+恢复点覆盖Portal DB、原生Runtime DB/checkpoint/store、全部私有文件卷以及删除/授权状态；先排空或停止写入形成一致快照，记录清单/摘要/恢复时间，再在隔离空白环境恢复并验权。旧Phase1仅数据库或单目录备份演练不证明当前所有存储的一致性。备份恢复不得重新开放已删除/撤权对象。容量测试事先明确用户数/任务组合/目标p95/p99/错误率/排队上限及RPO/RTO，覆盖渐增、突发、长时与故障，不以单元测试数量宣称“全量压力通过”。
+
+### 当前候选的离线验证（2026-10-07）
+
+Portal Web 候选维持4个执行线程，显式设置 `--connection-limit=512` 和 Linux `--asyncore-use-poll`，Compose为其配置4096个文件描述符预算。连接预算与执行并发不同；512不是吞吐或排队承诺，数据库及私有文件并发另行验收。原Waitress默认100连接在100会话准备阶段已耗尽，不能沿用默认值声称100会话可用。[Waitress参数说明](https://docs.pylonsproject.org/projects/waitress/en/latest/arguments.html)解释每连接最多使用多个文件描述符，故需同时限制连接并核实操作系统资源。Windows本机测试仅使用select，不能替代Linux poll/代理/云机器容量。
+
+数据库镜像已固定 PostgreSQL 17.11 的官方多架构摘要 `sha256:ae69c452f483507a6b99fb654cf93aad7fe156ffd2c56247707eef4e36d3c12b`；此前17.5缺少后续安全修复。摘要实际读取Docker官方registry，17.11修复范围见[PostgreSQL发布说明](https://www.postgresql.org/docs/17/release-17-11.html)。本轮未启动或升级任何现有生产数据库；同主版本补丁仍须在实际发布镜像检查迁移、备份与扩展兼容性。
+
+`deploy/validate_contract.py` 校验迁移/Web分离、工程共享卷、上传路由上限、图/auth/HTTP与镜像配置一致、私有Runtime与外部PG/Redis。readiness及部署合同定向测试16项通过；该轮不创建/访问业务数据库。
+
+后续 Office 门禁复验中，readiness 的17项测试全部通过（原10项与新增7项）：分别覆盖仅 Office、仅正式发布、两项启用但 Linux、未知平台、Windows 路径不能代替实际验收，以及普通结构生成/关闭功能不被误阻塞。该复验使用 SimpleTestCase，跳过数据库创建，不执行 COM 或目标渲染；真实目标 Office 部署仍须通过上述独立门禁。
+
+再后续网关配置与管理导入边界复验共33项通过（readiness18、部署合同10、原供应商/网关构造器5）：覆盖共享校验与真实请求构造器的有效/无效配置矩阵，以及64KiB合法JSON经真实multipart/CSRF编码后超64KiB但低于精确128KiB限额；缺失、过小、过宽管理例外及放宽全局限额均被负测拒绝。该轮跳过数据库创建且未发HTTP；仍未执行真实Nginx语法/代理测试。
+
+使用Helm v3.19.0实际渲染并lint官方 `langgraph-cloud-0.3.3.tgz`（SHA256 `5b8c859f5d7dfa699a31d9ebc252be6b65f977df56a8bec85ac82968d44344d6`）；lint为1 chart/0失败。`deploy/agent/render.ps1` 是复验入口，`validate_rendered.py` 检查API/queue的实际Secret引用、分离队列、私有Service、排空窗口、非root身份与共享PVC。渲染只使用示例镜像占位，不向集群应用。图/认证仍须在真实获许可镜像启动后验证。
+
+未执行的候选出口包括Nginx实际 `-t` /代理HTTP、大镜像构建、原生Runtime有效许可、非rootAPI/queue启动、生产持久化/排空和云环境验收；这些结果不能被上述离线PASS替代。真实发布必须替换镜像占位、提供Secret/PVC/TLS及所有现场证据。

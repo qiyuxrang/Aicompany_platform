@@ -37,7 +37,7 @@ def new_run_directory() -> Path:
             directory.mkdir()
         except FileExistsError:
             continue
-        for name in ("storage", "hr-storage", "downloads"):
+        for name in ("storage", "hr-storage", "tender-storage", "engineering-storage", "downloads"):
             (directory / name).mkdir()
         (directory / "database.sqlite3").touch()
         return directory
@@ -63,11 +63,11 @@ def office_probe(runtime: Path, timeout: int) -> tuple[bool, str]:
     )
 
 
-def configure_environment(run_directory: Path, timeout: int, office: bool) -> dict:
+def configure_environment(run_directory: Path, timeout: int, office: bool, runtime: Path | None = None) -> dict:
     for key in list(os.environ):
         if key.startswith("PORTAL_") or key == "DJANGO_SETTINGS_MODULE":
             del os.environ[key]
-    runtime = ROOT / ".runtime" / "product-documents-python" / "Scripts" / "python.exe"
+    runtime = runtime or ROOT / ".runtime" / "product-documents-python" / "Scripts" / "python.exe"
     storage = run_directory / "storage"
     database = run_directory / "database.sqlite3"
     os.environ.update({
@@ -79,6 +79,11 @@ def configure_environment(run_directory: Path, timeout: int, office: bool) -> di
         "PORTAL_SQLITE_PATH": str(database),
         "PORTAL_PRODUCT_STORAGE_ROOT": str(storage),
         "PORTAL_HR_STORAGE_ROOT": str(run_directory / "hr-storage"),
+        "PORTAL_TENDER_STORAGE_ROOT": str(run_directory / "tender-storage"),
+        "PORTAL_ENGINEERING_STORAGE_ROOT": str(run_directory / "engineering-storage"),
+        "PORTAL_AGENT_ENABLED": "0",
+        "PORTAL_AGENT_RUNTIME_URL": "",
+        "PORTAL_AGENT_RUNTIME_SERVICE_TOKEN": "",
         "PORTAL_PRODUCT_P1_ENABLED": "1",
         "PORTAL_PRODUCT_MODEL_CALLS_ALLOWED": "0",
         "PORTAL_MODEL_GATEWAY_URL": "",
@@ -418,13 +423,14 @@ def write_result(run_directory: Path, result: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=int, default=300)
+    parser.add_argument("--document-python", type=Path, help="Explicit isolated document Python; existing default stays unchanged")
     args = parser.parse_args()
     if not 30 <= args.timeout <= 1200:
         parser.error("--timeout must be between 30 and 1200 seconds")
     run_directory = new_run_directory()
-    runtime = ROOT / ".runtime" / "product-documents-python" / "Scripts" / "python.exe"
+    runtime = args.document_python.resolve() if args.document_python else ROOT / ".runtime" / "product-documents-python" / "Scripts" / "python.exe"
     office, office_reason = office_probe(runtime, args.timeout)
-    config = configure_environment(run_directory, args.timeout, office)
+    config = configure_environment(run_directory, args.timeout, office, runtime)
     config["word_office_probe"] = office_reason
     result = {"schema": "PREPRODUCTION_DOCUMENT_ACCEPTANCE_V1", "passed": False,
               "paths": {"run_directory": str(run_directory), "report": str(run_directory / "acceptance-result.json")}}

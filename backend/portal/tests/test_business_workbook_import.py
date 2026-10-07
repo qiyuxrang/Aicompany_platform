@@ -2,10 +2,12 @@ from copy import deepcopy
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 
 from portal.business_models import BusinessLedgerGrant, BusinessLedgerRevision, BusinessLedgerWorkbook
 from portal.models import User
@@ -40,6 +42,7 @@ class BusinessWorkbookImportTests(PortalTestCase):
         self.assertFalse(BusinessLedgerWorkbook.objects.exists())
         self.assertFalse(BusinessLedgerRevision.objects.exists())
 
+    @skipUnless(connection.vendor == 'sqlite', 'first-import apply is explicitly SQLite-only')
     def test_apply_imports_drafts_without_assigning_writers_or_changing_accounts(self):
         users_before = list(User.objects.values('id', 'password', 'session_version', 'grant_version'))
         grants_before = list(BusinessLedgerGrant.objects.values())
@@ -54,6 +57,7 @@ class BusinessWorkbookImportTests(PortalTestCase):
         self.assertFalse(self.client.get('/api/business/boards/finance/').json()['available'])
         self.assertFalse(self.client.get('/api/business/boards/engineering/').json()['available'])
 
+    @skipUnless(connection.vendor == 'sqlite', 'first-import apply is explicitly SQLite-only')
     def test_repeat_is_idempotent_and_different_source_is_rejected(self):
         self.run_import(apply=True)
         self.run_import(apply=True)
@@ -62,6 +66,17 @@ class BusinessWorkbookImportTests(PortalTestCase):
         with self.assertRaisesMessage(CommandError, '拒绝覆盖'):
             self.run_import(apply=True)
         self.assertEqual(BusinessLedgerRevision.objects.count(), 2)
+
+    @skipUnless(connection.vendor == 'postgresql', 'production PostgreSQL import rejection')
+    def test_postgresql_apply_is_rejected_without_accounts_grants_or_drafts_changing(self):
+        users_before = list(User.objects.order_by('id').values('id', 'password', 'session_version', 'grant_version'))
+        grants_before = list(BusinessLedgerGrant.objects.order_by('id').values())
+        with self.assertRaisesMessage(CommandError, '首次导入命令仅用于本地 SQLite'):
+            self.run_import(apply=True)
+        self.assertFalse(BusinessLedgerWorkbook.objects.exists())
+        self.assertFalse(BusinessLedgerRevision.objects.exists())
+        self.assertEqual(list(User.objects.order_by('id').values('id', 'password', 'session_version', 'grant_version')), users_before)
+        self.assertEqual(list(BusinessLedgerGrant.objects.order_by('id').values()), grants_before)
 
     def test_new_source_cannot_be_published_by_manager(self):
         with self.assertRaisesMessage(CommandError, '不能由管理账号整簿发布'):

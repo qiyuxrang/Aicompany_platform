@@ -1,0 +1,25 @@
+# Private ingress controller ONLY (must not create a public load balancer).
+# TLS certificate must be valid for agent.portal.internal and trusted by Portal.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portal-agent-internal
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+spec:
+  ingressClassName: nginx-internal
+  tls:
+    - hosts: [agent.portal.internal]
+      secretName: portal-agent-tls
+  rules:
+    - host: agent.portal.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: portal-agent-api-server
+                port:
+                  number: 80

@@ -6,6 +6,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
+if __package__:
+    from .private_path_safety import checked_path, regular_files
+else:
+    from private_path_safety import checked_path, regular_files
+
 
 def _sha(path):
     digest = hashlib.sha256()
@@ -15,10 +20,12 @@ def _sha(path):
     return digest.hexdigest()
 
 
-def _copy_file(source, destination, base, records):
-    if source.is_symlink() or not source.is_file():
+def _copy_file(source, destination, base, records, source_root):
+    source = checked_path(source, root=source_root, must_exist=True)
+    if not source.is_file():
         raise ValueError("Snapshot input must be a regular file")
     target = destination / base
+    checked_path(target, root=destination)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
     records.append({"path": base.as_posix(), "sha256": _sha(source)})
@@ -29,9 +36,10 @@ def _git(repo, *args):
 
 
 def create_snapshot(destination, roots, storage_root, dump_path):
-    destination = Path(destination).absolute()
-    storage_root, dump_path = Path(storage_root).absolute(), Path(dump_path).absolute()
-    roots = [Path(root).absolute() for root in roots]
+    destination = checked_path(destination)
+    storage_root, dump_path = checked_path(storage_root, must_exist=True), checked_path(dump_path, must_exist=True)
+    roots = [checked_path(root, must_exist=True) for root in roots]
+    private_files = regular_files(storage_root)
     if any(destination == root or root.is_relative_to(destination) for root in [*roots, storage_root, dump_path]):
         raise ValueError("Snapshot overlaps source")
     if destination.is_relative_to(storage_root) or destination.is_relative_to(dump_path):
@@ -73,7 +81,7 @@ def create_snapshot(destination, roots, storage_root, dump_path):
                 source = root / name
                 paths.append(name.as_posix())
                 if source.exists() or source.is_symlink():
-                    _copy_file(source, destination, prefix / name, records)
+                    _copy_file(source, destination, prefix / name, records, root)
             diff = _git(root, "diff", "--binary", "HEAD", "--")
             diff_path = destination / prefix / "tracked.diff"
             diff_path.parent.mkdir(parents=True, exist_ok=True)
@@ -84,16 +92,12 @@ def create_snapshot(destination, roots, storage_root, dump_path):
             # Test fixtures may not be Git repositories; actual backups always record HEAD.
             if (root / ".git").exists():
                 raise
-            for source in root.rglob("*"):
-                if source.is_file() and not source.is_symlink() and ".runtime" not in source.parts and source.suffix != ".env":
-                    _copy_file(source, destination, prefix / source.relative_to(root), records)
+            for source in regular_files(root, skip=lambda path: path.name == ".runtime" or path.suffix == ".env"):
+                _copy_file(source, destination, prefix / source.relative_to(root), records, root)
             repos.append({"head": None, "dirty_paths": []})
-    for source in storage_root.rglob("*"):
-        if source.is_symlink():
-            raise ValueError("Symlinks in private storage are forbidden")
-        if source.is_file():
-            _copy_file(source, destination, Path("private") / source.relative_to(storage_root), records)
-    _copy_file(dump_path, destination, Path("database.dump"), records)
+    for source in private_files:
+        _copy_file(source, destination, Path("private") / source.relative_to(storage_root), records, storage_root)
+    _copy_file(dump_path, destination, Path("database.dump"), records, dump_path.parent)
     manifest = {"repos": repos, "files": records}
     (destination / "backup_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     verify_snapshot(destination)
@@ -101,14 +105,19 @@ def create_snapshot(destination, roots, storage_root, dump_path):
 
 
 def verify_snapshot(destination):
-    destination = Path(destination).resolve(strict=True)
-    manifest = json.loads((destination / "backup_manifest.json").read_text(encoding="utf-8"))
+    destination = checked_path(destination, must_exist=True)
+    manifest_path = checked_path(destination / "backup_manifest.json", root=destination, must_exist=True)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     for record in manifest["files"]:
         relative = Path(record["path"])
         if relative.is_absolute() or ".." in relative.parts:
             raise ValueError("Unsafe manifest path")
         target = destination / relative
-        if target.is_symlink() or not target.is_file() or not target.resolve().is_relative_to(destination):
+        try:
+            target = checked_path(target, root=destination, must_exist=True)
+        except (OSError, ValueError) as error:
+            raise ValueError("Snapshot file missing or unsafe") from error
+        if not target.is_file():
             raise ValueError("Snapshot file missing or unsafe")
         if _sha(target) != record["sha256"]:
             raise ValueError("Snapshot checksum mismatch")

@@ -24,6 +24,62 @@ beforeEach(() => {
 });
 
 describe("EngineeringPendingPage", () => {
+  it.each([
+    ["network failure", new Error("网络中断")],
+    ["service failure", new ApiError(503, "工程服务暂不可用")],
+    ["invalid response", null],
+  ])("does not describe an initial %s as an empty job list, and refresh can recover", async (_, failure) => {
+    let failed = true;
+    let completeRefresh: (() => void) | undefined;
+    request.mockImplementation(async (path) => {
+      if (path === knowledgeRoot) return { status: "locked", detail: "尚未授权" };
+      if (failed) {
+        if (failure) throw failure;
+        return { jobs: "invalid" };
+      }
+      await new Promise<void>(resolve => { completeRefresh = resolve; });
+      return { jobs: [], capabilities };
+    });
+    const user = userEvent.setup();
+    render(<EngineeringPendingPage section="estimate" />);
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", expect.stringContaining("任务列表读取失败"));
+    expect(screen.queryByText("暂无服务端任务。")).toBeNull();
+    expect(screen.queryByText("正在读取任务列表…")).toBeNull();
+
+    failed = false;
+    await user.click(screen.getByRole("button", { name: "刷新任务状态" }));
+    expect(screen.queryByText("暂无服务端任务。")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toContain("任务列表读取失败");
+    await act(async () => { completeRefresh!(); });
+    expect(await screen.findByText("暂无服务端任务。")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("marks retained job records as stale when polling fails and clears the warning on recovery", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let failed = false;
+      request.mockImplementation(async (path) => {
+        if (path === knowledgeRoot) return { status: "locked", detail: "等待解析" };
+        if (failed) throw new Error("任务同步中断");
+        return { jobs: [completed], capabilities };
+      });
+      render(<EngineeringPendingPage section="estimate" />);
+      expect(await screen.findByText("电力电缆清单 · 成本测算")).toBeTruthy();
+      failed = true;
+      await act(async () => { vi.advanceTimersByTime(5000); });
+      expect(await screen.findByRole("alert")).toHaveProperty("textContent", expect.stringContaining("上次成功读取的记录"));
+      expect(screen.getByText("电力电缆清单 · 成本测算")).toBeTruthy();
+      expect(screen.queryByText("暂无服务端任务。")).toBeNull();
+
+      failed = false;
+      await act(async () => { vi.advanceTimersByTime(5000); });
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("limits uploads to one or two XLSX files", async () => {
     render(<EngineeringPendingPage section="estimate" />);
     await screen.findByText("暂无服务端任务。");

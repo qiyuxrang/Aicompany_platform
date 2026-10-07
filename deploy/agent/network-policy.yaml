@@ -1,0 +1,19 @@
+# Apply to an isolated `portal-agent` namespace after replacing namespace labels
+# and approved egress destinations. No runtime port is exposed to browsers.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portal-agent-private-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {} # API/queue self coordination in the same namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-internal
+      ports:
+        - protocol: TCP
+          port: 8000

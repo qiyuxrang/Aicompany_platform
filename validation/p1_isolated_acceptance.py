@@ -12,6 +12,11 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+if __package__:
+    from .private_path_safety import checked_path, regular_files
+else:
+    from private_path_safety import checked_path, regular_files
+
 import psycopg
 from psycopg import sql
 
@@ -547,17 +552,26 @@ def database_state(connection):
 
 def file_state(root):
     state = {}
+    root = checked_path(root)
     if not root.is_dir():
         return state
-    for path in sorted(root.rglob("*")):
-        if path.is_symlink():
-            raise SystemExit("私有文件目录包含符号链接，拒绝备份复制。")
-        if path.is_file():
-            state[path.relative_to(root).as_posix()] = {
-                "bytes": path.stat().st_size,
-                "sha256": sha256_file(path),
-            }
+    for path in regular_files(root):
+        state[path.relative_to(root).as_posix()] = {
+            "bytes": path.stat().st_size,
+            "sha256": sha256_file(path),
+        }
     return state
+
+
+def copy_private_files(source, destination):
+    """Preflight the complete private tree before non-overwriting copytree."""
+    source = checked_path(source, must_exist=True)
+    destination = checked_path(destination)
+    before = file_state(source)
+    shutil.copytree(source, destination, copy_function=shutil.copy2)
+    if before != file_state(source):
+        raise ValueError("Private source changed during backup copy")
+    return before
 
 
 def verify_container():
@@ -584,8 +598,9 @@ def backup_and_restore(registered, run_id):
     verify_container()
     backup_directory = ROOT / "backups/p1-validation" / run_id
     dump_path = backup_directory / f"{source}.dump"
-    source_private = Path(registered["PORTAL_PRODUCT_STORAGE_ROOT"]).resolve()
-    restored_private = (ROOT / ".runtime/p1-restore-private" / restore).resolve()
+    source_private = checked_path(registered["PORTAL_PRODUCT_STORAGE_ROOT"], must_exist=True)
+    restored_private = checked_path(ROOT / ".runtime/p1-restore-private" / restore)
+    file_state(source_private)  # Refuse links/escapes before dump, restore or any private copy.
     if backup_directory.exists() or restored_private.exists():
         raise SystemExit("备份或私有文件恢复目录已存在，拒绝覆盖。")
     if not ignored_path(backup_directory) or not ignored_path(restored_private):
@@ -676,9 +691,8 @@ def backup_and_restore(registered, run_id):
     restrict_database_objects(restore, registered)
     with connect(restore, registered, readonly=True) as restored_connection:
         restored_state = database_state(restored_connection)
-    shutil.copytree(source_private, restored_private, copy_function=shutil.copy2)
+    source_files = copy_private_files(source_private, restored_private)
     restrict_acl(restored_private, directory=True)
-    source_files = file_state(source_private)
     restored_files = file_state(restored_private)
     table_sets_equal = source_state.keys() == restored_state.keys()
     database_equal = source_state == restored_state

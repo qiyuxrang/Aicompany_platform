@@ -9,6 +9,9 @@ import django
 import httpx
 from asgiref.sync import sync_to_async
 from langgraph_sdk import get_client
+from qa.agent_platform.evidence_paths import evidence_path, runtime_url
+
+RUNTIME_URL = runtime_url()
 
 if os.environ.get("DJANGO_SETTINGS_MODULE") != "qa.agent_platform.test_settings":
     raise RuntimeError("A0 isolated settings required")
@@ -25,7 +28,7 @@ async def verify():
     guard = await sync_to_async(make_guard)("native-" + uuid.uuid4().hex, max_actions=80,
         max_model_calls=20, max_tool_calls=30, max_launches=16, max_concurrent=10)
     token = os.environ["A0_SERVICE_TOKEN"]
-    client = get_client(url="http://127.0.0.1:18743", api_key=None,
+    client = get_client(url=RUNTIME_URL, api_key=None,
                         headers={"Authorization": "Bearer " + token, "X-Agent-Binding": guard.binding.token()})
     native = NativeRuntime(guard, client, {"researcher", "reviewer"})
     run = await native.start("Complete two independent synthetic tasks", "start", graph_id="supervisor")
@@ -47,24 +50,24 @@ async def verify():
             raise AssertionError("native lifespan did not deliver two child results")
     async with httpx.AsyncClient(trust_env=False) as http:
         for _ in range(2):
-            result = await http.post("http://127.0.0.1:18743/a0/reconcile",
+            result = await http.post(RUNTIME_URL + "/a0/reconcile",
                 headers={"Authorization": "Bearer " + token}, json={"binding": guard.binding.token()})
             assert result.status_code == 200, result.text
-        unauthorized = await http.get(f"http://127.0.0.1:18743/threads/{run['thread_id']}/state")
+        unauthorized = await http.get(f"{RUNTIME_URL}/threads/{run['thread_id']}/state")
         assert unauthorized.status_code == 401, unauthorized.text
         foreign = await sync_to_async(make_guard)("foreign-" + uuid.uuid4().hex)
         foreign_run = await sync_to_async(foreign.check)()
         foreign_run.native_thread_id = str(foreign_run.pk)
         await sync_to_async(foreign_run.save)(update_fields=["native_thread_id"])
         foreign_headers = {"Authorization": "Bearer " + token, "X-Agent-Binding": foreign.binding.token()}
-        foreign_client = get_client(url="http://127.0.0.1:18743", api_key=None, headers=foreign_headers)
+        foreign_client = get_client(url=RUNTIME_URL, api_key=None, headers=foreign_headers)
         await foreign_client.threads.create(thread_id=foreign_run.native_thread_id,
             metadata={"root_id": foreign.binding.root_id})
-        denied_state = await http.get(f"http://127.0.0.1:18743/threads/{run['thread_id']}/state", headers=foreign_headers)
-        denied_cancel = await http.post(f"http://127.0.0.1:18743/threads/{run['thread_id']}/runs/{run['run_id']}/cancel", headers=foreign_headers)
-        denied_store = await http.post("http://127.0.0.1:18743/store/items/search", headers=foreign_headers,
+        denied_state = await http.get(f"{RUNTIME_URL}/threads/{run['thread_id']}/state", headers=foreign_headers)
+        denied_cancel = await http.post(f"{RUNTIME_URL}/threads/{run['thread_id']}/runs/{run['run_id']}/cancel", headers=foreign_headers)
+        denied_store = await http.post(RUNTIME_URL + "/store/items/search", headers=foreign_headers,
                                        json={"namespace_prefix": []})
-        studio = await http.get(f"http://127.0.0.1:18743/threads/{run['thread_id']}/state",
+        studio = await http.get(f"{RUNTIME_URL}/threads/{run['thread_id']}/state",
                                  headers={"x-auth-scheme": "langsmith"})
         assert denied_state.status_code in {403, 404}, denied_state.text
         assert denied_cancel.status_code in {403, 404}, denied_cancel.text
@@ -72,14 +75,14 @@ async def verify():
         assert studio.status_code == 401, studio.text
         same_owner = await sync_to_async(make_guard)(user=await sync_to_async(User.objects.get)(pk=guard.binding.owner_id))
         same_headers = {"Authorization": "Bearer " + token, "X-Agent-Binding": same_owner.binding.token()}
-        same_owner_state = await http.get(f"http://127.0.0.1:18743/threads/{run['thread_id']}/state", headers=same_headers)
+        same_owner_state = await http.get(f"{RUNTIME_URL}/threads/{run['thread_id']}/state", headers=same_headers)
         assert same_owner_state.status_code == 403, same_owner_state.text
         child_binding = RunBinding(**{**guard.binding.__dict__, "run_id": str(children[0].pk)})
         child_headers = {"Authorization": "Bearer " + token, "X-Agent-Binding": child_binding.token()}
-        child_parent = await http.get(f"http://127.0.0.1:18743/threads/{run['thread_id']}/state", headers=child_headers)
-        child_sibling = await http.get(f"http://127.0.0.1:18743/threads/{children[1].native_thread_id}/state", headers=child_headers)
+        child_parent = await http.get(f"{RUNTIME_URL}/threads/{run['thread_id']}/state", headers=child_headers)
+        child_sibling = await http.get(f"{RUNTIME_URL}/threads/{children[1].native_thread_id}/state", headers=child_headers)
         assert child_parent.status_code == child_sibling.status_code == 403
-        history = await http.post(f"http://127.0.0.1:18743/threads/{run['thread_id']}/history",
+        history = await http.post(f"{RUNTIME_URL}/threads/{run['thread_id']}/history",
             headers=foreign_headers, json={"limit": 10})
         assert history.status_code == 403, history.text
     root = await sync_to_async(AgentRun.objects.get)(pk=guard.binding.root_id)
@@ -110,7 +113,7 @@ async def verify():
     crash_root = await sync_to_async(crash_guard.check)()
     crash_root.policy["scenario"] = "crash"
     await sync_to_async(crash_root.save)(update_fields=["policy"])
-    crash_client = get_client(url="http://127.0.0.1:18743", api_key=None, headers={
+    crash_client = get_client(url=RUNTIME_URL, api_key=None, headers={
         "Authorization": "Bearer " + token, "X-Agent-Binding": crash_guard.binding.token()})
     crash_native = NativeRuntime(crash_guard, crash_client, {"researcher", "reviewer"})
     failed = await crash_native.start("synthetic checkpoint failure", "crash-start", graph_id="supervisor")
@@ -128,13 +131,13 @@ async def verify():
     pending_child = await crash_native.launch("researcher", "synthetic cancellation", "cancel-on-revoke")
     await sync_to_async(User.objects.filter(pk=crash_guard.binding.owner_id).update)(is_active=False)
     async with httpx.AsyncClient(trust_env=False) as http:
-        revoked = await http.get(f"http://127.0.0.1:18743/threads/{failed['thread_id']}/state",
+        revoked = await http.get(f"{RUNTIME_URL}/threads/{failed['thread_id']}/state",
             headers={"Authorization": "Bearer " + token, "X-Agent-Binding": crash_guard.binding.token()})
         assert revoked.status_code == 403, revoked.text
     maintenance = await crash_native.reconcile()
     assert any(item["task_id"] == pending_child["task_id"] and item["status"] == "cancelled" for item in maintenance), maintenance
     evidence.update(revoked_state=revoked.status_code, revoked_non_llm_cancel=maintenance)
-    path = Path(__file__).parent / "native-evidence.json"
+    path = evidence_path("native-evidence.json")
     path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")
     path.with_name("native-evidence-" + str(root.pk) + ".json").write_text(
         json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")

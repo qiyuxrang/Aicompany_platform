@@ -3,11 +3,11 @@
 import re
 from pathlib import PurePosixPath
 
-from asgiref.sync import sync_to_async
 from deepagents.backends import CompositeBackend, StoreBackend
 from deepagents.backends.protocol import BackendProtocol
 
 from .agent_runtime import AgentDenied
+from .agent_db import database_boundary, database_sync_to_async as sync_to_async
 
 
 def valid_path(path, *, shared=False):
@@ -26,6 +26,7 @@ class GuardedBackend(BackendProtocol):
         self.backend, self.guard, self.readonly = backend, guard, readonly
         self.skill_digest = skill_digest
 
+    @database_boundary
     def _validate(self, paths, write=False):
         self.guard.check()
         if self.skill_digest:

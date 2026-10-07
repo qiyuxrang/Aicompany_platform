@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from contextvars import ContextVar
 from contextlib import asynccontextmanager, suppress
 
-from asgiref.sync import sync_to_async
+from .agent_db import database_sync_to_async as sync_to_async
 from django.core import signing
 from django.db import transaction
 from django.utils import timezone
@@ -236,7 +236,8 @@ class RuntimeGuard:
         action_key = action_key or str(uuid.uuid4())
         if kind not in {"model", "tool", "launch", "domain"} or not isinstance(action_key, str) or not 1 <= len(action_key) <= 160:
             raise AgentDenied("invalid_action")
-        if transaction.get_connection().in_atomic_block:
+        connection = transaction.get_connection()
+        if connection.in_atomic_block or not connection.get_autocommit():
             raise AgentDenied("admission_requires_committed_boundary")
         self.check()
         reason = None

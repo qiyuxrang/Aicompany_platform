@@ -7,6 +7,7 @@ from django.utils import timezone
 from .agent_models import (AgentBusinessReference, AgentMessage, AgentRequirement, AgentRootAction, AgentRun,
                            AgentWorkTask, append_public_event)
 from .agent_runtime import AgentDenied, RuntimeGuard
+from .agent_db import database_boundary
 from .models import User
 from .product_agent import check_task_scope, lock_scope
 from .product_models import DocumentArtifact, DocumentRevision, DocumentTask
@@ -681,6 +682,7 @@ class AgentTools:
             result["download_url"] = url + "download/"
         return result
 
+    @database_boundary
     def execute(self, name, arguments, operation_key):
         names = {
             "begin_work": (self.begin_work, set()),

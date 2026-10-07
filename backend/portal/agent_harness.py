@@ -3,7 +3,7 @@
 import json
 from typing import NotRequired, TypedDict
 
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import async_to_sync, sync_to_async as io_sync_to_async
 from deepagents import AsyncSubAgent, HarnessProfile, create_deep_agent, register_harness_profile
 from deepagents.profiles.harness.harness_profiles import GeneralPurposeSubagentProfile
 from deepagents.middleware.filesystem import FilesystemPermission
@@ -14,6 +14,7 @@ from langgraph.types import Command
 from langgraph_sdk.runtime import ServerRuntime
 
 from .agent_model import GatewayChatModel
+from .agent_db import database_boundary, database_sync_to_async as sync_to_async
 from .agent_runtime import (AgentDenied, NativeRuntime, RunBinding, RuntimeGuard,
                             authorized_native_binding, same_deployment_client)
 from .agent_storage import scoped_backend
@@ -34,6 +35,7 @@ class BoundaryMiddleware(AgentMiddleware):
             "product_list_outputs", "finance_read_drafts", "hr_read_jd", "hr_read_batch",
             "gm_read_business", "gm_list_work", "gm_read_reference"}
 
+    @database_boundary
     def _model_request(self, request):
         run = self.guard.check()
         hidden = set() if run.work_id and run.requirement_id and run.work.state != "completed" else set(self.business_tools)
@@ -48,6 +50,7 @@ class BoundaryMiddleware(AgentMiddleware):
     async def awrap_model_call(self, request, handler):
         return await handler(await sync_to_async(self._model_request)(request))
 
+    @database_boundary
     def before_agent(self, state, runtime):
         self.guard.check()
         if runtime.context and runtime.context.get("notification_key"):
@@ -59,7 +62,7 @@ class BoundaryMiddleware(AgentMiddleware):
             await sync_to_async(self.guard.consume_notification)(runtime.context["notification_key"])
 
     def wrap_tool_call(self, request, handler):
-        return async_to_sync(self._tool)(request, sync_to_async(handler))
+        return async_to_sync(self._tool)(request, io_sync_to_async(handler))
 
     async def awrap_tool_call(self, request, handler):
         return await self._tool(request, handler)

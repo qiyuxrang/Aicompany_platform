@@ -104,19 +104,28 @@ def _model_config(model):
                       "max_output_tokens": model.max_output_tokens, "timeout_seconds": model.timeout_seconds}}
 
 
-def _gateway_request(payload, endpoint=None):
-    url = settings.MODEL_GATEWAY_URL
-    token = settings.MODEL_GATEWAY_TOKEN
+def validate_gateway_configuration(url, token, allowlist):
+    """Pure configuration validation shared by transport and readiness.
+
+    Retains the transport's exact HTTPS/private-local HTTP rules. It never
+    resolves an address, creates an HTTP client, or reports configured values.
+    """
     try:
         parsed = urlsplit(url)
         local_service = parsed.hostname in ("127.0.0.1", "::1") or url == "http://model-gateway:18410"
-        if (url not in settings.MODEL_GATEWAY_ALLOWED_URLS or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment
+        return not (url not in allowlist or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment
                 or parsed.path not in ("", "/") or "\\" in url or any(ord(char) < 33 for char in url)
                 or (parsed.scheme != "https" and not (parsed.scheme == "http" and local_service))
                 or not parsed.port and parsed.scheme == "http" or len(token) < 40
-                or any(ord(char) < 33 or ord(char) > 126 for char in token)):
-            raise ValueError
+                or any(ord(char) < 33 or ord(char) > 126 for char in token))
     except (TypeError, ValueError):
+        return False
+
+
+def _gateway_request(payload, endpoint=None):
+    url = settings.MODEL_GATEWAY_URL
+    token = settings.MODEL_GATEWAY_TOKEN
+    if not validate_gateway_configuration(url, token, settings.MODEL_GATEWAY_ALLOWED_URLS):
         raise GatewayError("unconfigured", status=503) from None
     if endpoint is None:
         vision = any(isinstance(item['content'], list) for item in payload['messages'])

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from .database import postgres_database
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 SECRET_KEY = os.environ.get("PORTAL_SECRET_KEY", "")
@@ -20,7 +21,9 @@ ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "backend" / "templates"], "APP_DIRS": True, "OPTIONS": {"context_processors": ["django.template.context_processors.request", "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
 if os.environ.get("PORTAL_DB_NAME"):
-    DATABASES = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ["PORTAL_DB_NAME"], "USER": os.environ["PORTAL_DB_USER"], "PASSWORD": os.environ["PORTAL_DB_PASSWORD"], "HOST": os.environ.get("PORTAL_DB_HOST", "db"), "PORT": os.environ.get("PORTAL_DB_PORT", "5432"), "CONN_MAX_AGE": 0}}
+    DATABASES = {"default": postgres_database(name=os.environ["PORTAL_DB_NAME"],
+        user=os.environ["PORTAL_DB_USER"], password=os.environ["PORTAL_DB_PASSWORD"],
+        host=os.environ.get("PORTAL_DB_HOST", "db"), port=os.environ.get("PORTAL_DB_PORT", "5432"))}
 else:
     if not DEBUG:
         raise ImproperlyConfigured("正式配置必须使用独立 PostgreSQL")

@@ -80,6 +80,8 @@ class RuntimeRecoveryTests(TransactionTestCase):
         self.assertIn('run=', '\n'.join(logs.output))
 
     def test_brief_write_lock_retries_only_db_write_not_detail_fetch_or_ingest(self):
+        if connection.vendor != 'sqlite':
+            self.skipTest('Only SQLite transient writer locks are retried by database_retry')
         with patch('django.db.models.query.QuerySet.update', new=self.health_lock(2)), \
                 patch('portal.tender_runtime.time.sleep'), \
                 patch('portal.tender_worker.tender_service.ingest_fetch_result', return_value=self.ingest_result()) as ingest:
@@ -88,6 +90,75 @@ class RuntimeRecoveryTests(TransactionTestCase):
         self.assertEqual(result.ingested, 2)
         self.assertEqual(len(self.calls), 2)
         self.assertEqual(ingest.call_count, 2)
+
+    def test_postgresql_sqlite_lock_text_is_not_retried_and_worker_preserves_progress(self):
+        if connection.vendor != 'postgresql':
+            self.skipTest('PostgreSQL must not interpret SQLite lock text as retry authorization')
+        with patch('django.db.models.query.QuerySet.update', new=self.health_lock(1)), \
+                patch('portal.tender_runtime.time.sleep') as sleep, \
+                patch('portal.tender_worker.tender_service.ingest_fetch_result', return_value=self.ingest_result()) as ingest, \
+                self.assertLogs('portal.tender_worker', level='ERROR'):
+            result = run_source(self.first, adapter=self.adapter(self.first))
+        self.assertEqual(result.state, 'WAITING_RETRY')
+        self.assertEqual(result.error_code, 'execution_failed')
+        self.assertEqual(result.ingested, 1)
+        self.assertEqual(len(self.calls), 1)
+        ingest.assert_called_once()
+        sleep.assert_not_called()
+        persisted = TenderFetchRun.objects.get(pk=result.run_id)
+        self.assertEqual(persisted.state, 'WAITING_RETRY')
+        self.assertEqual(persisted.stats['ingested'], 1)
+        self.assertIsNone(persisted.lease_until)
+        self.assertNotIn('diagnostic-only-token', str(result.to_dict()))
+
+    def test_postgresql_actual_nowait_lock_error_is_not_silently_retried(self):
+        if connection.vendor != 'postgresql':
+            self.skipTest('Actual PostgreSQL row-lock SQLSTATE regression')
+        # A separate connection holds a real row lock. Each attempted operation
+        # owns its whole transaction, so the error cannot poison the caller.
+        locker = connection.copy(alias='tender_lock_probe')
+        locker_pool = locker.pool
+        raw_locker = None
+        table = connection.ops.quote_name(TenderSource._meta.db_table)
+        try:
+            locker.set_autocommit(False)
+            raw_locker = locker.connection
+            with locker.cursor() as cursor:
+                cursor.execute(f'SELECT id FROM {table} WHERE id = %s FOR UPDATE', [self.first.pk])
+            def operation():
+                with transaction.atomic():
+                    TenderSource.objects.select_for_update(nowait=True).get(pk=self.first.pk)
+            attempted = Mock(side_effect=operation)
+            with patch('portal.tender_runtime.time.sleep') as sleep:
+                with self.assertRaises(OperationalError) as failed:
+                    database_retry(attempted)
+            self.assertEqual(failed.exception.__cause__.sqlstate, '55P03')
+            attempted.assert_called_once()
+            sleep.assert_not_called()
+            self.assertFalse(connection.needs_rollback)
+        finally:
+            try:
+                locker.rollback()
+            finally:
+                try:
+                    locker.close()
+                finally:
+                    # copy() is not registered with Django's connections.
+                    # close() returns its checkout; this private alias's pool
+                    # must also close before normal test database destruction.
+                    if locker_pool is not None:
+                        locker.close_pool()
+        self.assertIsNone(locker.connection)
+        self.assertTrue(raw_locker.closed)
+        if locker_pool is not None:
+            self.assertTrue(locker_pool.closed)
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            self.assertEqual(cursor.fetchone(), (1,))
+        # The failed operation did not leave a broken transaction or row change.
+        with transaction.atomic():
+            row = TenderSource.objects.select_for_update(nowait=True).get(pk=self.first.pk)
+        self.assertEqual(row.health_state, self.first.health_state)
 
     def test_persistent_failure_to_finish_stops_batch_without_fabricating_later_source_failures(self):
         batch = TenderManualRefresh.objects.create(source_codes=[self.first.code, self.second.code])

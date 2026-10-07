@@ -16,3 +16,19 @@ backups/
 .workbuddy/
 /qa/agent_platform/*.json
 !/qa/agent_platform/langgraph.json
+
+# Local credentials and generated private state stay out of release uploads.
+local.env
+*-private/
+/private/
+/storage/
+/uploads/
+/backend/private/
+/backend/storage/
+/backend/uploads/
+*.db
+*.db-*
+*.dump
+*.backup
+*.pem
+*.key

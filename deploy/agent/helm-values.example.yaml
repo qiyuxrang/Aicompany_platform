@@ -1,0 +1,107 @@
+# Official langchain/langgraph-cloud chart 0.3.3. All credential-bearing values
+# come from existing Secrets. This file is a candidate, not runtime acceptance.
+fullnameOverride: portal-agent
+config:
+  existingSecretName: portal-agent-license
+  auth:
+    enabled: false # custom auth is embedded in the image; do not override it
+  numberOfJobsPerWorker: 4
+  httpMaxRequestBodyBytes: "16777216"
+images:
+  apiServerImage:
+    repository: registry.example.com/portal-agent
+    tag: REPLACE_WITH_VERIFIED_IMMUTABLE_RELEASE
+    pullPolicy: IfNotPresent
+apiServer:
+  service:
+    type: ClusterIP
+  serviceAccount:
+    automountServiceAccountToken: false
+  deployment:
+    replicaCount: 1
+    terminationGracePeriodSeconds: 600
+    podSecurityContext:
+      fsGroup: 10001
+      fsGroupChangePolicy: OnRootMismatch
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 10001
+      runAsGroup: 10001
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    envFrom:
+      - secretRef:
+          name: portal-agent-application
+    extraEnv:
+      - name: PORTAL_AGENT_DEPLOYMENT_MODE
+        value: helm_kubernetes
+      - name: PORTAL_PRODUCT_STORAGE_ROOT
+        value: /app/.runtime/product-private
+      - name: PORTAL_HR_STORAGE_ROOT
+        value: /app/.runtime/hr-private
+    volumes:
+      - name: product-private
+        persistentVolumeClaim:
+          claimName: portal-product-private
+      - name: hr-private
+        persistentVolumeClaim:
+          claimName: portal-hr-private
+    volumeMounts:
+      - name: product-private
+        mountPath: /app/.runtime/product-private
+      - name: hr-private
+        mountPath: /app/.runtime/hr-private
+queue:
+  enabled: true
+  serviceAccount:
+    automountServiceAccountToken: false
+  deployment:
+    replicaCount: 1
+    terminationGracePeriodSeconds: 600
+    podSecurityContext:
+      fsGroup: 10001
+      fsGroupChangePolicy: OnRootMismatch
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 10001
+      runAsGroup: 10001
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    envFrom:
+      - secretRef:
+          name: portal-agent-application
+    extraEnv:
+      - name: PORTAL_AGENT_DEPLOYMENT_MODE
+        value: helm_kubernetes
+      - name: PORTAL_PRODUCT_STORAGE_ROOT
+        value: /app/.runtime/product-private
+      - name: PORTAL_HR_STORAGE_ROOT
+        value: /app/.runtime/hr-private
+    volumes:
+      - name: product-private
+        persistentVolumeClaim:
+          claimName: portal-product-private
+      - name: hr-private
+        persistentVolumeClaim:
+          claimName: portal-hr-private
+    volumeMounts:
+      - name: product-private
+        mountPath: /app/.runtime/product-private
+      - name: hr-private
+        mountPath: /app/.runtime/hr-private
+postgres:
+  external:
+    enabled: true
+    existingSecretName: portal-agent-postgres
+redis:
+  external:
+    enabled: true
+    existingSecretName: portal-agent-redis
+ingress:
+  enabled: false
+gateway:
+  enabled: false
+istioGateway:
+  enabled: false

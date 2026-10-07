@@ -2,7 +2,8 @@ import copy
 from datetime import timedelta
 from urllib.parse import urlsplit
 
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import async_to_sync
+from .agent_db import database_sync_to_async as sync_to_async
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone

@@ -1,18 +1,22 @@
 """Product workspace contracts. Synthetic data; no external/model calls."""
 import hashlib
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client, override_settings
+from django.core.management import call_command
+from django.db import connection
+from django.test import Client, TransactionTestCase, override_settings
+from psycopg.pq import TransactionStatus
 
 from portal.product_models import DocumentArtifact, DocumentTask, DocumentSource
 from portal.product_service import append_revision
 from .base import PortalTestCase, json_body
 
 
-class ProductWorkspaceTests(PortalTestCase):
+class _ProductWorkspaceFixture:
     def setUp(self):
         self.storage = TemporaryDirectory()
         self.addCleanup(self.storage.cleanup)
@@ -36,6 +40,8 @@ class ProductWorkspaceTests(PortalTestCase):
         task.save()
         return task
 
+
+class ProductWorkspaceTests(_ProductWorkspaceFixture, PortalTestCase):
     def test_dashboard_scopes_counts_and_results_to_authorized_tasks(self):
         self.task()
         self.task("审核项目", state="WAITING_REVIEW", stage="BLUEPRINT", reviewer=self.reviewer)
@@ -110,23 +116,6 @@ class ProductWorkspaceTests(PortalTestCase):
         self.login(self.client, self.create_admin(), password="Admin!Pass9274-Qx")
         self.assertEqual(self.client.get("/api/product/workspace/").status_code, 404)
 
-    def test_source_download_authorization_hash_and_no_path_disclosure(self):
-        task = self.task()
-        uploaded = self.client.post(f"/api/product/tasks/{task.pk}/sources/", {
-            "expected_version": task.version, "file": SimpleUploadedFile("项目背景.txt", "合成资料".encode())})
-        self.assertEqual(uploaded.status_code, 201, uploaded.content)
-        source = DocumentSource.objects.get(task=task)
-        url = f"/api/product/sources/{source.pk}/download/"
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(b"".join(response.streaming_content), "合成资料".encode())
-        self.assertIn("no-store", response["Cache-Control"])
-        response.close()
-        (Path(self.storage.name) / source.path).write_text("tampered", encoding="utf-8")
-        self.assertEqual(self.client.get(url).status_code, 409)
-        self.login(self.client, self.other)
-        self.assertEqual(self.client.get(url).status_code, 404)
-
     def test_file_downloads_recheck_task_scope_after_disk_verification(self):
         from portal.product_storage import verified_artifact
 
@@ -186,3 +175,55 @@ class ProductWorkspaceTests(PortalTestCase):
         response = self.client.get(f"/api/product/tasks/{task.pk}/")
         self.assertEqual(response.status_code, 200, response.content)
         self.assertNotIn("review_input", response.json()["actions"])
+
+
+class ProductWorkspaceDownloadLifecycleTests(_ProductWorkspaceFixture, TransactionTestCase):
+    """Download close must finish a real request, outside TestCase's outer atomic."""
+    create_user = PortalTestCase.create_user
+    login = PortalTestCase.login
+
+    def setUp(self):
+        call_command("seed_portal", stdout=StringIO())
+        super().setUp()
+
+    def test_source_download_authorization_hash_and_no_path_disclosure(self):
+        self.assertFalse(connection.in_atomic_block)
+        task = self.task()
+        uploaded = self.client.post(f"/api/product/tasks/{task.pk}/sources/", {
+            "expected_version": task.version, "file": SimpleUploadedFile("项目背景.txt", "合成资料".encode())})
+        self.assertEqual(uploaded.status_code, 201, uploaded.content)
+        source = DocumentSource.objects.get(task=task)
+        url = f"/api/product/sources/{source.pk}/download/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), "合成资料".encode())
+        self.assertIn("no-store", response["Cache-Control"])
+        old_connection = connection.connection
+        request_pool = connection.pool if connection.vendor == "postgresql" else None
+        pool_requests = request_pool.get_stats()["requests_num"] if request_pool else None
+        response.close()
+        self.assertTrue(response.closed)
+        if connection.vendor == "postgresql":
+            self.assertIsNone(connection.connection)
+            self.assertFalse(connection.in_atomic_block)
+            self.assertFalse(connection.closed_in_transaction)
+            if request_pool:
+                if not old_connection.closed:
+                    self.assertEqual(old_connection.info.transaction_status, TransactionStatus.IDLE)
+            else:
+                self.assertTrue(old_connection.closed)
+        following = self.client.get("/api/me/")
+        self.assertEqual(following.status_code, 200)
+        self.assertEqual(following.json()["username"], self.owner.username)
+        (Path(self.storage.name) / source.path).write_text("tampered", encoding="utf-8")
+        self.assertEqual(self.client.get(url).status_code, 409)
+        if connection.vendor == "postgresql":
+            self.assertTrue(connection.is_usable())
+            self.assertTrue(connection.get_autocommit())
+            self.assertEqual(connection.connection.info.transaction_status, TransactionStatus.IDLE)
+            if request_pool:
+                self.assertGreater(request_pool.get_stats()["requests_num"], pool_requests)
+            else:
+                self.assertIsNot(connection.connection, old_connection)
+        self.login(self.client, self.other)
+        self.assertEqual(self.client.get(url).status_code, 404)

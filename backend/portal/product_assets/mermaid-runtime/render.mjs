@@ -1,11 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
+import { readVerifiedBundle } from "./bundle-contract.mjs";
+import { controlledContext } from "./browser-policy.mjs";
 
-const require = createRequire(import.meta.url);
-const mermaidBundle = require.resolve("mermaid/dist/mermaid.min.js");
+const runtimeDirectory = path.dirname(fileURLToPath(import.meta.url));
 const nodes = [
   ["业务输入","资料解析","规则校验","智能生成","人工审核","正式交付"],
   ["访问入口","业务应用","智能体能力","数据服务","基础设施","运营治理"],
@@ -56,13 +57,23 @@ async function main() {
   const root = path.dirname(contentPath);
   const content = JSON.parse(await fs.readFile(contentPath, "utf8"));
   const figures = content.blocks.filter((block) => block.type === "figure");
+  const {manifest,manifestSha256,bundle} = await readVerifiedBundle(path.join(runtimeDirectory,"dist"));
   const browser = await chromium.launch({headless:true, executablePath:process.env.PORTAL_CHROMIUM_PATH || undefined,
     args:["--no-sandbox","--disable-dev-shm-usage"]});
-  const page = await browser.newPage({viewport:{width:1600,height:900},deviceScaleFactor:1.5});
-  await page.setContent('<style>html,body{margin:0;background:#F8FBFF}#canvas{box-sizing:border-box;width:1600px;height:900px;padding:34px 50px 40px;overflow:hidden}#canvas .mermaid{display:flex;align-items:center;justify-content:center;width:1500px;height:760px}#canvas svg{width:1460px!important;height:700px!important;max-width:none!important}</style><main id="canvas"></main>', {waitUntil:"domcontentloaded"});
-  await page.addScriptTag({path:mermaidBundle});
   let rendered = 0;
+  let networkPolicy;
+  let runtimeVersions;
   try {
+    const {context,policy} = await controlledContext(browser,{viewport:{width:1600,height:900},deviceScaleFactor:1.5});
+    networkPolicy = policy;
+    const page = await context.newPage();
+    await page.setContent('<style>html,body{margin:0;background:#F8FBFF}#canvas{box-sizing:border-box;width:1600px;height:900px;padding:34px 50px 40px;overflow:hidden}#canvas .mermaid{display:flex;align-items:center;justify-content:center;width:1500px;height:760px}#canvas svg{width:1460px!important;height:700px!important;max-width:none!important}</style><main id="canvas"></main>', {waitUntil:"domcontentloaded"});
+    // Load exactly the verified bytes; never use Mermaid's legacy prebundled UMD.
+    await page.addScriptTag({content:bundle.toString("utf8")});
+    runtimeVersions = await page.evaluate(()=>window.__PORTAL_MERMAID_RUNTIME_INFO__);
+    for (const name of ["mermaid","katex","lodash-es"]) {
+      if (runtimeVersions[name] !== manifest.versions[name]) throw new Error("loaded runtime version mismatch");
+    }
     for (let index=0; index<figures.length; index+=1) {
       const figure=figures[index];
       const destination=path.resolve(root,figure.path);
@@ -76,11 +87,14 @@ async function main() {
         const graph=document.createElement("div"); graph.className="mermaid"; graph.textContent=diagram; host.append(heading,graph);
         window.mermaid.initialize({startOnLoad:false,securityLevel:"strict",theme:"base",fontFamily:"Microsoft YaHei, Noto Sans CJK SC, sans-serif",flowchart:{htmlLabels:false,curve:"basis",nodeSpacing:42,rankSpacing:58}});
         await window.mermaid.run({nodes:[graph]});
+        if (window.mermaid.mermaidAPI.getConfig().securityLevel!=="strict") throw new Error("diagram security configuration changed");
         const svg=graph.querySelector("svg"); svg.style.cssText+="background:#F8FBFF;border:1px solid #D7E3F2;border-radius:14px;padding:22px;box-sizing:border-box";
       },{diagram,title:figure.caption});
       await page.locator("#canvas").screenshot({path:destination,type:"png"}); rendered+=1;
     }
   } finally { await browser.close(); }
-  process.stdout.write(JSON.stringify({rendered,sourcePersisted:false,engine:"mermaid-js-12.0.0"}));
+  if (networkPolicy.blockedRequests) throw new Error("diagram attempted an external network request");
+  process.stdout.write(JSON.stringify({rendered,sourcePersisted:false,engine:`mermaid-js-${runtimeVersions.mermaid}`,
+    bundleSha256:manifest.bundleSha256,manifestSha256,runtimeVersions,securityLevel:"strict",blockedNetworkRequests:networkPolicy.blockedRequests}));
 }
 main().catch((error)=>{process.stderr.write(String(error.stack||error));process.exit(2);});

@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from .product_storage import private_root
+from .product_docx_layout import normalize_docx_layout
 from .product_formal import has_repeated_filler, unsupported_financial_conclusion
 from .product_diagrams import (
     SUBSECTION_TITLES,
@@ -184,64 +186,158 @@ def _safe_environment():
     return environment
 
 
-def _refresh_word_field_cache(target, runtime, directory):
-    """Persist Word's TOC/page-number results into the delivered DOCX.
+def _diagram_evidence(output, figure_count):
+    try:
+        result = json.loads(output)
+        versions = {"mermaid": "12.0.0", "katex": "0.18.2", "lodash-es": "4.18.1"}
+        bundle_hash = result["bundleSha256"]
+        manifest_hash = result["manifestSha256"]
+        if (result["rendered"] != figure_count or result["engine"] != "mermaid-js-12.0.0"
+                or result["sourcePersisted"] is not False or result["securityLevel"] != "strict"
+                or result["blockedNetworkRequests"] != 0
+                or not isinstance(bundle_hash, str) or re.fullmatch(r"[0-9a-f]{64}", bundle_hash) is None
+                or not isinstance(manifest_hash, str) or re.fullmatch(r"[0-9a-f]{64}", manifest_hash) is None
+                or any(result["runtimeVersions"].get(name) != version for name, version in versions.items())):
+            raise ValueError
+        return {"engine": result["engine"], "color": True, "source_persisted": False,
+                "figure_count": figure_count, "bundle_sha256": bundle_hash,
+                "manifest_sha256": manifest_hash,
+                "runtime_versions": result["runtimeVersions"], "security_level": "strict",
+                "blocked_network_requests": 0}
+    except (ValueError, KeyError, TypeError, AttributeError):
+        raise DocumentError("document_validation_failed") from None
 
-    The structural generator intentionally writes a live TOC field.  Word can
-    update it on open, but browser and embedded previewers normally display
-    only the cached field result.  When Office rendering is enabled, refresh a
-    private copy and promote that reviewed copy to the generated artifact.
-    """
+
+def _refresh_word_field_cache(target, runtime, directory):
+    """Refresh Word fields in an owned short path before promoting the DOCX."""
     if not getattr(settings, "PRODUCT_OFFICE_RENDER_ENABLED", False):
         return {"status": "not_run", "reason": "office_render_disabled"}
     timeout = int(getattr(settings, "PRODUCT_OFFICE_RENDER_TIMEOUT_SECONDS", 300))
-    render_directory = directory / "word-field-refresh"
-    command = [
-        str(runtime), "-B", str(PACK / "scripts" / "office_render.py"),
-        "word", str(target), str(render_directory), "--timeout", str(timeout),
-    ]
+    retained = directory / "word-field-refresh"
+    diagnostic = {"status": "failed", "reason": "staging_failed"}
     try:
-        result = subprocess.run(
-            command, cwd=directory, env=_safe_environment(), capture_output=True,
-            text=True, encoding="utf-8", errors="replace", timeout=timeout + 30,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        # Never replace evidence from an earlier attempt in this artifact.
+        retained.mkdir(exist_ok=False)
+    except OSError:
         raise DocumentError("document_render_failed") from None
-    report_path = render_directory / "render.json"
-    reviewed = render_directory / "reviewed.docx"
     try:
-        report = json.loads(report_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValueError):
+        original = target.read_bytes()
+        quality_path = target.with_suffix(".quality.json")
+        original_quality = quality_path.read_bytes()
+        quality = json.loads(original_quality)
+        if not isinstance(quality, dict):
+            raise ValueError("Invalid quality report")
+        # mkdtemp's private directory is transient; all Office paths, including
+        # the renderer's own reviewed copy and PDF, stay below MAX_PATH.
+        with tempfile.TemporaryDirectory(prefix="portal-word-") as temporary:
+            stage = Path(temporary).resolve()
+            source = stage / "input.docx"
+            output = stage / "render"
+            if any(len(str(path)) >= 260 for path in
+                   (source, output / "reviewed.docx", output / "document.pdf")):
+                diagnostic["reason"] = "office_path_too_long"
+                raise ValueError("Office staging path exceeds MAX_PATH")
+            shutil.copy2(target, source)
+            command = [str(runtime), "-B", str(PACK / "scripts" / "office_render.py"),
+                       "word", str(source), str(output), "--timeout", str(timeout)]
+
+            def retained_paths(value):
+                if isinstance(value, dict):
+                    return {key: retained_paths(item) for key, item in value.items()}
+                if isinstance(value, list):
+                    return [retained_paths(item) for item in value]
+                if isinstance(value, str):
+                    return value.replace(str(output), str(retained)).replace(
+                        str(source), str(target)).replace(str(stage), str(retained))
+                return value
+
+            try:
+                diagnostic["reason"] = "renderer_failed"
+                result = subprocess.run(
+                    command, cwd=stage, env=_safe_environment(), capture_output=True,
+                    text=True, encoding="utf-8", errors="replace", timeout=timeout + 30,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                diagnostic["returncode"] = result.returncode
+            finally:
+                # Preserve partial output even when the child times out or fails.
+                # This destination was exclusively created by this attempt.
+                if output.is_dir():
+                    shutil.copytree(output, retained, dirs_exist_ok=True)
+                    report_path = retained / "render.json"
+                    if report_path.is_file():
+                        try:
+                            report = json.loads(report_path.read_text(encoding="utf-8"))
+                        except (UnicodeError, ValueError):
+                            pass  # Preserve malformed output for review; it cannot pass.
+                        else:
+                            report_path.write_text(json.dumps(retained_paths(report), ensure_ascii=False),
+                                                   encoding="utf-8")
+            report_path = retained / "render.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            if not isinstance(report, dict):
+                raise ValueError("Invalid Office report")
+
+            reviewed = retained / "reviewed.docx"
+            if (result.returncode != 0 or report.get("rendered") is not True
+                    or int(report.get("toc_count", 0)) < 1 or not reviewed.is_file()):
+                raise ValueError("Word field refresh did not pass")
+            cache = {"status": "completed", "renderer": report.get("renderer", "Microsoft Word"),
+                     "toc_count": int(report["toc_count"]),
+                     "page_count": int(report.get("page_count", 0))}
+            quality["output_sha256"] = hashlib.sha256(reviewed.read_bytes()).hexdigest()
+            quality["word_field_cache"] = cache
+            refreshed_quality = json.dumps(quality, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            diagnostic["reason"] = "staging_cleanup_failed"
+        # Cleanup must succeed before either delivered file is changed.
+        if stage.exists():
+            raise OSError("Office staging cleanup left its owned directory")
+        completed = {"status": "completed", "returncode": result.returncode,
+                     "temporary_directory_removed": True}
+        # No diagnostic I/O may fail after the delivered files are promoted.
+        (retained / "refresh.json").write_text(json.dumps(completed), encoding="utf-8")
+        diagnostic["reason"] = "promotion_failed"
+        try:
+            shutil.copy2(reviewed, target)
+            quality_path.write_bytes(refreshed_quality)
+        except OSError:
+            target.write_bytes(original)
+            quality_path.write_bytes(original_quality)
+            raise
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError, OverflowError, subprocess.TimeoutExpired):
+        try:
+            (retained / "refresh.json").write_text(json.dumps(diagnostic), encoding="utf-8")
+        except OSError:
+            pass  # Existing renderer output still remains available for review.
         raise DocumentError("document_render_failed") from None
-    if (result.returncode != 0 or not report.get("rendered")
-            or int(report.get("toc_count", 0)) < 1 or not reviewed.is_file()):
-        raise DocumentError("document_render_failed")
-    shutil.copy2(reviewed, target)
-    final_hash = hashlib.sha256(target.read_bytes()).hexdigest()
+    return {**cache, "cached_result": True}
+
+
+def _normalize_word_layout(target, document):
+    """Bind authored headings and empty TOC boundaries before Office refresh."""
     quality_path = target.with_suffix(".quality.json")
+    original = target.read_bytes()
+    original_quality = quality_path.read_bytes()
     try:
-        quality = json.loads(quality_path.read_text(encoding="utf-8"))
-        quality["output_sha256"] = final_hash
-        quality["word_field_cache"] = {
-            "status": "completed",
-            "renderer": report.get("renderer", "Microsoft Word"),
-            "toc_count": int(report["toc_count"]),
-            "page_count": int(report.get("page_count", 0)),
-        }
-        quality_path.write_text(
-            json.dumps(quality, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
-    except (OSError, UnicodeError, ValueError, TypeError, KeyError):
-        raise DocumentError("document_render_failed") from None
-    return {
-        "status": "completed",
-        "renderer": report.get("renderer", "Microsoft Word"),
-        "toc_count": int(report["toc_count"]),
-        "page_count": int(report.get("page_count", 0)),
-        "cached_result": True,
-    }
+        quality = json.loads(original_quality)
+        if quality["output_sha256"] != hashlib.sha256(original).hexdigest():
+            raise ValueError("Generated output hash mismatch")
+        bookmarks = quality["bookmark_map"]
+        heading_names = [bookmarks[block["id"]] for block in document["blocks"] if block["type"] == "heading"]
+        normalized, evidence = normalize_docx_layout(original, heading_names)
+        quality["output_sha256"] = evidence["normalized_sha256"]
+        quality["layout_normalization"] = evidence
+        refreshed = json.dumps(quality, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        try:
+            target.write_bytes(normalized)
+            quality_path.write_bytes(refreshed)
+        except OSError:
+            target.write_bytes(original)
+            quality_path.write_bytes(original_quality)
+            raise
+        return evidence
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError, AttributeError):
+        raise DocumentError("document_validation_failed") from None
 
 
 def _render_document(task, chapters, manifest, runtime, document, filename, status, business_approval, extra_evidence=None):
@@ -263,12 +359,14 @@ def _render_document(task, chapters, manifest, runtime, document, filename, stat
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if diagrams.returncode != 0:
             raise DocumentError("document_validation_failed")
+        diagram_evidence = _diagram_evidence(diagrams.stdout, structural["figure_count"])
         result = subprocess.run([str(runtime), "-B", str(PACK / "scripts" / "artifacts.py"), "docx", str(content_path), str(target)],
                                 cwd=directory, env=_safe_environment(), capture_output=True,
                                 timeout=int(getattr(settings, "PRODUCT_DOCUMENT_RENDER_TIMEOUT_SECONDS", 300)),
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if result.returncode != 0 or not target.is_file():
             raise DocumentError("document_validation_failed")
+        layout = _normalize_word_layout(target, document)
         field_refresh = _refresh_word_field_cache(target, runtime, directory)
         structural = inspect_docx_requirements(target, structural)
     except (OSError, subprocess.TimeoutExpired):
@@ -277,11 +375,11 @@ def _render_document(task, chapters, manifest, runtime, document, filename, stat
     evidence = {"status": status, "verified": False,
                 "structural_generation": "completed", "office_render": field_refresh["status"],
                 "word_field_cache": field_refresh, "visual_review": "not_run", "business_approval": business_approval,
+                "layout_normalization": layout,
                 "manifest_sha256": hashlib.sha256((PACK / "manifest.json").read_bytes()).hexdigest(),
                 "chapter_hashes": {chapter.payload["chapter_id"]: chapter.sha256 for chapter in chapters},
                 "document_structure": structural,
-                "diagram_generation": {"engine": "mermaid-js-12.0.0", "color": True,
-                                       "source_persisted": False, "figure_count": structural["figure_count"]}}
+                "diagram_generation": diagram_evidence}
     evidence.update(extra_evidence or {})
     return {"path": target.relative_to(root).as_posix(), "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
             "template_hash": template["sha256"], "render_evidence": evidence}

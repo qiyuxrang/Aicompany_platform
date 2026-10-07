@@ -42,7 +42,7 @@
 
 简历筛选可以上传 JD，也可以选择已有的已确认 JD。核对 JD 正文和筛选条件后，点击“进行筛选”进入执行页，选择简历文件或文件夹。文件夹中的文件按批次上传，支持 TXT、DOCX 和含文本的 PDF，单份不超过 2 MiB。页面展示真实处理计数、证据、匹配结果与异常原因，最终取舍仍由人判断。年龄等信息不作为自动打分或排除依据。
 
-**招聘资料暂存 15 天。** 招聘需求及其对话、JD 从需求创建时间计时；筛选批次及简历取批次与所属需求的较早截止时间，编辑和上传不会续期。到期即停止读取、修改和下载；HR Worker 定时删除关联记录与私有原文件。转正档案不在这项清理范围内。
+**获准招聘资料长期归档，不自动到期。** 招聘需求及其对话、JD、筛选批次和简历按当前授权读取、修改和下载，仍保留人工删除及撤权拦截。升级时按旧规则已失效的资料保留 `legacy_expired` 状态，已删除或原文件缺失的资料也不会自动恢复；长期归档不能使旧失效资料重新可用。转正档案沿用原业务权限和流程。
 
 ### 总经理：企业台账 BI
 
@@ -104,19 +104,19 @@ uv run --frozen --env-file .runtime/local.env python backend/manage.py bootstrap
 
 按提示设置初始密码。首次登录改密后，在平台管理中创建部门账号、分配角色，按需配置模型与知识库。`Ctrl+C` 停止本地服务。
 
-### 让长任务和自动清理持续运行
+### 让长任务和文件维护持续运行
 
 Web 服务与任务执行器是独立进程。使用同一份环境配置，在两个终端分别运行需要的执行器：
 
 ```powershell
-# 人事：处理排队简历，并定期清理到期招聘资料
+# 人事：处理排队简历，并定期清理孤立文件及待重试删除文件
 uv run --frozen --env-file .runtime/local.env python backend/manage.py run_hr_worker
 
 # 产品：启用产品流程及相关模型权限后运行
 uv run --frozen --env-file .runtime/local.env python backend/manage.py run_product_worker
 ```
 
-HR Worker 启动时清理一次，此后定期清理。Worker 停止不影响到期访问拦截，但物理删除需要 Worker 恢复或运行下面的维护命令。清理失败会报告错误并保留可重试记录：
+HR Worker 启动时维护一次，此后定期维护。清理命令处理私有目录中的孤立临时文件及待重试删除文件，不按资料年龄删除长期归档的需求、批次或仍被记录引用的原文件，也不恢复 `legacy_expired` 资料。人工删除和撤权的访问拦截不依赖 Worker；物理删除失败会保留可重试记录，可在核实目标环境后运行下面的维护命令：
 
 ```powershell
 uv run --frozen --env-file .runtime/local.env python backend/manage.py cleanup_hr_history --limit 100
@@ -126,7 +126,13 @@ uv run --frozen --env-file .runtime/local.env python backend/manage.py cleanup_h
 
 ## 接入模型与知识库
 
-平台的智能体执行层是**Django 持久任务与独立 Worker，加上 FastAPI 模型网关**，不是直接调用个人电脑里的 Codex、Pi 或其他交互式代理会话。
+现有产品／人事流程使用 **Django 持久任务、独立 Worker 与 FastAPI 模型网关**。新增企业 Agent 复用 Deep Agents Harness 与独立 LangGraph Runtime，并经现有业务服务执行授权操作；不连接个人电脑里的交互式代理会话。Web、HR／产品 Worker 和 Agent Runtime 各自运行，启动 Web 或旧 Worker 不代表 Agent Runtime 已运行。
+
+**Agent 默认关闭。** `PORTAL_AGENT_ENABLED=1` 只启用平台入口，仍须配置 `PORTAL_AGENT_RUNTIME_URL`、允许地址 `PORTAL_AGENT_RUNTIME_ALLOWED_URLS`、服务端凭据 `PORTAL_AGENT_RUNTIME_SERVICE_TOKEN`、获准模型预设和独立 Runtime 的持久化与隔离运行环境。图与运行接口见 `langgraph.json`；部署方按锁定依赖和正式 Runtime 方式部署，不能把开发服务器或内存检查点当作生产持久化。未启用、运行环境未配置或提交结果不确定时，页面区分“消息已接收”和实际执行状态，不宣称后台已完成。
+
+产品、人事、财务和总经理的获准入口提供智能助手，工程助手不在首期范围。关闭页面不会取消后台工作；重开可按授权补读本人会话与工作，取消、重试和要求更正以服务端记录为准。产品所有者确认蓝图精确版本后继续三件套生成，无第二审核人或成稿二次审批；财务填写人确认发布本人精确修订，草稿不进入正式经营指标。总经理仅通过获准业务引用查看摘要、成果和原文，不能代发布、修改或读取员工完整对话、个人记忆与运行文件。
+
+启用真实资料试点前，须先提供 AG-15 的 Harness 默认工具／主子运行／存储／检查点隔离，以及 AG-16 的跨恢复根累计终止证据，再验证获准真实模型、RAGFlow、文档渲染和目标 Runtime。当前配置和测试替身不能代替现场联调。完整验收要求见[生产候选验收矩阵](docs/production/ACCEPTANCE_MATRIX.md)、[外部门槛](docs/production/EXTERNAL_GATES.md)，任务结论仅登记在[Agent 唯一执行状态](项目规划/Agent平台/2026-09-30-agent-platform-status.md)。
 
 模型服务商、模型、用途路由在管理后台维护，密钥保留在服务端。产品蓝图、写作、审查与知识问答使用独立用途路由。配置步骤见[模型网关](docs/MODEL_GATEWAY.md)。
 

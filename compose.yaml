@@ -2,7 +2,7 @@ name: enterprise-portal-phase1
 
 services:
   db:
-    image: postgres:17.5@sha256:aadf2c0696f5ef357aa7a68da995137f0cf17bad0bf6e1f17de06ae5c769b302
+    image: postgres:17.11@sha256:ae69c452f483507a6b99fb654cf93aad7fe156ffd2c56247707eef4e36d3c12b
     env_file:
       - ${DB_ENV_FILE:-.runtime/postgres.env}
     volumes:
@@ -15,6 +15,25 @@ services:
       start_period: 20s
     restart: unless-stopped
     stop_grace_period: 60s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enterprise-portal-phase1:local
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      PORTAL_DEBUG: "0"
+      PORTAL_HTTPS: "1"
+      PORTAL_DB_HOST: db
+      PORTAL_DB_PORT: "5432"
+    command: [python, manage.py, migrate, --noinput]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    init: true
 
   backend:
     build:
@@ -30,15 +49,16 @@ services:
       PORTAL_DB_HOST: db
       PORTAL_DB_PORT: "5432"
       PORTAL_HR_STORAGE_ROOT: /app/.runtime/hr-private
+      PORTAL_ENGINEERING_STORAGE_ROOT: /app/.runtime/engineering-private
     command:
       - sh
       - -ceu
       - |
-        python manage.py migrate --noinput
-        python manage.py collectstatic --noinput
         exec waitress-serve \
           --listen=0.0.0.0:8100 \
           --threads=4 \
+          --connection-limit=512 \
+          --asyncore-use-poll \
           --trusted-proxy="$${WAITRESS_TRUSTED_PROXY:-*}" \
           --trusted-proxy-count=1 \
           --trusted-proxy-headers="x-forwarded-proto x-forwarded-for" \
@@ -48,11 +68,18 @@ services:
       - product_private_data:/app/.runtime/product-private
       - hr_private_data:/app/.runtime/hr-private
       - tender_private_data:/app/.runtime/tender-private
+      - engineering_private_data:/app/.runtime/engineering-private
     ports:
       - "127.0.0.1:${PORTAL_HTTP_PORT:-8100}:8100"
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 4096
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD
@@ -143,6 +170,38 @@ services:
     restart: unless-stopped
     stop_grace_period: 180s
 
+  engineering-worker:
+    profiles: [engineering]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enterprise-portal-phase1:local
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      PORTAL_DEBUG: "0"
+      PORTAL_HTTPS: "1"
+      PORTAL_DB_HOST: db
+      PORTAL_DB_PORT: "5432"
+      PORTAL_ENGINEERING_STORAGE_ROOT: /app/.runtime/engineering-private
+    command: [python, manage.py, run_engineering_worker]
+    volumes:
+      - engineering_private_data:/app/.runtime/engineering-private
+      # An independently supplied image/runtime and trusted absolute CLI are
+      # required; this platform does not manufacture a cost calculation CLI.
+      - type: bind
+        source: ${ENGINEERING_RUNTIME_DIR:-./.runtime/engineering-runtime}
+        target: /opt/engineering
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      backend:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 180s
+
   model-gateway:
     profiles: [models]
     build:
@@ -167,3 +226,4 @@ volumes:
   product_private_data:
   hr_private_data:
   tender_private_data:
+  engineering_private_data:

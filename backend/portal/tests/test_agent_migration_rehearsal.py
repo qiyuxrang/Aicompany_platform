@@ -8,7 +8,7 @@ from pathlib import Path
 
 from django.apps import apps as live_apps
 from django.core.exceptions import ValidationError
-from django.db import connection
+from django.db import connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
@@ -136,8 +136,16 @@ class AgentMigrationRehearsalTests(TransactionTestCase):
                     current_artifact(sample["artifact_id"])
                 self.assertEqual(denied.exception.code, expected)
 
-    def test_0029_to_0034_isolated_data_and_restore_rehearsal(self):
-        self.assertEqual(connection.vendor, "sqlite", "migration rehearsal must use isolated SQLite")
+    def test_0029_to_0034_isolated_data_and_guard_rehearsal(self):
+        # All supported databases must retain historical data and enforce guards.
+        self.rehearse_migrations()
+
+    def test_sqlite_backup_and_restore_rehearsal(self):
+        if connection.vendor != "sqlite":
+            self.skipTest("SQLite backup API rehearsal; PostgreSQL data/guards run separately")
+        self.rehearse_migrations(include_sqlite_restore=True)
+
+    def rehearse_migrations(self, *, include_sqlite_restore=False):
         with tempfile.TemporaryDirectory(prefix="agent-migration-rehearsal-") as temp:
             root = Path(temp) / "hr-files"
             root.mkdir()
@@ -192,35 +200,36 @@ class AgentMigrationRehearsalTests(TransactionTestCase):
                         payload={"source_id": str(source.pk)}, sha256=source_hash,
                     )
 
-                    backup_path = Path(temp) / "before-migration.sqlite3"
-                    restored_path = Path(temp) / "restored-before-migration.sqlite3"
-                    connection.ensure_connection()
-                    with closing(sqlite3.connect(backup_path)) as backup:
-                        connection.connection.backup(backup)
-                        backup.commit()
-                    with closing(sqlite3.connect(backup_path)) as backup, closing(
-                            sqlite3.connect(restored_path)) as restored:
-                        backup.backup(restored)
-                        restored.commit()
-                    with closing(sqlite3.connect(backup_path)) as backup, closing(
-                            sqlite3.connect(restored_path)) as restored:
-                        table = Workbook._meta.db_table
-                        columns = [row[1] for row in backup.execute(f"PRAGMA table_info({table})")]
-                        self.assertNotIn("record_meta", columns)
-                        original = backup.execute(
-                            f"SELECT state, records, published_by_id FROM {table} WHERE id = ?",
-                            [published.pk.hex],
-                        ).fetchone()
-                        self.assertIsNotNone(original)
-                        self.assertEqual(restored.execute(
-                            f"SELECT state, records, published_by_id FROM {table} WHERE id = ?",
-                            [published.pk.hex],
-                        ).fetchone(), original)
-                        self.assertEqual(restored.execute(
-                            "SELECT name FROM django_migrations WHERE app='portal' AND name IN (?, ?, ?, ?, ?) ORDER BY name",
-                            [AFTER_AGENT, AFTER_HR_RETENTION, AFTER_LEDGER_IDENTITY,
-                             AFTER_PRODUCT_GUARDS, AFTER_HR_GUARDS],
-                        ).fetchall(), [])
+                    if include_sqlite_restore:
+                        backup_path = Path(temp) / "before-migration.sqlite3"
+                        restored_path = Path(temp) / "restored-before-migration.sqlite3"
+                        connection.ensure_connection()
+                        with closing(sqlite3.connect(backup_path)) as backup:
+                            connection.connection.backup(backup)
+                            backup.commit()
+                        with closing(sqlite3.connect(backup_path)) as backup, closing(
+                                sqlite3.connect(restored_path)) as restored:
+                            backup.backup(restored)
+                            restored.commit()
+                        with closing(sqlite3.connect(backup_path)) as backup, closing(
+                                sqlite3.connect(restored_path)) as restored:
+                            table = Workbook._meta.db_table
+                            columns = [row[1] for row in backup.execute(f"PRAGMA table_info({table})")]
+                            self.assertNotIn("record_meta", columns)
+                            original = backup.execute(
+                                f"SELECT state, records, published_by_id FROM {table} WHERE id = ?",
+                                [published.pk.hex],
+                            ).fetchone()
+                            self.assertIsNotNone(original)
+                            self.assertEqual(restored.execute(
+                                f"SELECT state, records, published_by_id FROM {table} WHERE id = ?",
+                                [published.pk.hex],
+                            ).fetchone(), original)
+                            self.assertEqual(restored.execute(
+                                "SELECT name FROM django_migrations WHERE app='portal' AND name IN (?, ?, ?, ?, ?) ORDER BY name",
+                                [AFTER_AGENT, AFTER_HR_RETENTION, AFTER_LEDGER_IDENTITY,
+                                 AFTER_PRODUCT_GUARDS, AFTER_HR_GUARDS],
+                            ).fetchall(), [])
 
                     apps = self.migrate_to(AFTER_AGENT)
                     migrated_user = apps.get_model("portal", "User").objects.get(pk=owner.pk)
@@ -291,7 +300,8 @@ class AgentMigrationRehearsalTests(TransactionTestCase):
                         self.assertTrue(all(getattr(batch, field) is None for field in AGENT_FIELDS))
 
                     apps = self.migrate_to()
-                    self.assert_hr_binding_guards(apps, valid, expired, deleted)
+                    with transaction.atomic():
+                        self.assert_hr_binding_guards(apps, valid, expired, deleted)
                     self.assertEqual(
                         apps.get_model("portal", "User")._meta.get_field("department_code").choices,
                         live_apps.get_model("portal", "User")._meta.get_field("department_code").choices,

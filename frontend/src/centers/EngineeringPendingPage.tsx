@@ -215,21 +215,23 @@ export default function EngineeringPendingPage({ section }: WorkspaceProps) {
   const [loadingId, setLoadingId] = useState<string>();
   const [deletingId, setDeletingId] = useState<string>();
   const [error, setError] = useState("");
+  const [jobsError, setJobsError] = useState("");
   const [selected, setSelected] = useState<EngineeringJob>();
   const inFlight = useRef(false);
   const active = useRef(true);
 
   // 拉取任务列表。initial=true 用于首次加载与手动刷新（显示 loading、可报错）；
-  // 轮询走静默模式，避免列表闪烁或打断正在查看的详情。
+  // 轮询不重置 loading，避免列表闪烁；失败保留上次记录并显示同步错误。
   const loadJobs = async (initial: boolean) => {
     if (inFlight.current) return;
     inFlight.current = true;
-    if (initial) { setReloading(true); setError(""); }
+    if (initial) setReloading(true);
     try {
       const data = readList(await apiRequest<unknown>(root));
       if (!active.current) return;
       if (!data) throw new Error("任务列表返回格式无效，未展示不可信数据。");
       setJobs(data.jobs); setCapabilities(data.capabilities);
+      setJobsError("");
       // 已打开的详情也要跟随刷新，否则任务完成后详情仍停在旧状态。
       // 后端列表与详情共用同一 payload，因此整份替换不会丢字段。
       setSelected((current) => {
@@ -237,7 +239,7 @@ export default function EngineeringPendingPage({ section }: WorkspaceProps) {
         return data.jobs.find((item) => item.id === current.id) ?? current;
       });
     } catch (reason) {
-      if (active.current && initial) setError(errorMessage(reason));
+      if (active.current) setJobsError(errorMessage(reason));
     } finally {
       if (active.current) { setLoading(false); setReloading(false); }
       inFlight.current = false;
@@ -252,7 +254,7 @@ export default function EngineeringPendingPage({ section }: WorkspaceProps) {
     // 否则任务已在服务端完成、页面却一直停在「排队中」。
     active.current = true;
     setLoading(true);
-    void loadJobs(false);
+    void loadJobs(true);
     const tick = () => { if (!document.hidden) void loadJobs(false); };
     const timer = window.setInterval(tick, 5000);
     window.addEventListener("focus", tick);
@@ -326,6 +328,7 @@ export default function EngineeringPendingPage({ section }: WorkspaceProps) {
         <button type="button" className="button secondary" onClick={() => void reload()} disabled={reloading}>{reloading ? "正在刷新…" : "刷新任务状态"}</button>
       </div>
       {jobs.some((job) => ["queued", "running"].includes(job.status)) && <p className="engineering-task-running" role="status">任务由后台 Worker 处理，完成后本页会自动更新，也可点击「刷新任务状态」。</p>}
+      {jobsError && <p role="alert">任务列表读取失败：{jobsError}{jobs.length ? " 当前显示上次成功读取的记录，请刷新核对最新状态。" : " 请刷新任务状态后重试，当前无法确认是否有任务。"}</p>}
       {loading ? <p role="status">正在读取任务列表…</p> : jobs.length ? <ul className="engineering-task-list">{jobs.map((job) => {
         const inProgress = ["queued", "running"].includes(job.status);
         return <li key={job.id}>
@@ -343,7 +346,7 @@ export default function EngineeringPendingPage({ section }: WorkspaceProps) {
             <span className="sr-only">{deletingId === job.id ? "正在删除…" : "删除"}</span>
           </button>
         </li>;
-      })}</ul> : <p>暂无服务端任务。</p>}
+      })}</ul> : !jobsError && <p>暂无服务端任务。</p>}
       {selected && <article aria-live="polite"><h4>{jobLabel(selected)}</h4><p>当前状态：{statusLabel(selected.status)}{selected.region ? ` · 地区：${selected.region}` : ""}</p>
         <p className="engineering-job-id">任务标识：{selected.id}</p>{selected.error && <p role="alert">任务错误：{selected.error.code ? `${selected.error.code} · ` : ""}{selected.error.detail ?? "服务未返回错误详情"}{selected.error.retryable === true ? " · 可重试" : ""}</p>}{selected.needsReview && <p><span className="status warning">待复核</span> 失败、校验未通过或存在待确认项时不得直接用于对外结果。</p>}
         {selected.inspection && <div><strong>预检</strong><p>ok：{String(selected.inspection.ok ?? "服务未返回")}</p>{selected.inspection.files.map((file, index) => <div key={`${file.name ?? "file"}-${index}`}><p>{file.name ?? `文件 ${index + 1}`} · passed：{String(file.passed ?? "服务未返回")}</p><Issues label="预检问题" values={file.issues} /></div>)}</div>}

@@ -1,8 +1,13 @@
 import json
+import asyncio
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.test import TransactionTestCase, override_settings
+from django.db import connection, connections, transaction
 from asgiref.sync import async_to_sync
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
@@ -16,9 +21,26 @@ from portal.agent_storage import scoped_backend
 from portal.models import User
 from portal.tests.test_agent_runtime import make_guard, native_stub
 from portal.tests.test_agent_model import ModelAdapterTests
+from portal.agent_db import database_boundary, database_sync_to_async
+
+
+def pool_idle(test):
+    """Connection creation can finish after checkout return; never hide a leak."""
+    end = time.monotonic() + 5
+    while True:
+        stats = connection.pool.get_stats()
+        if stats["requests_waiting"] == 0 and stats["pool_available"] == stats["pool_size"]:
+            return stats
+        test.assertLess(time.monotonic(), end, "Completed operation retained a PostgreSQL checkout")
+        time.sleep(.01)
 
 
 class HarnessTests(TransactionTestCase):
+    def tearDown(self):
+        if connection.vendor == "postgresql":
+            connections.close_all()
+            pool_idle(self)
+
     def test_native_summary_uses_metered_model_and_guarded_history(self):
         guard = make_guard()
         store = InMemoryStore()
@@ -179,3 +201,164 @@ class HarnessTests(TransactionTestCase):
             graph.invoke({"messages": [("user", "poll forever")]})
         root = AgentRun.objects.get(pk=guard.binding.root_id)
         self.assertEqual((root.tool_count, root.state, len(calls)), (2, "terminated", 3))
+
+
+class AgentDatabaseBoundaryTests(TransactionTestCase):
+    def test_reused_executor_threads_return_every_checkout_after_real_queries(self):
+        if connection.vendor != "postgresql":
+            self.skipTest("Real native PostgreSQL pool thread lifetime")
+        connections.close_all()
+        @database_boundary
+        def query():
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                return cursor.fetchone() == (1,)
+        def run(index):
+            result = query()
+            return result and connections["default"].connection is None
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            self.assertTrue(all(executor.map(run, range(32))))
+        stats = pool_idle(self)
+        self.assertLessEqual(stats["pool_size"], 4)
+
+    def test_enclosing_atomic_transaction_stays_open_and_rolls_back_normally(self):
+        @database_boundary
+        def operation():
+            User.objects.create(username="caller-atomic-boundary")
+        with self.assertRaisesRegex(RuntimeError, "caller rollback"):
+            with transaction.atomic():
+                raw = connection.connection
+                operation()
+                self.assertIs(connection.connection, raw)
+                self.assertTrue(connection.in_atomic_block)
+                self.assertFalse(connection.closed_in_transaction)
+                self.assertTrue(User.objects.filter(username="caller-atomic-boundary").exists())
+                raise RuntimeError("caller rollback")
+        self.assertFalse(User.objects.filter(username="caller-atomic-boundary").exists())
+
+    def test_enclosing_manual_transaction_is_not_returned_or_committed(self):
+        @database_boundary
+        def operation():
+            User.objects.create(username="caller-manual-boundary")
+        connection.set_autocommit(False)
+        raw = connection.connection
+        try:
+            # SQLite's legacy driver only changes isolation_level here. The
+            # caller must actually BEGIN before User.save()'s atomic savepoint,
+            # otherwise releasing that outermost savepoint commits the insert.
+            with connection.cursor() as cursor:
+                cursor.execute("BEGIN" if connection.vendor == "sqlite" else "SELECT 1")
+            self.assertFalse(connection.in_atomic_block)
+            if connection.vendor == "sqlite":
+                self.assertTrue(raw.in_transaction)
+            elif connection.vendor == "postgresql":
+                self.assertEqual(raw.info.transaction_status.name, "INTRANS")
+            operation()
+            self.assertIs(connection.connection, raw)
+            self.assertFalse(connection.get_autocommit())
+            self.assertTrue(User.objects.filter(username="caller-manual-boundary").exists())
+            if connection.vendor == "sqlite":
+                self.assertTrue(raw.in_transaction)
+            elif connection.vendor == "postgresql":
+                self.assertEqual(raw.info.transaction_status.name, "INTRANS")
+            connection.rollback()
+        finally:
+            connection.set_autocommit(True)
+        self.assertFalse(User.objects.filter(username="caller-manual-boundary").exists())
+
+    def test_nested_operation_keeps_outer_checkout_until_outer_return(self):
+        @database_boundary
+        def inner():
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            return connection.connection
+        @database_boundary
+        def outer():
+            connection.ensure_connection()
+            raw = connection.connection
+            self.assertIs(inner(), raw)
+            self.assertIs(connection.connection, raw)
+        outer()
+        if connection.vendor == "postgresql":
+            self.assertIsNone(connection.connection)
+
+    def test_child_executor_boundary_releases_independently_of_parent_thread_depth(self):
+        if connection.vendor != "postgresql":
+            self.skipTest("Real PostgreSQL parent/child thread checkout independence")
+        child_handles = []
+        def child():
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            child_handles.append(connections["default"])
+        @database_boundary
+        def parent():
+            connection.ensure_connection()
+            raw = connection.connection
+            async_to_sync(database_sync_to_async(child, thread_sensitive=False))()
+            self.assertIs(connection.connection, raw)
+            self.assertIsNone(child_handles[0].connection)
+        parent()
+        self.assertIsNone(connection.connection)
+        pool_idle(self)
+
+    def test_real_failed_tool_releases_thread_checkout_and_keeps_auth_exception(self):
+        denied = AgentDenied("synthetic-authorization-changed")
+        @database_boundary
+        def operation():
+            with transaction.atomic():
+                User.objects.create(username="failed-tool-boundary")
+                raise denied
+        def run():
+            try:
+                operation()
+            except AgentDenied as caught:
+                wrapper = connections["default"]
+                return caught is denied and not wrapper.in_atomic_block and (
+                    wrapper.vendor != "postgresql" or wrapper.connection is None)
+            return False
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            self.assertTrue(executor.submit(run).result(timeout=10))
+        self.assertFalse(User.objects.filter(username="failed-tool-boundary").exists())
+
+    def test_async_cancellation_still_finishes_physical_thread_cleanup(self):
+        entered, release, finished = Event(), Event(), Event()
+        handles = []
+        def operation():
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                handles.append(connections["default"])
+                entered.set()
+                if not release.wait(5):
+                    raise RuntimeError("bounded cancellation fixture did not release")
+            finally:
+                finished.set()
+        async def scenario():
+            task = asyncio.create_task(database_sync_to_async(operation, thread_sensitive=False)())
+            self.assertTrue(await asyncio.to_thread(entered.wait, 5))
+            task.cancel()
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        async_to_sync(scenario)()
+        self.assertTrue(finished.wait(5))
+        if connection.vendor == "postgresql":
+            end = time.monotonic() + 5
+            while handles[0].connection is not None:
+                self.assertLess(time.monotonic(), end, "Cancelled ORM executor did not return checkout")
+                time.sleep(.01)
+            connections.close_all()
+            pool_idle(self)
+
+    def test_cleanup_failure_does_not_replace_original_business_exception(self):
+        wrapper = SimpleNamespace(in_atomic_block=False, connection=None,
+            close_if_unusable_or_obsolete=Mock(), close=Mock(side_effect=RuntimeError("cleanup failure")))
+        denied = AgentDenied("authorization_changed")
+        @database_boundary
+        def operation():
+            raise denied
+        with patch("portal.agent_db._wrappers", return_value=[wrapper]):
+            with self.assertRaises(AgentDenied) as caught:
+                operation()
+        self.assertIs(caught.exception, denied)
+        self.assertTrue(any("RuntimeError" in note for note in caught.exception.__notes__))

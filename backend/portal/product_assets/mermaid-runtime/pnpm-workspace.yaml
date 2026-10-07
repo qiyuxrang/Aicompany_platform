@@ -1,0 +1,7 @@
+packages:
+  - '.'
+
+# pnpm 11 reads overrides here, rather than package.json.pnpm.overrides.
+overrides:
+  katex: 0.18.2
+  lodash-es: 4.18.1
