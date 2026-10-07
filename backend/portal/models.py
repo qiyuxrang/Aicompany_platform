@@ -106,8 +106,10 @@ class Role(models.Model):
 
 
 class User(AbstractUser):
-    security_fields = ("password", "is_active", "must_change_password")
+    security_fields = ("password", "is_active", "must_change_password", "department_code")
     display_name = models.CharField("显示名称", max_length=80, blank=True)
+    department_code = models.CharField("所属部门", max_length=20, blank=True, choices=[
+        ("product", "产品"), ("hr", "人事"), ("finance", "财务"), ("engineering", "工程")])
     roles = models.ManyToManyField(Role, blank=True, verbose_name="角色")
     must_change_password = models.BooleanField(default=True)
     session_version = models.PositiveIntegerField(default=1)
@@ -137,12 +139,16 @@ class User(AbstractUser):
                 fields = set(fields)
             fields.discard("grant_version")
             fields.discard("session_version")
-            previous = type(self).objects.select_for_update().filter(pk=self.pk).values(*self.security_fields, "session_version").first()
+            previous = type(self).objects.select_for_update().filter(pk=self.pk).values(
+                *self.security_fields, "session_version", "grant_version").first()
             if previous:
                 changed = any(field in fields and previous[field] != getattr(self, field) for field in ("is_active", "password"))
                 self.session_version = previous["session_version"] + int(changed)
                 if changed:
                     fields.add("session_version")
+                if "department_code" in fields and previous["department_code"] != self.department_code:
+                    self.grant_version = previous["grant_version"] + 1
+                    fields.add("grant_version")
                 for field in self.security_fields:
                     if field not in fields:
                         setattr(self, field, previous[field])
@@ -213,3 +219,6 @@ from .tender_models import (TenderSource, TenderFetchRun, TenderManualRefresh, T
                             TenderRecoveryAudit, TenderSnapshot, TenderNotice, TenderNoticeVersion,
                             TenderOpportunity, TenderOpportunityUserState, TenderOpportunityEvent, TenderSourceHealthEvent)
 from .engineering_models import EngineeringJob
+from .agent_models import (AgentProject, AgentAttachment, AgentConversation, AgentMessage, AgentWorkTask,
+                           AgentRequirement, AgentRun, AgentRootAction, AgentEvent,
+                           AgentBusinessReference, AgentSkillInstallation)

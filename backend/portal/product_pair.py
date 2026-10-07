@@ -58,6 +58,9 @@ def _report_generation_hash(task, family, current_input, blueprint):
 
 
 def report_current(task, report):
+    from .product_agent import requirement_current
+    if not requirement_current(task):
+        return False
     current_input = current_revision(task, DocumentRevision.Kind.INPUT)
     blueprint = current_revision(task, DocumentRevision.Kind.BLUEPRINT)
     latest = latest_report_content(task, report.family)
@@ -73,6 +76,9 @@ def report_current(task, report):
 
 
 def output_current(task, artifact):
+    from .product_agent import requirement_current
+    if not requirement_current(task):
+        return False
     current_input = current_revision(task, DocumentRevision.Kind.INPUT)
     blueprint = approved_blueprint(task)
     latest = task.artifacts.filter(family=artifact.family).order_by("-version").first()

@@ -3,6 +3,7 @@ import csv
 import hashlib
 import io
 import json
+import uuid
 from collections.abc import Mapping
 from copy import deepcopy
 from datetime import date
@@ -10,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import PurePosixPath
 
 from django.db import transaction
+from django.db.models import Sum
 from django.http import HttpResponse
 from django.urls import path
 from django.utils import timezone
@@ -18,6 +20,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .business_models import BusinessLedgerGrant, BusinessLedgerRevision, BusinessLedgerWorkbook
+from .model_config import ModelCallLog
 from .models import User
 from .security import audit, authorized_modules
 
@@ -107,6 +110,7 @@ class BoardError(ValueError):
 
 def allowed(user):
     return (user.is_active and not user.must_change_password
+            and not user.is_staff and not user.is_superuser and not user.is_platform_admin
             and user.roles.filter(code='general_manager').exists()
             and authorized_modules(user).filter(code='business', enabled=True).exists())
 
@@ -445,8 +449,7 @@ def _board_scope(code, source_mode):
     if code == 'presales' and source_mode:
         return ('产品事业部源表条目：按来源记录计数，来源工作表可能重叠；已签单金额与项目预算金额按来源分组分别统计，'
                 '其他来源金额不混入，空白字段不补零、不推断阶段。')
-    return ('售前部门最新保存的工作数据（含草稿）；按版本留痕，尚未审核发布的数据请谨慎使用。' if code == 'presales'
-            else '部门最新已发布台账；未发布草稿不会进入总经理看板。')
+    return '部门最新已发布台账；未发布草稿不会进入总经理看板。'
 
 
 def payload(code, snapshot, query='', status=''):
@@ -481,8 +484,6 @@ def payload(code, snapshot, query='', status=''):
 
 
 def _visible_board_snapshot(code):
-    if code == 'presales':
-        return BusinessLedgerWorkbook.objects.filter(department=code).first()
     return (BusinessLedgerRevision.objects.filter(
         workbook__department=code, state=BusinessLedgerWorkbook.State.PUBLISHED,
     ).select_related('workbook').first())
@@ -591,8 +592,7 @@ def _published_project_events(revisions):
 def _project_data(code, snapshot):
     groups = _project_groups(snapshot.records)
     revisions = _project_revisions(code, snapshot)
-    events = (_live_project_events(revisions) if code == 'presales'
-              else _published_project_events(revisions))
+    events = _published_project_events(revisions)
     projects = []
     for key, group in groups.items():
         latest = events.get(key, [])[-1] if events.get(key) else None
@@ -615,6 +615,8 @@ def _project_scope(code, snapshot):
 def _grant(user, code, capability=None):
     if code not in BOARDS or not user.is_active or user.must_change_password:
         return None
+    if capability and user.roles.filter(code='general_manager').exists():
+        return None
     grant = BusinessLedgerGrant.objects.filter(user=user, department=code).first()
     if not grant or capability and not getattr(grant, capability, False):
         return None
@@ -622,6 +624,8 @@ def _grant(user, code, capability=None):
 
 
 def _permissions(grant):
+    if grant and grant.user.roles.filter(code='general_manager').exists():
+        return {key: False for key in ('can_edit', 'can_submit', 'can_publish')}
     return {key: bool(grant and getattr(grant, key)) for key in ('can_edit', 'can_submit', 'can_publish')}
 
 
@@ -636,7 +640,7 @@ def ledger_payload(code, workbook, grant):
     if not workbook:
         return {
             'department': code, 'title': config['title'], 'state': 'draft', 'revision': 0,
-            'as_of': None, 'source_name': '手工录入', 'records': [], 'total': 0,
+            'as_of': None, 'source_name': '手工录入', 'records': [], 'record_meta': {}, 'total': 0,
             'fields': config['fields'], 'statuses': config['statuses'], 'permissions': _permissions(grant),
             'updated_at': None, 'updated_by': None, 'submitted_at': None, 'submitted_by': None,
             'published_at': None, 'published_by': None, 'last_return_reason': '',
@@ -644,7 +648,8 @@ def ledger_payload(code, workbook, grant):
     return {
         'department': code, 'title': config['title'], 'state': workbook.state, 'revision': workbook.revision,
         'as_of': workbook.as_of.isoformat() if workbook.as_of else None, 'source_name': workbook.source_name,
-        'records': workbook.records, 'total': len(workbook.records), 'fields': config['fields'],
+        'records': workbook.records, 'record_meta': workbook.record_meta if code == 'finance' else {},
+        'total': len(workbook.records), 'fields': config['fields'],
         'statuses': config['statuses'], 'permissions': _permissions(grant),
         'updated_at': workbook.updated_at.isoformat(), 'updated_by': _person(workbook.updated_by),
         'submitted_at': workbook.submitted_at.isoformat() if workbook.submitted_at else None,
@@ -690,28 +695,73 @@ def _lock_scope(user, code, capability, expected):
     return current_user, grant, workbook
 
 
-def _checksum(workbook):
-    value = {'department': workbook.department, 'state': workbook.state,
-             'as_of': workbook.as_of.isoformat() if workbook.as_of else None, 'records': workbook.records}
+def _checksum(workbook, *, records=None, state=None):
+    value = {'department': workbook.department, 'state': state or workbook.state,
+             'as_of': workbook.as_of.isoformat() if workbook.as_of else None,
+             'records': workbook.records if records is None else records}
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
-def _record_revision(workbook, actor, action):
+def _row_checksum(row):
+    return hashlib.sha256(json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def _finance_apply_records(workbook, actor, records, *, renamed=None):
+    renamed = renamed or {}
+    old_rows = {row['project_id']: row for row in workbook.records}
+    new_rows = {row['project_id']: row for row in records}
+    metadata = deepcopy(workbook.record_meta)
+    active = {item['project_id']: key for key, item in metadata.items() if not item.get('deleted')}
+    handled = set()
+    for old_id, old_row in old_rows.items():
+        new_id = renamed.get(old_id, old_id)
+        new_row = new_rows.get(new_id)
+        if new_row == old_row:
+            continue
+        record_id = active.get(old_id)
+        entry = metadata.get(record_id) if record_id else None
+        if not entry or entry['record_author_id'] != actor.pk:
+            raise BoardError('记录填写人未核实或不是本人，不能修改或删除。')
+        if new_row is not None and new_id in handled:
+            raise BoardError('记录编号冲突。')
+        entry.update(project_id=new_id, draft_actor_id=actor.pk,
+                     draft_revision=workbook.revision + 1, draft_checksum=_row_checksum(new_row),
+                     deleted=new_row is None)
+        handled.add(new_id)
+    for new_id, new_row in new_rows.items():
+        if new_id in old_rows or new_id in handled:
+            continue
+        record_id = str(uuid.uuid4())
+        metadata[record_id] = {
+            'project_id': new_id, 'record_author_id': actor.pk, 'draft_actor_id': actor.pk,
+            'draft_revision': workbook.revision + 1, 'draft_checksum': _row_checksum(new_row),
+            'deleted': False,
+        }
+    workbook.records = records
+    workbook.record_meta = metadata
+
+
+def _record_revision(workbook, actor, action, *, records=None, record_meta=None, request_fingerprint=''):
+    snapshot_records = workbook.records if records is None else records
     BusinessLedgerRevision.objects.create(
         workbook=workbook, revision=workbook.revision, state=workbook.state, source_name=workbook.source_name,
-        as_of=workbook.as_of, records=deepcopy(workbook.records), checksum=_checksum(workbook), action=action,
+        as_of=workbook.as_of, records=deepcopy(snapshot_records),
+        record_meta=deepcopy(workbook.record_meta if record_meta is None else record_meta),
+        checksum=_checksum(workbook, records=snapshot_records), action=action,
+        request_fingerprint=request_fingerprint,
         return_reason=workbook.last_return_reason if action == 'return' else '', actor=actor,
     )
     audit(actor, f'business_ledger_{action}', f'{workbook.department}:v{workbook.revision}',
           changes=['records'] if action in {'record_create', 'record_update', 'record_delete', 'import', 'source_import'} else ['state'])
 
 
-def _save_mutation(workbook, actor, action):
+def _save_mutation(workbook, actor, action, *, records=None, record_meta=None, request_fingerprint=''):
     workbook.revision += 1
     workbook.updated_by = actor
     workbook.updated_at = timezone.now()
     workbook.save()
-    _record_revision(workbook, actor, action)
+    _record_revision(workbook, actor, action, records=records, record_meta=record_meta,
+                     request_fingerprint=request_fingerprint)
 
 
 def _editable(workbook):
@@ -724,7 +774,7 @@ def _editable(workbook):
         workbook.last_return_reason = ''
 
 
-def _mutation_response(request, code, capability, callback):
+def _mutation_response(request, code, capability, callback, replay=None):
     if code not in BOARDS:
         return Response({'detail': '台账不存在。'}, status=404)
     if not _grant(request.user, code, capability):
@@ -732,7 +782,15 @@ def _mutation_response(request, code, capability, callback):
     try:
         expected = _expected_revision(request.data)
         with transaction.atomic():
-            actor, grant, workbook = _lock_scope(request.user, code, capability, expected)
+            try:
+                actor, grant, workbook = _lock_scope(request.user, code, capability, expected)
+            except RuntimeError:
+                if replay is None:
+                    raise
+                repeated = replay(expected)
+                if repeated is None:
+                    raise
+                return Response(repeated)
             status_code = callback(workbook, actor)
             result = ledger_payload(code, workbook, grant)
     except BoardError as error:
@@ -756,6 +814,27 @@ def board(request, code):
         return Response({'detail': '筛选条件无效。'}, status=400)
     snapshot = _visible_board_snapshot(code)
     return Response(payload(code, snapshot, search, status))
+
+
+def management_usage_payload():
+    calls = ModelCallLog.objects.filter(purpose=ModelCallLog.Purpose.BUSINESS)
+    known = calls.filter(prompt_tokens__isnull=False, completion_tokens__isnull=False)
+    totals = known.aggregate(prompt_tokens=Sum('prompt_tokens'), completion_tokens=Sum('completion_tokens'))
+    call_count, known_count = calls.count(), known.count()
+    return {
+        'calls': call_count, 'known_calls': known_count, 'unknown_calls': call_count - known_count,
+        'prompt_tokens': totals['prompt_tokens'] or 0,
+        'completion_tokens': totals['completion_tokens'] or 0,
+        'usage_complete': call_count == known_count,
+    }
+
+
+@never_cache
+@api_view(['GET'])
+def management_usage(request):
+    if not allowed(request.user):
+        return Response({'detail': '无总经理看板权限。'}, status=403)
+    return Response(management_usage_payload())
 
 
 @never_cache
@@ -877,7 +956,11 @@ def ledger_records(request, code):
         row = validate_record(request.data.get('record'), code)
         if any(existing['project_id'] == row['project_id'] for existing in workbook.records):
             raise BoardError('项目编号已存在。')
-        workbook.records = [*workbook.records, row]
+        records = [*workbook.records, row]
+        if code == 'finance':
+            _finance_apply_records(workbook, actor, records)
+        else:
+            workbook.records = records
         workbook.source_name = '手工录入'
         _save_mutation(workbook, actor, 'record_create')
         return 201
@@ -894,6 +977,10 @@ def ledger_record(request, code, project_id):
                          if row.get('project_id') == project_id), None)
         if position is None:
             raise LookupError
+        if code == 'finance' and not any(
+                item['project_id'] == project_id and not item.get('deleted')
+                and item['record_author_id'] == actor.pk for item in workbook.record_meta.values()):
+            raise BoardError('记录填写人未核实或不是本人，不能修改或删除。')
         records = list(workbook.records)
         if request.method == 'DELETE':
             records.pop(position)
@@ -905,7 +992,11 @@ def ledger_record(request, code, project_id):
                 raise BoardError('项目编号已存在。')
             records[position] = row
             action = 'record_update'
-        workbook.records = records
+        if code == 'finance':
+            renamed = {project_id: row['project_id']} if request.method == 'PUT' else None
+            _finance_apply_records(workbook, actor, records, renamed=renamed)
+        else:
+            workbook.records = records
         workbook.source_name = '手工录入'
         _save_mutation(workbook, actor, action)
         return 200
@@ -929,7 +1020,10 @@ def ledger_import(request, code):
         as_of = date_value(request.data.get('as_of'), '台账截止日期')
         if date.fromisoformat(as_of) > timezone.localdate():
             raise BoardError('台账截止日期不能晚于今天。')
-        workbook.records = records
+        if code == 'finance':
+            _finance_apply_records(workbook, actor, records)
+        else:
+            workbook.records = records
         workbook.as_of = date.fromisoformat(as_of)
         workbook.source_name = PurePosixPath(uploaded.name.replace('\\', '/')).name[:200]
         _save_mutation(workbook, actor, 'import')
@@ -941,6 +1035,9 @@ def ledger_import(request, code):
 @never_cache
 @api_view(['POST'])
 def ledger_submit(request, code):
+    if code == 'finance':
+        return Response({'detail': '财务记录由填写人逐条确认发布，无需部门提交。'}, status=400)
+
     def submit(workbook, actor):
         if workbook.state != BusinessLedgerWorkbook.State.DRAFT:
             raise BoardError('只有草稿可以提交。')
@@ -962,6 +1059,79 @@ def ledger_submit(request, code):
 @never_cache
 @api_view(['POST'])
 def ledger_publish(request, code):
+    if code == 'finance':
+        fingerprint = hashlib.sha256(json.dumps(
+            {'actor_id': request.user.pk, 'department': code, 'request': request.data},
+            ensure_ascii=False, sort_keys=True, default=str,
+        ).encode()).hexdigest()
+
+        def replay(expected):
+            workbook = BusinessLedgerWorkbook.objects.select_for_update().filter(department=code).first()
+            if not workbook or workbook.revision != expected + 1:
+                return None
+            if not BusinessLedgerRevision.objects.filter(
+                    workbook=workbook, revision=workbook.revision, action='publish', actor=request.user,
+                    request_fingerprint=fingerprint).exists():
+                return None
+            return ledger_payload(code, workbook, _grant(request.user, code))
+
+        def publish_records(workbook, actor):
+            selected = request.data.get('records')
+            if not isinstance(selected, list) or not selected or len(selected) > MAX_ROWS:
+                raise BoardError('请选择本人记录及精确草稿版本。')
+            if set(request.data) != {'expected_revision', 'expected_published_revision', 'records'}:
+                raise BoardError('请求包含不支持的字段。')
+            previous = (BusinessLedgerRevision.objects.filter(
+                workbook=workbook, state=BusinessLedgerWorkbook.State.PUBLISHED,
+            ).order_by('-revision').first())
+            expected_published = request.data.get('expected_published_revision')
+            baseline = previous.revision if previous else 0
+            if isinstance(expected_published, bool) or str(expected_published) != str(baseline):
+                raise RuntimeError
+            published_rows = list(previous.records) if previous else []
+            published_meta = deepcopy(previous.record_meta) if previous else {}
+            current_rows = {row['project_id']: row for row in workbook.records}
+            seen = set()
+            for selection in selected:
+                if not isinstance(selection, dict) or set(selection) != {'record_id', 'source_revision', 'source_checksum'}:
+                    raise BoardError('记录版本字段无效。')
+                record_id = selection['record_id']
+                if not isinstance(record_id, str) or record_id in seen:
+                    raise BoardError('记录选择重复或无效。')
+                seen.add(record_id)
+                entry = workbook.record_meta.get(record_id)
+                if not entry or entry['record_author_id'] != actor.pk or entry['draft_actor_id'] != actor.pk:
+                    raise PermissionError
+                if (str(selection['source_revision']) != str(entry['draft_revision'])
+                        or selection['source_checksum'] != entry['draft_checksum']):
+                    raise RuntimeError
+                source = BusinessLedgerRevision.objects.filter(
+                    workbook=workbook, revision=entry['draft_revision'],
+                ).first()
+                if not source or source.record_meta.get(record_id) != entry:
+                    raise RuntimeError
+                row = current_rows.get(entry['project_id'])
+                if _row_checksum(row) != entry['draft_checksum'] or entry['deleted'] != (row is None):
+                    raise RuntimeError
+                old_entry = published_meta.pop(record_id, None)
+                if old_entry:
+                    published_rows = [item for item in published_rows
+                                      if item['project_id'] != old_entry['project_id']]
+                if row is not None:
+                    if any(item['project_id'] == row['project_id'] for item in published_rows):
+                        raise BoardError('发布记录编号与已有发布记录冲突。')
+                    published_rows.append(row)
+                    published_meta[record_id] = deepcopy(entry)
+            workbook.state = BusinessLedgerWorkbook.State.PUBLISHED
+            workbook.published_by = actor
+            workbook.published_at = timezone.now()
+            workbook.last_return_reason = ''
+            _save_mutation(workbook, actor, 'publish', records=published_rows, record_meta=published_meta,
+                           request_fingerprint=fingerprint)
+            return 200
+
+        return _mutation_response(request, code, 'can_edit', publish_records, replay=replay)
+
     def publish(workbook, actor):
         if workbook.state != BusinessLedgerWorkbook.State.SUBMITTED:
             raise BoardError('只有已提交台账可以发布。')
@@ -978,6 +1148,9 @@ def ledger_publish(request, code):
 @never_cache
 @api_view(['POST'])
 def ledger_return(request, code):
+    if code == 'finance':
+        return Response({'detail': '财务记录无需部门退回。'}, status=400)
+
     def return_ledger(workbook, actor):
         if workbook.state != BusinessLedgerWorkbook.State.SUBMITTED:
             raise BoardError('只有已提交台账可以退回。')
@@ -1033,13 +1206,15 @@ def ledger_version_detail(request, code, version_id):
     return Response({
         'id': str(revision.pk), 'department': code, 'revision': revision.revision, 'state': revision.state,
         'action': revision.action, 'as_of': revision.as_of.isoformat() if revision.as_of else None,
-        'source_name': revision.source_name, 'records': revision.records, 'checksum': revision.checksum,
+        'source_name': revision.source_name, 'records': revision.records,
+        'record_meta': revision.record_meta if code == 'finance' else {}, 'checksum': revision.checksum,
         'return_reason': revision.return_reason, 'actor': _person(revision.actor),
         'created_at': revision.created_at.isoformat(),
     })
 
 
 urlpatterns = [
+    path('management/usage/', management_usage),
     path('boards/<slug:code>/', board),
     path('boards/<slug:code>/projects/', board_projects),
     path('boards/<slug:code>/projects/<str:project_id>/', board_project_detail),

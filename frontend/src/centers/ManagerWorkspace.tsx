@@ -1,12 +1,12 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { isApiError, launchModule, PortalModule } from "../api";
+import { CurrentUser, isApiError, launchModule, PortalModule } from "../api";
 import { EmptyPanel, SectionHeader } from "./shared";
 
 import BusinessBoards, { BusinessOverview } from './BusinessBoards';
 import BusinessLedgerWorkspace from './BusinessLedgerWorkspace';
 
-export default function ManagerWorkspace({ section, preview, module, businessPanel }: {
-  section: string; preview: boolean; module?: PortalModule; businessPanel: ReactNode;
+export default function ManagerWorkspace({ section, preview, module, businessPanel, user }: {
+  section: string; preview: boolean; module?: PortalModule; businessPanel: ReactNode; user?: CurrentUser;
 }) {
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
@@ -46,7 +46,7 @@ export default function ManagerWorkspace({ section, preview, module, businessPan
   </section>;
 
   if (['engineering', 'finance', 'presales'].includes(section)) return <BusinessBoards initial={section as 'engineering' | 'finance' | 'presales'} preview={preview} />;
-  if (section === 'ledgers') return <><BusinessLedgerWorkspace preview={preview} /><section className="center-panel"><h3>原台账系统</h3><p>新录入工作台不影响原系统；过渡期仍可按原有权限进入。</p><div className="center-actions">{launchButton}</div>{error && <p className="notice error" role="alert">{error}</p>}</section></>;
+  if (section === 'ledgers' && !user?.roles.some(role => role.code === 'general_manager')) return <><BusinessLedgerWorkspace preview={preview} user={user} onlyDepartment={user?.department_code === 'finance' || user?.roles.some(role => role.code === 'finance') ? 'finance' : undefined}/><section className="center-panel"><h3>原台账系统</h3><p>新录入工作台不影响原系统；过渡期仍可按原有权限进入。</p><div className="center-actions">{launchButton}</div>{error && <p className="notice error" role="alert">{error}</p>}</section></>;
 
   return <BusinessOverview preview={preview} />;
 }

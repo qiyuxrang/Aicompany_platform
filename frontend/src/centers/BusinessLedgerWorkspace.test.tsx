@@ -8,6 +8,7 @@ const ledgerApi = vi.hoisted(() => ({
   listLedgerPermissions: vi.fn(), getLedger: vi.fn(), listLedgerVersions: vi.fn(),
   addLedgerRecord: vi.fn(), updateLedgerRecord: vi.fn(), deleteLedgerRecord: vi.fn(), importLedger: vi.fn(),
   transitionLedger: vi.fn(), returnLedger: vi.fn(), updateLedgerMetadata: vi.fn(),
+  getLedgerVersion: vi.fn(), publishFinanceRecord: vi.fn(),
 }));
 vi.mock('./business-ledger-api', async original => ({ ...await original<typeof import('./business-ledger-api')>(), ...ledgerApi }));
 
@@ -101,4 +102,34 @@ it('editing imported source records preserves unknown stage and amount without r
   expect((screen.getByLabelText('跟进记录') as HTMLTextAreaElement).maxLength).toBe(20000);
   await userEvent.click(screen.getByRole('button', { name: '保存修改' }));
   await waitFor(() => expect(ledgerApi.updateLedgerRecord).toHaveBeenCalledWith(expect.anything(), 'PRE-1-2', expect.objectContaining(record)));
+});
+
+it('finance hides other writers controls and confirms only the displayed own record version', async () => {
+  const personal = { project_id: 'P-1', record_author_id: 7, draft_actor_id: 7, draft_revision: 5, draft_checksum: 'exact-hash', deleted: false };
+  const ledger = { ...fixture(), department: 'finance', title: '财务台账', record_meta: { mine: personal, theirs: { ...personal, project_id: 'P-2', record_author_id: 8, draft_actor_id: 8 } },
+    records: [{ project_id: 'P-1', project_name: '本人项目', status: '实施中' }, { project_id: 'P-2', project_name: '他人项目', status: '实施中' }] };
+  ledgerApi.listLedgerPermissions.mockResolvedValue({ departments: [{ department: 'finance', title: '财务台账', can_edit: true }] });
+  ledgerApi.getLedger.mockResolvedValue(ledger);
+  ledgerApi.listLedgerVersions.mockResolvedValue([{ id: 'published-3', revision: 3, state: 'published' }]);
+  ledgerApi.getLedgerVersion.mockResolvedValue({ records: [{ project_id: 'P-1', project_name: '旧项目名' }], record_meta: { mine: personal } });
+  ledgerApi.publishFinanceRecord.mockResolvedValue({ ...ledger, revision: 8, state: 'published' });
+  render(<BusinessLedgerWorkspace onlyDepartment="finance" user={{ id: 7, username: 'finance', display_name: '本人', roles: [{ code: 'finance', name: '财务' }], is_platform_admin: false, must_change_password: false }}/>);
+  await screen.findByText('非本人记录，只读');
+  expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: '提交审核' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '发布到看板' })).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: '核对并发布' }));
+  expect(await screen.findByText('旧项目名')).toBeTruthy();
+  expect(ledgerApi.publishFinanceRecord).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: '本人确认发布此版本' }));
+  await waitFor(() => expect(ledgerApi.publishFinanceRecord).toHaveBeenCalledWith(expect.objectContaining({ revision: 7 }), 'mine', personal, 3));
+});
+
+it('finance ownership missing never unlocks existing rows', async () => {
+  ledgerApi.listLedgerPermissions.mockResolvedValue({ departments: [{ department: 'finance', title: '财务台账', can_edit: true }] });
+  ledgerApi.getLedger.mockResolvedValue({ ...fixture(), department: 'finance' });
+  render(<BusinessLedgerWorkspace onlyDepartment="finance"/>);
+  expect(await screen.findByText('填写人待核实，只读')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '编辑' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '核对并发布' })).toBeNull();
 });

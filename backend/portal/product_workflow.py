@@ -37,7 +37,11 @@ def invoke_structured_model(call: Callable[[object], object], request, parser: C
 def _record(state: ProductWorkflowState, node: str) -> ProductWorkflowState:
     """Persist a compact, serializable graph checkpoint under the task lease."""
     with transaction.atomic():
-        task = DocumentTask.objects.select_for_update().get(pk=state["task_id"])
+        from .product_worker import ExecutionError, _guard
+        try:
+            task = _guard(state["task_id"], state["fence"])
+        except ExecutionError:
+            return {"node": node}
         if task.state != DocumentTask.State.RUNNING or task.fence != state["fence"]:
             return {"node": node}
         task.checkpoint = {

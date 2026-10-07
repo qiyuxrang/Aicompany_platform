@@ -59,14 +59,15 @@ class BusinessProjectApiTests(PortalTestCase):
         alpha_changed[0]['project_progress'] = '方案确认'
         final = deepcopy(alpha_changed)
         final[1]['project_progress'] = '报价完成'
-        workbook = self.workbook('presales', beta_actor, final, revision=4)
+        workbook = self.workbook('presales', beta_actor, final, revision=5, state='published')
         started = timezone.now() - timedelta(days=1)
-        imported = self.revision(workbook, 1, 'draft', initial, importer, 'source_import', started)
+        self.revision(workbook, 1, 'draft', initial, importer, 'source_import', started)
         self.revision(workbook, 2, 'draft', initial, metadata_actor, 'metadata_update', started + timedelta(hours=1))
         alpha_update = self.revision(
             workbook, 3, 'draft', alpha_changed, alpha_actor, 'record_update', started + timedelta(hours=2),
         )
         self.revision(workbook, 4, 'draft', final, beta_actor, 'record_update', started + timedelta(hours=3))
+        self.revision(workbook, 5, 'published', final, beta_actor, 'publish', started + timedelta(hours=4))
 
         response = self.client.get('/api/business/boards/presales/projects/')
         self.assertEqual(response.status_code, 200, response.content)
@@ -81,10 +82,8 @@ class BusinessProjectApiTests(PortalTestCase):
         self.assertIn('精确分组', body['scope'])
 
         detail = self.client.get('/api/business/boards/presales/projects/P-A/').json()
-        self.assertEqual([item['action'] for item in detail['updates']], ['record_update', 'source_import'])
-        self.assertEqual([item['actor']['name'] for item in detail['updates']], [alpha_actor.username, importer.username])
-        self.assertEqual(detail['updates'][1]['id'], str(imported.pk))
-        self.assertIn('导入人不代表原始业务记录作者', detail['updates'][1]['summary'])
+        self.assertEqual([item['action'] for item in detail['updates']], ['record_update'])
+        self.assertEqual([item['actor']['name'] for item in detail['updates']], [alpha_actor.username])
         self.assertNotIn(metadata_actor.username, str(detail['updates']))
         self.assertNotIn(beta_actor.username, str(detail['updates']))
 
@@ -98,8 +97,8 @@ class BusinessProjectApiTests(PortalTestCase):
             {**self.presales_row('G-3', '星河项目', '方案沟通', '负责人丙'),
              'status': '', 'source_sheet': '项目表三', 'source_group': '项目预算'},
         ]
-        workbook = self.workbook('presales', importer, rows, revision=1)
-        self.revision(workbook, 1, 'draft', rows, importer, 'source_import', timezone.now())
+        workbook = self.workbook('presales', importer, rows, revision=1, state='published')
+        self.revision(workbook, 1, 'published', rows, importer, 'source_import', timezone.now())
 
         body = self.client.get('/api/business/boards/presales/projects/').json()
         self.assertEqual(body['total'], 2)

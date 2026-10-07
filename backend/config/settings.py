@@ -80,6 +80,23 @@ except ValueError:
 if not 1 <= MODEL_MAX_PENDING_PER_MODEL <= 100:
     raise ImproperlyConfigured("模型并发上限必须位于1至100之间")
 PRODUCT_P1_ENABLED = os.environ.get("PORTAL_PRODUCT_P1_ENABLED") == "1"
+AGENT_PLATFORM_ENABLED = os.environ.get("PORTAL_AGENT_ENABLED") == "1"
+AGENT_RUNTIME_URL = os.environ.get("PORTAL_AGENT_RUNTIME_URL", "")
+AGENT_RUNTIME_SERVICE_TOKEN = os.environ.get("PORTAL_AGENT_RUNTIME_SERVICE_TOKEN", "")
+AGENT_RUNTIME_ALLOWED_URLS = tuple(filter(None, os.environ.get("PORTAL_AGENT_RUNTIME_ALLOWED_URLS", "http://127.0.0.1:2024").split(",")))
+AGENT_MAIN_GRAPH = os.environ.get("PORTAL_AGENT_MAIN_GRAPH", "main")
+try:
+    AGENT_RUNTIME_MODEL_PRESETS = json.loads(os.environ.get("PORTAL_AGENT_RUNTIME_MODEL_PRESETS", "{}"))
+except (ValueError, TypeError):
+    raise ImproperlyConfigured("Agent 模型预设必须为已授权模型的 JSON 对象。") from None
+if not isinstance(AGENT_RUNTIME_MODEL_PRESETS, dict):
+    raise ImproperlyConfigured("Agent 模型预设必须为已授权模型的 JSON 对象。")
+try:
+    AGENT_ROOT_POLICY = json.loads(os.environ.get("PORTAL_AGENT_ROOT_POLICY", '{"max_actions":2048,"max_model_calls":320,"max_tool_calls":1536,"max_launches":128,"max_concurrent":16,"max_active_ms":86400000,"deadline_seconds":172800}'))
+except (ValueError, TypeError):
+    raise ImproperlyConfigured("Agent 根运行保护必须为有限整数配置。") from None
+if not isinstance(AGENT_ROOT_POLICY, dict) or any(type(AGENT_ROOT_POLICY.get(key)) is not int or not 1 <= AGENT_ROOT_POLICY[key] <= maximum for key, maximum in (("max_actions", 100000), ("max_model_calls", 10000), ("max_tool_calls", 100000), ("max_launches", 10000), ("max_concurrent", 64), ("max_active_ms", 604800000), ("deadline_seconds", 604800))):
+    raise ImproperlyConfigured("Agent 根运行保护必须为有限整数配置。")
 PRODUCT_MODEL_CALLS_ALLOWED = os.environ.get("PORTAL_PRODUCT_MODEL_CALLS_ALLOWED") == "1"
 PRODUCT_FORMAL_RELEASE_ENABLED = os.environ.get("PORTAL_PRODUCT_FORMAL_RELEASE_ENABLED") == "1"
 PRODUCT_REVIEWER_IDS = tuple(int(value) for value in os.environ.get("PORTAL_PRODUCT_REVIEWER_IDS", "").split(",") if value.isdigit())

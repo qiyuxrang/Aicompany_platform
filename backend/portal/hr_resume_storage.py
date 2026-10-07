@@ -75,11 +75,13 @@ def defer_file_removal(file_id):
     try:
         _path(file_id).with_suffix('.delete').write_text('', encoding='ascii')
     except OSError as error:
-        # Surface this failure; the age-based orphan sweep remains a second path.
+        # Surface this failure; the orphan sweep remains a second path.
         raise StorageError('storage_cleanup_failed', '无法记录文件删除重试，请修复存储。') from error
 
 
 def read_file(file_id, expected_hash):
+    if _path(file_id).with_suffix('.delete').exists():
+        raise StorageError('artifact_missing', '简历文件不可读取。')
     try:
         with _path(file_id).open('rb') as stream:
             content = stream.read(MAX_BYTES + 1)
@@ -120,7 +122,8 @@ def cleanup_orphan_files(edge, *, limit=100):
                 try:
                     if not deferred and entry.stat(follow_symlinks=False).st_mtime > edge.timestamp():
                         continue
-                    if ResumeArtifact.objects.filter(file_id=identifier).exists():
+                    if ResumeArtifact.objects.filter(file_id=identifier).exclude(
+                            archive_state__in=['deleted', 'file_deleted']).exists():
                         continue
                     attempted += 1
                     # Only canonical root-local UUID and UUID.tmp names; no paths from uploads.

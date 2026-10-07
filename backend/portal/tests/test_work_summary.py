@@ -111,6 +111,16 @@ class WorkSummaryTests(PortalTestCase):
         self.assertEqual(body["sections"]["my_tasks"]["items"][0]["kind"], "hr_job")
         self.assertIn("仅汇总已授权模块", body["sections"]["my_tasks"]["reason"])
 
+    def test_long_term_hr_archive_remains_visible_but_legacy_expired_stays_hidden(self):
+        active = HrJobTask.objects.create(owner=self.user, title="长期岗位", archive_state="active")
+        expired = HrJobTask.objects.create(owner=self.user, title="旧失效岗位", archive_state="legacy_expired")
+        HrJobTask.objects.filter(pk__in=[active.pk, expired.pk]).update(
+            created_at=timezone.now() - timedelta(days=90))
+        body = self.client.get("/api/work/summary/").json()
+        titles = [item["title"] for item in body["sections"]["my_tasks"]["items"]]
+        self.assertIn("长期岗位", titles)
+        self.assertNotIn("旧失效岗位", titles)
+
     def test_revoked_product_source_removes_task_titles_and_counts_for_owner_and_reviewer(self):
         for owner, reviewer in ((self.user, self.other), (self.other, self.user)):
             task = self.product_task(owner=owner, reviewer=reviewer, title="REVOKED_PRIVATE_TITLE",

@@ -45,6 +45,7 @@ const statusMeta = {
 const departmentHomes: Record<string, string> = {
   product: "/centers/product",
   hr: "/centers/hr",
+  finance: "/centers/finance",
   engineering: "/centers/cost",
   general_manager: "/centers/business",
 };
@@ -57,6 +58,7 @@ const departmentChoices: Record<string, string> = {
 
 function departmentHome(user: CurrentUser): string {
   if (user.is_platform_admin) return "/ops";
+  if (user.department_code === 'finance' && !user.roles.some(role => role.code === 'general_manager')) return '/centers/finance';
   const destinations = [...new Set(user.roles.map(role => departmentHomes[role.code]).filter((home): home is string => Boolean(home)))];
   const provided = (user as CurrentUser & { default_department?: unknown }).default_department;
   const preferred = typeof provided === "string" ? departmentChoices[provided] : undefined;
@@ -97,7 +99,8 @@ function authorizedReturnPath(user: CurrentUser, search: string): string | null 
 
   const center = target.pathname.match(/^\/centers\/([a-zA-Z0-9_-]+)(?:\/|$)/);
   if (center) {
-    const role = { product: "product", cost: "engineering", hr: "hr", business: "general_manager" }[center[1]];
+    if (center[1] === 'finance' && user.department_code === 'finance' && !user.roles.some(role => role.code === 'general_manager')) return returnTo;
+    const role = { product: "product", cost: "engineering", hr: "hr", finance: "finance", business: "general_manager" }[center[1]];
     return role && user.roles.some(item => item.code === role) ? returnTo : null;
   }
 
@@ -109,7 +112,7 @@ function authorizedReturnPath(user: CurrentUser, search: string): string | null 
     } catch {
       return null;
     }
-    const role = { product: "product", cost: "engineering", hr: "hr", business: "general_manager" }[code];
+    const role = { product: "product", cost: "engineering", hr: "hr", finance: "finance", business: "general_manager" }[code];
     return role && user.roles.some(item => item.code === role) ? returnTo : null;
   }
   return null;

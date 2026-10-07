@@ -1,0 +1,17 @@
+{
+  "python_version": "3.13",
+  "dependencies": ["../.."],
+  "graphs": {
+    "supervisor": "./native_graphs.py:supervisor",
+    "researcher": "./native_graphs.py:researcher",
+    "reviewer": "./native_graphs.py:reviewer"
+  },
+  "auth": {"path": "./native_graphs.py:auth", "disable_studio_auth": true},
+  "http": {"app": "./native_graphs.py:app"},
+  "env": {
+    "LANGSMITH_TRACING": "false",
+    "LANGCHAIN_TRACING_V2": "false",
+    "LANGGRAPH_METRICS_ENABLED": "false",
+    "LANGGRAPH_LOGS_ENABLED": "false"
+  }
+}

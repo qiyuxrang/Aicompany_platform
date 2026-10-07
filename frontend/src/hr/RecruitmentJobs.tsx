@@ -107,7 +107,7 @@ export default function RecruitmentJobs({ legacy = false }: { legacy?: boolean }
           <button disabled={busy} onClick={() => void work(async () => { await navigator.clipboard.writeText(displayed.body); setNotice('JD 正文已复制。'); })}>复制正文</button></div>
         <label>JD 正文<textarea rows={12} readOnly value={displayed.body} /></label>
         {general?.stale && <p className="hr-warning">此 JD 已过期，请重新描述需求生成。</p>}
-        <p className="hr-muted">点击平台选项生成对应文案，不会自动发布。招聘记录保留 15 天。</p>
+        <p className="hr-muted">点击平台选项生成对应文案，不会自动发布。获准招聘记录长期归档。</p>
         <div className="hr-actions">
           {displayed.channel !== 'general' && <button disabled={busy} onClick={() => setDisplayed(general)}>查看通用 JD</button>}
           {channels.map(([channel, label]) => <button key={channel} disabled={busy || !canAdapt || !!text.trim()} onClick={() => void work(() => adaptTo(channel))}>生成{label} JD</button>)}

@@ -11,6 +11,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from .product_storage import private_root
+from .product_formal import has_repeated_filler, unsupported_financial_conclusion
 from .product_diagrams import (
     SUBSECTION_TITLES,
     add_structural_blocks,
@@ -86,12 +87,16 @@ def content_document(task, input_revision, blueprint, chapters, family="technica
     requirement_ids = [item["id"] for item in requirements]
     blocks = []
     chapter_count = len(chapters)
+    omitted_financial_claims = False
     for chapter_index, chapter in enumerate(chapters):
         payload = chapter.payload
         stable = "C" + hashlib.sha256(payload["chapter_id"].encode()).hexdigest()[:24]
         cited = [mapped for original in payload["source_ids"] for mapped in source_map.get(original, [])] or ["SINPUT"]
         blocks.append({"id": stable, "type": "heading", "level": 1, "text": payload["title"], "source_ids": cited, "requirement_ids": requirement_ids})
         for index, paragraph in enumerate(payload["paragraphs"], start=1):
+            if family == "feasibility" and unsupported_financial_conclusion(paragraph):
+                omitted_financial_claims = True
+                continue
             subsection = SUBSECTION_TITLES[family][(index - 1) % len(SUBSECTION_TITLES[family])]
             blocks.append({"id": f"{stable}S{index}", "type": "heading", "level": 2, "text": subsection,
                            "source_ids": cited, "requirement_ids": requirement_ids})
@@ -118,6 +123,8 @@ def content_document(task, input_revision, blueprint, chapters, family="technica
     pending = []
     if family == "feasibility":
         pending.append("未提供经核实的成本与收益依据，不形成经济成本、收益或回报结论。")
+        if omitted_financial_claims:
+            pending.append("可研正文包含未经核实的投资或回报数值结论，已拒绝纳入交付；请补充并确认对应依据。")
     pending.extend(blueprint.payload.get("missing", []))
     pending.extend(blueprint.payload.get("conflicts", []))
     if facts.get("issues"):
@@ -281,6 +288,11 @@ def _render_document(task, chapters, manifest, runtime, document, filename, stat
 
 
 def render_report_draft(task, input_revision, blueprint, chapters, family):
+    paragraphs = [paragraph for chapter in chapters for paragraph in chapter.payload.get("paragraphs", [])]
+    if has_repeated_filler(paragraphs):
+        raise DocumentError("repeated_body_filler")
+    if family == "feasibility" and any(unsupported_financial_conclusion(paragraph) for paragraph in paragraphs):
+        raise DocumentError("investment_evidence_required")
     manifest = frozen_pack(family)
     runtime = _document_runtime()
     document = content_document(task, input_revision, blueprint, chapters, family)

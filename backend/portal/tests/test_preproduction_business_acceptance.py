@@ -117,19 +117,26 @@ class PreproductionHrAcceptanceTests(PortalTestCase):
         self.assertEqual(detail.json()['profile']['skills']['status'], 'extracted')
 
         now = timezone.now()
-        RecruitmentRequest.objects.filter(pk=request_data['id']).update(created_at=now - timedelta(days=15))
+        RecruitmentRequest.objects.filter(pk=request_data['id']).update(created_at=now - timedelta(days=90))
         with patch('portal.hr_retention.timezone.now', return_value=now):
-            self.assertEqual(self.client.get(root).status_code, 404)
-            self.assertEqual(self.client.get(batch_root + 'summary/').status_code, 404)
-            self.assertEqual(self.client.get(f"/api/hr/recruitment/resumes/{artifact_id}/").status_code, 404)
+            self.assertEqual(self.client.get(root).status_code, 200)
+            self.assertEqual(self.client.get(batch_root + 'summary/').status_code, 200)
+            self.assertEqual(self.client.get(f"/api/hr/recruitment/resumes/{artifact_id}/").status_code, 200)
 
         report = cleanup_history(now=now)
         self.assertEqual(report['failures'], [])
-        self.assertEqual((report['requests'], report['batches']), (1, 1))
-        self.assertFalse(RecruitmentRequest.objects.filter(pk=request_data['id']).exists())
-        self.assertFalse(ResumeScreeningBatch.objects.filter(pk=batch_data['id']).exists())
-        self.assertFalse(ResumeArtifact.objects.filter(pk=artifact_id).exists())
-        self.assertEqual(list(Path(self.temp.name).iterdir()), [])
+        self.assertEqual((report['requests'], report['batches']), (0, 0))
+        self.assertTrue(RecruitmentRequest.objects.filter(pk=request_data['id']).exists())
+        self.assertTrue(ResumeScreeningBatch.objects.filter(pk=batch_data['id']).exists())
+        self.assertTrue(ResumeArtifact.objects.filter(pk=artifact_id).exists())
+        self.assertTrue(list(Path(self.temp.name).iterdir()))
+
+        RecruitmentRequest.objects.filter(pk=request_data['id']).update(archive_state='legacy_expired')
+        self.assertEqual(self.client.get(root).status_code, 404)
+        self.assertEqual(self.client.get(batch_root + 'summary/').status_code, 404)
+        self.assertEqual(self.client.get(f"/api/hr/recruitment/resumes/{artifact_id}/").status_code, 404)
+        cleanup_history(now=now)
+        self.assertEqual(RecruitmentRequest.objects.get(pk=request_data['id']).archive_state, 'legacy_expired')
 
 
 class PreproductionLedgerAcceptanceTests(PortalTestCase):
@@ -180,14 +187,16 @@ class PreproductionLedgerAcceptanceTests(PortalTestCase):
             '/api/business/ledgers/finance/submit/',
             expected_revision=1,
         )
-        self.assertEqual(submitted.status_code, 200, submitted.content)
-        self.assertEqual(submitted.json()['state'], 'submitted')
+        self.assertEqual(submitted.status_code, 400, submitted.content)
         self.assertFalse(self.manager_client.get('/api/business/boards/finance/').json()['available'])
 
+        record_id, version = next(iter(created.json()['record_meta'].items()))
         published = self.post_json(
-            self.publisher_client,
+            self.editor_client,
             '/api/business/ledgers/finance/publish/',
-            expected_revision=2,
+            expected_revision=1, expected_published_revision=0,
+            records=[{'record_id': record_id, 'source_revision': version['draft_revision'],
+                      'source_checksum': version['draft_checksum']}],
         )
         self.assertEqual(published.status_code, 200, published.content)
         self.assertEqual(published.json()['state'], 'published')
@@ -207,7 +216,7 @@ class PreproductionLedgerAcceptanceTests(PortalTestCase):
         blocked = self.post_json(
             self.manager_client,
             '/api/business/ledgers/finance/records/',
-            expected_revision=3,
+            expected_revision=2,
             record={**record, 'project_id': 'F-002'},
         )
         self.assertEqual(blocked.status_code, 403)

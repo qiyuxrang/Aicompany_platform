@@ -26,6 +26,8 @@ urlpatterns = [
     path("api/business/summary/", integration.summary),
     path("api/business/", include("portal.business_boards")),
     path("api/work/summary/", work_summary.summary),
+    path("api/agent/", include("portal.agent_api")),
+    path("api/agent/", include("portal.agent_management")),
     path("api/integration/redeem/", integration.redeem),
     path("api/product/", include("portal.product_source_api")),
     path("api/product/", include("portal.product_workspace")),

@@ -17,7 +17,7 @@ from portal.models import User
 
 
 class Command(BaseCommand):
-    help = '只读预检或首次导入指定 XLS 经营台账；不覆盖已有数据，不更改账号和授权。'
+    help = '只读预检或首次导入指定 XLS 为待核实草稿；不覆盖已有数据，不推定逐行填写人。'
 
     def add_arguments(self, parser):
         parser.add_argument('--finance', required=True)
@@ -62,6 +62,7 @@ class Command(BaseCommand):
                 report['departments'][code] = {
                     'source': source.name, 'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
                     'record_count': len(records), 'checks': parsed['report'],
+                    'writer_status': 'unverified' if code == 'finance' else 'not_applicable',
                 }
             with transaction.atomic():
                 actor = User.objects.select_for_update().get(pk=actor.pk)
@@ -69,6 +70,8 @@ class Command(BaseCommand):
                     raise ValueError('操作人状态已变化')
                 existing = {book.department: book for book in BusinessLedgerWorkbook.objects.select_for_update()
                             .filter(department__in=prepared)}
+                if options['publish'] and any(code not in existing for code in prepared):
+                    raise ValueError('新导入不能由管理账号整簿发布；财务记录须由可信填写人逐条确认。')
                 for code, (source_name, records) in prepared.items():
                     book = existing.get(code)
                     if book and (book.records != records or book.source_name != source_name or book.as_of != as_of
@@ -94,15 +97,6 @@ class Command(BaseCommand):
                             department=code, source_name=source_name, as_of=as_of, records=records,
                             created_by=actor, updated_by=actor)
                         _save_mutation(workbook, actor, 'source_import')
-                        if options['publish']:
-                            workbook.state = BusinessLedgerWorkbook.State.SUBMITTED
-                            workbook.submitted_by = actor
-                            workbook.submitted_at = timezone.now()
-                            _save_mutation(workbook, actor, 'source_submit')
-                            workbook.state = BusinessLedgerWorkbook.State.PUBLISHED
-                            workbook.published_by = actor
-                            workbook.published_at = timezone.now()
-                            _save_mutation(workbook, actor, 'source_publish')
                         report['departments'][code]['result'] = workbook.state
                         report['departments'][code]['revision'] = workbook.revision
             serialized = json.dumps(report, ensure_ascii=False, indent=2)

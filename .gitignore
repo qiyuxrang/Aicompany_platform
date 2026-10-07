@@ -14,3 +14,5 @@ test-results/
 *.log
 backups/
 .workbuddy/
+/qa/agent_platform/*.json
+!/qa/agent_platform/langgraph.json

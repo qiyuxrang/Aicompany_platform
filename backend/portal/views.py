@@ -39,7 +39,7 @@ def _portal_modules(user):
 def user_data(user):
     return {"id": user.pk, "username": user.username, "display_name": user.display_name,
             "roles": list(user.roles.values("code", "name")), "must_change_password": user.must_change_password,
-            "is_platform_admin": user.is_platform_admin}
+            "is_platform_admin": user.is_platform_admin, "department_code": user.department_code}
 
 
 def module_data(module):
@@ -210,11 +210,18 @@ def frontend(request, path=""):
             return redirect("/password")
         code = path.split("/")[1]
         modules = _portal_modules(request.user).filter(enabled=True)
+        finance_allowed = True
+        if code == "finance":
+            from .business_models import BusinessLedgerGrant
+            finance_allowed = (request.user.department_code == "finance"
+                and not request.user.roles.filter(code="general_manager").exists()
+                and BusinessLedgerGrant.objects.filter(user=request.user, department="finance").exists())
+            code = "business"
         if (code == "hr" and modules.filter(code="hr").exists()
                 and not authorized_modules(request.user).filter(code="hr", enabled=True).exists()):
             if path.rstrip("/") not in {"centers/hr", "centers/hr/probation"}:
                 return JsonResponse({"detail": "仅可访问已分配的转正审批。"}, status=403)
-        if not modules.filter(code=code).exists():
+        if not finance_allowed or not modules.filter(code=code).exists():
             response = render(request, "portal/center_unavailable.html", status=404)
             response["Cache-Control"] = "private, no-store"
             return response

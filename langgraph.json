@@ -1,0 +1,18 @@
+{
+  "python_version": "3.13",
+  "dependencies": ["."],
+  "graphs": {
+    "main": "portal.agent_harness:main",
+    "researcher": "portal.agent_harness:researcher",
+    "reviewer": "portal.agent_harness:reviewer"
+  },
+  "auth": {"path": "portal.agent_runtime:auth", "disable_studio_auth": true},
+  "http": {"app": "portal.agent_runtime:runtime_app"},
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "config.settings",
+    "LANGSMITH_TRACING": "false",
+    "LANGCHAIN_TRACING_V2": "false",
+    "LANGGRAPH_METRICS_ENABLED": "false",
+    "LANGGRAPH_LOGS_ENABLED": "false"
+  }
+}

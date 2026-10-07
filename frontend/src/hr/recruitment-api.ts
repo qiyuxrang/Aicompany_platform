@@ -6,7 +6,7 @@ export interface Requirement {
   experience_requirement: string; skill_requirements: string[]; work_location: string; notes: string;
   salary?: string; benefits?: string; social_insurance?: string; original_text?: string; intake_source?: string;
   input_version: number; current_jd_id: string | null; official_jd_id: string | null; official_jd_stale?: boolean;
-  missing_items: { field: string; reason: string }[]; updated_at: string; created_at?: string; expires_at?: string;
+  missing_items: { field: string; reason: string }[]; updated_at: string; created_at?: string;
 }
 export interface Jd { id: string; request_id: string; version: number; input_version: number; body: string;
   state: string; channel: string; source?: string; requirements?: Record<string, unknown>; missing_items?: { field: string; reason: string }[]; stale: boolean; source_jd_id: string | null;
@@ -14,7 +14,7 @@ export interface Jd { id: string; request_id: string; version: number; input_ver
 export interface Resume { id: string; filename: string; processing_status: string; error_code: string; size: number }
 export interface Batch { id: string; position_name: string; jd_version_id: string; jd_version: number;
   version: number; status: string; stale: boolean; total: number; completed: number; failed: number;
-  progress: number; updated_at: string; created_at?: string; expires_at?: string; request_id?: string; jd_body?: string; pending?: number; prescreened?: number; status_counts?: Record<string, number>; artifacts?: Resume[];
+  progress: number; updated_at: string; created_at?: string; request_id?: string; jd_body?: string; pending?: number; prescreened?: number; status_counts?: Record<string, number>; artifacts?: Resume[];
   model_selection?: { model_id: string; config_version: string; model_name?: string } | null }
 export interface Result extends Resume { score: number | null; unknown_count: number | null; hard_gap_count: number;
   stale: boolean; rule_version: string | null; matrix: { id: string; text: string; verdict: string; evidence: { quote: string; locator: string }[] }[] }
@@ -31,7 +31,7 @@ const statusLabels: Record<string, string> = { pending: '待上传/待开始', q
 export const statusText = (status: string) => statusLabels[status] || status;
 export const message = (error: unknown) => error instanceof Error ? error.message : '请求失败，请重试';
 
-export const retentionNotice = '招聘需求自创建时间起保留15天，编辑、确认和重试不会续期；筛选批次的截止时间不晚于所属招聘需求。';
+export const retentionNotice = '获准招聘资料长期归档，不自动到期；人工删除、撤权及旧规则下已失效的资料仍不可访问。';
 export function screeningCounts(batch: Batch) {
   const counts = batch.status_counts ?? (batch.artifacts ? batch.artifacts.reduce<Record<string, number>>((all, item) => {
     all[item.processing_status] = (all[item.processing_status] || 0) + 1; return all;

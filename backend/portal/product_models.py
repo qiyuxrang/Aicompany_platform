@@ -42,6 +42,12 @@ class DocumentTask(models.Model):
     pending_action = models.CharField(max_length=32, default="", blank=True)
     error_code = models.CharField(max_length=64, default="", blank=True)
     checkpoint = models.JSONField(default=dict)
+    agent_root_id = models.CharField(max_length=64, null=True, blank=True)
+    agent_work_id = models.CharField(max_length=64, null=True, blank=True)
+    agent_requirement_version = models.PositiveIntegerField(null=True, blank=True)
+    agent_grant_version = models.PositiveIntegerField(null=True, blank=True)
+    agent_session_version = models.PositiveIntegerField(null=True, blank=True)
+    agent_root_fence = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -124,6 +130,7 @@ class DocumentAttempt(models.Model):
     status = models.CharField(max_length=16, choices=Status, default=Status.RUNNING)
     model_calls = models.PositiveIntegerField(default=0)
     error_code = models.CharField(max_length=64, default="", blank=True)
+    agent_action_key = models.CharField(max_length=160, default="", blank=True)
 
     class Meta:
         constraints = [

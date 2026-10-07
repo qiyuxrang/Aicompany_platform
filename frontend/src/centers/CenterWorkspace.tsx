@@ -11,6 +11,8 @@ const ProductWorkspace = lazy(() => import("./ProductWorkspace"));
 const EngineeringPendingPage = lazy(() => import("./EngineeringPendingPage"));
 const HrWorkspace = lazy(() => import("./HrWorkspace"));
 const ManagerWorkspace = lazy(() => import("./ManagerWorkspace"));
+const AgentWorkspace = lazy(() => import("./AgentWorkspace"));
+const BusinessLedgerWorkspace = lazy(() => import("./BusinessLedgerWorkspace"));
 
 import "./centers.css";
 import { CompanyMark, ProductIcon, type ProductIconName } from "../product/workbench-shared";
@@ -30,19 +32,23 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
   const dirty = useRef(false);
   const config = centers[code];
   const isBusinessManager = user.roles.some(role => role.code === "general_manager");
-  const requestedSection = section === "assistant" ? "overview" : section;
+  const isFinance = user.department_code === 'finance' || user.roles.some(role => role.code === "finance");
+  const assistantAllowed = code === "product" || code === "finance" && isFinance && !isBusinessManager
+    || code === "hr" && user.roles.some(role => role.code === "hr") || code === "business" && isBusinessManager;
+  const sections = assistantAllowed && code !== "finance" ? [...config.sections, { code: "assistant", title: "智能助手" }] : config.sections;
+  const requestedSection = section === "assistant" && code === "cost" ? "overview" : section;
   const activeSection = code === "business" && !preview
     ? isBusinessManager ? requestedSection === "ledgers" ? "overview" : requestedSection : "ledgers"
     : code === "hr" && !preview && !user.roles.some(role => role.code === "hr") && requestedSection === "overview" ? "probation"
     : requestedSection;
-  const selected = config.sections.find((item) => item.code === activeSection);
-  const pageOwnsHeading = (code === "product" && !preview && ["overview", "projects", "knowledge", "opportunities", "outputs", "new", "documents", "history"].includes(activeSection))
+  const selected = sections.find((item) => item.code === activeSection);
+  const pageOwnsHeading = activeSection === "assistant" || (code === "product" && !preview && ["overview", "projects", "knowledge", "opportunities", "outputs", "new", "documents", "history"].includes(activeSection))
     || (code === "business" && ["finance", "presales", "engineering"].includes(activeSection));
   const back = user.is_platform_admin ? "/ops" : "/";
   const base = preview ? "/preview" : "/centers";
 
   useEffect(() => {
-    if (section !== "assistant" || window.location.pathname !== `${base}/${code}/assistant`) return;
+    if (code !== "cost" || section !== "assistant" || window.location.pathname !== `${base}/${code}/assistant`) return;
     window.history.replaceState({}, "", `${base}/${code}${window.location.search}${window.location.hash}`);
     window.dispatchEvent(new PopStateEvent("popstate"));
   }, [base, code, section]);
@@ -94,7 +100,7 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
       if (inFlight) return;
       inFlight = true;
       try {
-        const results = await Promise.allSettled([getModule(code).catch(rejected), getModules().catch(rejected)]);
+        const results = await Promise.allSettled([getModule(code === "finance" ? "business" : code).catch(rejected), getModules().catch(rejected)]);
         for (const result of results) {
           if (result.status === "rejected" && isApiError(result.reason) && [401, 403, 404].includes(result.reason.status)) throw result.reason;
         }
@@ -146,29 +152,33 @@ export default function CenterWorkspace({ code, section, user, preview = false, 
 
   const module = availableState?.module;
   const options = preview ? Object.keys(centers).filter(isCenterCode) : availableState
-    ? availableState.choices.filter((item) => item.enabled && item.status !== "disabled").map((item) => item.code).filter(isCenterCode) : [];
+    ? availableState.choices.filter((item) => item.enabled && item.status !== "disabled").map((item) => item.code === "business" && isFinance && !isBusinessManager ? "finance" : item.code).filter(isCenterCode) : [];
   let content: ReactNode;
   if (!selected) content = <div className="center-empty"><h2>页面不存在</h2><p>请从工作台菜单选择页面。</p><CenterLink href={`${base}/${code}`} className="button secondary">返回工作概览</CenterLink></div>;
 
+  else if (activeSection === "assistant" && assistantAllowed) content = <AgentWorkspace key={`${user.id}:${code}`} preview={preview} department={code} manager={isBusinessManager}/>;
+  else if (code === "finance") content = isBusinessManager || !isFinance && !preview
+    ? <div className="notice error" role="alert">当前账号未获得财务填写人入口权限。总经理请使用只读工作台。</div>
+    : <BusinessLedgerWorkspace preview={preview} onlyDepartment="finance" user={user}/>;
   else if (code === "product") content = <ProductWorkspace section={activeSection} />;
   else if (code === "cost") content = preview
     ? <section className="center-panel"><h2>工程部工作台预览</h2><p>仅预览页面结构，不读取工程任务、清单或知识库；平台管理权限不授予工程业务权限。</p></section>
     : <EngineeringPendingPage section={activeSection} />;
   else if (code === "hr") content = <HrWorkspace section={activeSection} user={user} />;
-  else content = <ManagerWorkspace section={activeSection} preview={preview} module={module} businessPanel={businessPanel} />;
+  else content = <ManagerWorkspace section={activeSection} preview={preview} module={module} businessPanel={businessPanel} user={user}/>;
 
   const mainClass = code === "product" && !preview
     ? activeSection === "knowledge" ? "center-main center-main-knowledge" : activeSection === "sources" ? "center-main center-main-materials" : "center-main"
     : "center-main";
 
-  return <>{unavailable && failure}<div hidden={unavailable} className={`center-layout center-${code}${code === "product" && activeSection === "sources" && !preview ? " center-product-materials" : ""}`} onInputCapture={() => { if (code !== "product" && (code !== "business" || activeSection === "ledgers")) dirty.current = true; }}>
+  return <>{unavailable && failure}<div hidden={unavailable} className={`center-layout center-${code}${activeSection === "assistant" ? " center-agent" : ""}${code === "product" && activeSection === "sources" && !preview ? " center-product-materials" : ""}`} onInputCapture={() => { if (activeSection !== "assistant" && code !== "product" && (code !== "business" || activeSection === "ledgers")) dirty.current = true; }}>
     <a className="skip-link" href="#center-main">跳到主要内容</a>
     <WorkspaceSidebar title={config.name} subtitle={preview ? "管理预览 · 不授予业务权限" : "专属工作区 · 按角色授权"}
       mark={code === "product" ? <CompanyMark/> : <Icon name={config.icon}/>}
       workspaceLabel={preview ? "切换预览" : "已授权工作台"}
       workspaces={<>{options.map(item => <CenterLink key={item} href={`${base}/${item}`} current={item === code} className={item === code ? "selected" : ""}>{centers[item].name}<span aria-hidden="true">↗</span></CenterLink>)}{user.is_platform_admin && <CenterLink href="/ops">平台运维<span aria-hidden="true">↗</span></CenterLink>}</>}
       footer={<><span>业务权限与平台管理权限分离</span><CenterLink href={back}>返回我的工作台</CenterLink></>}>
-      <nav className="center-navigation" aria-label={`${config.name}菜单`}>{config.sections.filter(item => code !== "product" || item.code !== "templates").filter(item => code !== "hr" || (user.roles.some(role => role.code === "hr") ? ['overview', 'job', 'resumes', 'history'].includes(item.code) : ['probation'].includes(item.code))).filter(item => code !== "business" || preview || (isBusinessManager ? item.code !== "ledgers" : item.code === "ledgers")).map((item) => <CenterLink key={item.code} href={`${base}/${code}${item.code === "overview" ? "" : `/${item.code}`}`} current={activeSection === item.code} className={activeSection === item.code ? "active" : ""}>{code === "product" ? <ProductIcon name={productNavIcons[item.code] || "file"}/> : code === "hr" ? <Icon name={item.code === "overview" ? "overview" : item.code === "results" ? "usage" : item.code === "resumes" ? "people" : "modules"}/> : <span className="center-nav-dot" aria-hidden="true"/>}{item.title}</CenterLink>)}</nav>
+      <nav className="center-navigation" aria-label={`${config.name}菜单`}>{sections.filter(item => code !== "product" || item.code !== "templates").filter(item => code !== "hr" || (user.roles.some(role => role.code === "hr") ? ['overview', 'job', 'resumes', 'history', 'assistant'].includes(item.code) : ['probation'].includes(item.code))).filter(item => code !== "business" || preview || (isBusinessManager ? item.code !== "ledgers" : item.code === "ledgers")).map((item) => <CenterLink key={item.code} href={`${base}/${code}${item.code === "overview" ? "" : `/${item.code}`}`} current={activeSection === item.code} className={activeSection === item.code ? "active" : ""}>{code === "product" ? <ProductIcon name={productNavIcons[item.code] || "file"}/> : code === "hr" ? <Icon name={item.code === "overview" ? "overview" : item.code === "results" ? "usage" : item.code === "resumes" ? "people" : "modules"}/> : <span className="center-nav-dot" aria-hidden="true"/>}{item.title}</CenterLink>)}</nav>
     </WorkspaceSidebar>
     <main className={mainClass} id="center-main" tabIndex={-1}>
       <NetworkNotice/>

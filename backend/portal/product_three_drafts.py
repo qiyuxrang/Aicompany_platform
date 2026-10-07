@@ -12,7 +12,7 @@ from .product_storage import verified_artifact
 
 def generate_report_drafts(task, fence, attempt_id, input_revision, blueprint):
     from django.conf import settings
-    from .product_worker import (_analysis_progress, _chapter_character_count, _family_target,
+    from .product_worker import (_analysis_progress, _chapter_character_count, _family_target, _formal_content_guard,
                                  _guard, _minimum_characters, _record_output_generation, _renew, current_chapters)
 
     artifacts = []
@@ -26,6 +26,7 @@ def generate_report_drafts(task, fence, attempt_id, input_revision, blueprint):
             raise ProductError("chapters_incomplete", f"{family} 报告内容不完整。", 409)
         target = _family_target(family)
         actual = _chapter_character_count(ordered)
+        _formal_content_guard(ordered, family)
         _record_output_generation(task.pk, fence, family, target, actual)
         if settings.PRODUCT_ENFORCE_OUTPUT_LENGTH and actual < _minimum_characters(target):
             raise ProductError("output_length_below_target", f"{label}正文尚未达到{target}字下限，请续写后再生成文件。", 409)

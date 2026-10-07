@@ -31,10 +31,11 @@ def outputs(request, task_id):
         report = task.revisions.filter(pk=artifact.render_evidence.get("report_id"), kind=DocumentRevision.Kind.REPORT).first()
         current = output_current(task, artifact)
         approved = effective_artifact_approval(artifact) is not None
+        delivered = bool(current and task.agent_root_id and task.state == "COMPLETED")
         result.append({"id": str(artifact.pk), "family": artifact.family, "version": artifact.version,
                        "sha256": artifact.sha256, "current": current, "stale": not current,
-                       "draft": not approved, "approved": approved,
-                       "review_status": "stale" if not current else "approved" if approved else "pending_review",
+                       "draft": not (approved or delivered), "approved": approved, "delivered": delivered,
+                       "review_status": "stale" if not current else "approved" if approved else "delivered" if delivered else "pending_review",
                        "engine": artifact.render_evidence.get("engine", "frozen-word"),
                        "content_version": report.version if report else None,
                        "content_sha256": report.sha256 if report else None,
@@ -69,7 +70,7 @@ def draft_download(request, artifact_id):
     if not input_authorized(task, task.revisions.filter(kind="input", sha256=artifact.input_hash).first()):
         raise ProductError("source_permission_changed", "来源授权已变化。", 404)
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", task.title).strip(" .") or "报告"
-    prefix = "草稿" if current else "历史草稿-已过期"
+    prefix = "成果" if current and task.agent_root_id and task.state == "COMPLETED" else "草稿" if current else "历史草稿-已过期"
     response = FileResponse(target.open("rb"), as_attachment=True,
                             filename=f"{prefix}-{title}-{artifact.family}-v{artifact.version}{target.suffix}")
     response["X-Product-Artifact-Current"] = "true" if current else "false"

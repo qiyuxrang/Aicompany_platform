@@ -6,7 +6,7 @@ from portal.product_storage import StorageError
 
 
 class Command(BaseCommand):
-    help = '清理15天到期招聘历史和私有简历；不清理人员/转正记录。每类最多100条，可重复运行。'
+    help = '清理无引用的私有简历文件和删除标记；不按年龄清理招聘归档。'
 
     def add_arguments(self, parser):
         parser.add_argument('--limit', type=int, default=100)
@@ -18,4 +18,4 @@ class Command(BaseCommand):
             raise CommandError(str(error)) from error
         self.stdout.write(json.dumps(report, ensure_ascii=False))
         if report['failures']:
-            raise CommandError('数据库记录已清理；部分私有文件删除失败，删除标记待重试。')
+            raise CommandError('部分无引用私有文件删除失败，删除标记待重试。')

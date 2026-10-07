@@ -83,10 +83,11 @@ def _recent_outputs(tasks):
         if artifact.family not in OUTPUT_FAMILIES or not input_authorized(task, revision):
             continue
         current = output_current(task, artifact)
+        delivered = bool(current and task.agent_root_id and task.state == "COMPLETED")
         result.append({"id": str(artifact.pk), "task_id": str(task.pk), "title": task.title,
                        "family": artifact.family, "version": artifact.version,
                        "created_at": artifact.created_at.isoformat(), "current": current,
-                       "review_status": "pending_review" if current else "stale"})
+                       "review_status": "delivered" if delivered else "pending_review" if current else "stale"})
         if len(result) == 6:
             break
     return result
@@ -148,10 +149,11 @@ def outputs(request):
                 continue
         except ProductError:
             continue
+        delivered = bool(current and task.agent_root_id and task.state == "COMPLETED")
         result.append({"id": str(artifact.pk), "task_id": str(task.pk), "title": task.title,
                        "family": artifact.family, "version": artifact.version,
                        "created_at": artifact.created_at.isoformat(), "current": current,
-                       "review_status": "pending_review" if current else "stale",
+                       "review_status": "delivered" if delivered else "pending_review" if current else "stale",
                        "download_url": download_url})
     start = (page - 1) * page_size
     response = Response({"outputs": result[start:start + page_size],

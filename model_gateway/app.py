@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import GatewayError
+from .agent_protocol import REQUEST_LIMIT as AGENT_REQUEST_LIMIT, validate_request, validate_result
 from .transport import chat_completion, list_models, stream_completion
 from backend.portal.model_messages import TEXT_REQUEST_LIMIT, VISION_REQUEST_LIMIT, validate_messages
 
@@ -42,6 +43,8 @@ class ServiceBoundary:
                     body.extend(message.get("body", b""))
                     if scope['path'] == '/v1/generate-vision':
                         limit = VISION_REQUEST_LIMIT
+                    elif scope['path'] == '/v1/generate-agent':
+                        limit = AGENT_REQUEST_LIMIT
                     elif scope['path'] in {'/v1/generate', '/v1/generate-stream'}:
                         limit = TEXT_REQUEST_LIMIT + 65536
                     else:
@@ -106,11 +109,25 @@ class VisionRequest(GenerateRequest):
     messages: list[VisionMessage] = Field(min_length=1, max_length=32)
 
 
+class AgentRequest(StrictModel):
+    provider: ProviderConfig
+    model: ModelConfig
+    messages: list[dict] = Field(min_length=1, max_length=64)
+    tools: list[dict] = Field(max_length=32)
+    tool_choice: str | dict | None = None
+    stream: bool = False
+    purpose: Literal["business"]
+
+
 class GenerateResponse(StrictModel):
     content: str | None
     duration_ms: int
     prompt_tokens: int | None
     completion_tokens: int | None
+
+
+class AgentResponse(GenerateResponse):
+    tool_calls: list[dict]
 
 
 app = FastAPI(title="内部模型网关", docs_url=None, redoc_url=None, openapi_url=None, debug=False)
@@ -181,6 +198,43 @@ def generate(payload: GenerateRequest):
         return {"content": None if payload.purpose == "test" else result["content"],
                 "duration_ms": max(0, int((monotonic() - started) * 1000)),
                 "prompt_tokens": result["prompt_tokens"], "completion_tokens": result["completion_tokens"]}
+    except GatewayError:
+        raise
+    except Exception:
+        raise GatewayError("internal_error", "模型调用失败，请检查服务配置。") from None
+    finally:
+        slots.release()
+
+
+@app.post("/v1/generate-agent", response_model=AgentResponse)
+def generate_agent(payload: AgentRequest):
+    messages = payload.messages
+    tools = payload.tools
+    try:
+        names = validate_request(messages, tools, payload.tool_choice)
+    except (ValueError, TypeError, RecursionError):
+        raise GatewayError("invalid_request", "Agent 请求格式无效。", 400) from None
+    if not slots.acquire(blocking=False):
+        raise GatewayError("busy", "模型网关繁忙，请稍后重试。", 429)
+    started = monotonic()
+    try:
+        arguments = (payload.provider.model_dump(), payload.model.model_dump(), messages)
+        if payload.stream:
+            stream = stream_completion(*arguments, agent_tools=tools, tool_choice=payload.tool_choice)
+            try:
+                results = list(stream)
+            finally:
+                stream.close()
+            if len(results) != 1:
+                raise GatewayError("invalid_response", "模型服务返回格式无效。")
+            result = results[0]
+        else:
+            result = chat_completion(*arguments, agent_tools=tools, tool_choice=payload.tool_choice)
+        try:
+            validate_result(result, names)
+        except (ValueError, TypeError, RecursionError):
+            raise GatewayError("invalid_response", "模型服务返回格式无效。") from None
+        return {**result, "duration_ms": max(0, int((monotonic() - started) * 1000))}
     except GatewayError:
         raise
     except Exception:

@@ -6,6 +6,13 @@ from django.db import models
 
 class ResumeScreeningBatch(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    archive_state = models.CharField(max_length=16, default='active')
+    agent_root_id = models.CharField(max_length=64, null=True, blank=True)
+    agent_work_id = models.CharField(max_length=64, null=True, blank=True)
+    agent_requirement_version = models.PositiveIntegerField(null=True, blank=True)
+    agent_grant_version = models.PositiveIntegerField(null=True, blank=True)
+    agent_session_version = models.PositiveIntegerField(null=True, blank=True)
+    agent_root_fence = models.PositiveIntegerField(null=True, blank=True)
     jd_version = models.ForeignKey('portal.JDVersion', on_delete=models.PROTECT, related_name='screening_batches')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='screening_batches')
     idempotency_key = models.CharField(max_length=128)
@@ -28,6 +35,7 @@ class ResumeScreeningBatch(models.Model):
 
 class ResumeArtifact(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    archive_state = models.CharField(max_length=16, default='active')
     batch = models.ForeignKey(ResumeScreeningBatch, on_delete=models.CASCADE, related_name='artifacts')
     file_id = models.CharField(max_length=36)
     filename = models.CharField(max_length=200)

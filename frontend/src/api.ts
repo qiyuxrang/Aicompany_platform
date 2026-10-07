@@ -10,6 +10,7 @@ export interface CurrentUser {
   roles: Role[];
   must_change_password: boolean;
   is_platform_admin: boolean;
+  department_code?: 'product' | 'hr' | 'finance' | 'engineering' | '';
 }
 
 export type ModuleStatus = "pending" | "navigation" | "verified" | "disabled";

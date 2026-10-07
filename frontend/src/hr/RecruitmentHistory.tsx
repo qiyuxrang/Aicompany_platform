@@ -35,10 +35,10 @@ export default function RecruitmentHistory() {
     <p className="hr-muted">{retentionNotice}</p>
     {error && <p role="alert" className="hr-error">{error}</p>}
     <section className="hr-card"><label>选择招聘记录<select value={selected} onChange={e => setSelected(e.target.value)}><option value="">请选择招聘需求</option>{requests.map(row => <option value={row.id} key={row.id}>{row.position_name || '未命名需求'} · {new Date(row.created_at || row.updated_at).toLocaleString()}</option>)}</select></label>
-      {!loading && !listLoading && !requests.length && !error && <p>暂无保留期内的招聘记录。</p>}
+      {!loading && !listLoading && !requests.length && !error && <p>暂无可访问的招聘记录。</p>}
       {(loading || listLoading) && <p role="status">正在加载招聘记录…</p>}
     </section>
-    {data && <><section className="hr-card"><h2>{data.request.position_name || '未命名需求'}</h2><div className="hr-history-meta"><span>创建：{data.request.created_at ? new Date(data.request.created_at).toLocaleString() : '未记录'}</span><span>保留至：{data.request.expires_at ? new Date(data.request.expires_at).toLocaleString() : '自创建时间起15天'}</span></div><CenterLink href={`/centers/hr/job?task=${data.request.id}`}>继续处理此需求</CenterLink></section>
+    {data && <><section className="hr-card"><h2>{data.request.position_name || '未命名需求'}</h2><div className="hr-history-meta"><span>创建：{data.request.created_at ? new Date(data.request.created_at).toLocaleString() : '未记录'}</span><span>授权归档：长期</span></div><CenterLink href={`/centers/hr/job?task=${data.request.id}`}>继续处理此需求</CenterLink></section>
       <section className="hr-card"><h2>对话记录</h2>{!data.messages.length && <p>暂无对话记录。</p>}{data.messages.map(item => <article key={item.id} className="hr-history-message"><header><strong>{item.role === 'user' ? '你' : item.role === 'assistant' ? '招聘助手' : item.role}</strong> · {new Date(item.created_at).toLocaleString()} · 需求 v{item.input_version}</header><MessageBody content={item.content} /></article>)}</section>
       <section className="hr-card"><h2>JD 版本</h2>{!data.jd_versions.length && <p>暂无 JD 版本。</p>}{data.jd_versions.map(jd => <details key={jd.id}><summary>JD v{jd.version} · {channels[jd.channel] || jd.channel} · {jd.stale ? '已过期' : statusText(jd.state)}{jd.model_selection?.model_name ? ` · ${jd.model_selection.model_name}` : ''}</summary><pre>{jd.body}</pre></details>)}</section>
       <section className="hr-card"><h2>筛选批次与结果</h2>{!data.batches.length && <p>暂无筛选批次。</p>}{data.batches.map(batch => {

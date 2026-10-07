@@ -1,10 +1,8 @@
 import io
-from datetime import timedelta
 from unittest.mock import patch
 from zipfile import ZipFile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.utils import timezone
 
 from portal.hr_recruitment_models import RecruitmentRequest, JDVersion, RecruitmentMessage
 from portal.hr_recruitment_service import extract_requirements
@@ -162,7 +160,7 @@ class HrPrdIntakeTests(PortalTestCase):
         self.assertEqual(self.client.get(url).status_code, 404)
         self.assertEqual(self.client.get(self.root + 'requests/').json(), [])
 
-    def test_expired_request_hidden_and_edit_does_not_renew(self):
+    def test_legacy_expired_request_hidden_and_edit_does_not_restore(self):
         result = self.intake()
         row = RecruitmentRequest.objects.get(pk=result['request']['id'])
         created = row.created_at
@@ -171,19 +169,21 @@ class HrPrdIntakeTests(PortalTestCase):
         self.assertEqual(response.status_code, 200)
         row.refresh_from_db()
         self.assertEqual(row.created_at, created)
-        RecruitmentRequest.objects.filter(pk=row.pk).update(created_at=timezone.now() - timedelta(days=15))
+        RecruitmentRequest.objects.filter(pk=row.pk).update(archive_state='legacy_expired')
         self.assertEqual(self.client.get(detail).status_code, 404)
         self.assertEqual(self.client.get(detail + 'history/').status_code, 404)
         self.assertEqual(self.client.get(self.root + 'requests/').json(), [])
         self.assertEqual(self.client.get(self.root + 'confirmed-jds/').json(), [])
         self.assertEqual(self.client.patch(detail, json_body(expected_version=2, salary='14000元'), content_type='application/json').status_code, 404)
+        row.refresh_from_db()
+        self.assertEqual(row.archive_state, 'legacy_expired')
 
     def test_history_filters_old_batches_even_with_active_parent(self):
         result = self.intake()
         row = RecruitmentRequest.objects.get(pk=result['request']['id'])
         batch = ResumeScreeningBatch.objects.create(created_by=self.hr, jd_version=row.current_jd,
             input_version=1, idempotency_key='expired-history')
-        ResumeScreeningBatch.objects.filter(pk=batch.pk).update(created_at=timezone.now() - timedelta(days=15))
+        ResumeScreeningBatch.objects.filter(pk=batch.pk).update(archive_state='legacy_expired')
         response = self.client.get(self.root + f'requests/{row.pk}/history/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['batches'], [])

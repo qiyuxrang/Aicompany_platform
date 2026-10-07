@@ -9,7 +9,7 @@ it('history 分支展示招聘历史并保留可展开的旧版只读JD', async 
   window.history.replaceState({}, '', '/centers/hr/history');
   render(<HrWorkspace section="history" user={{ roles: [{ code: 'hr' }] } as CurrentUser} />);
   expect(screen.getByRole('heading', { name: '招聘历史' })).toBeTruthy();
-  await screen.findByText('暂无保留期内的招聘记录。');
+  await screen.findByText('暂无可访问的招聘记录。');
   expect(api.apiRequest.mock.calls.some(call => String(call[0]).includes('/api/hr/jobs/'))).toBe(true);
   expect(screen.getByText('旧版岗位记录')).toBeTruthy();
 });

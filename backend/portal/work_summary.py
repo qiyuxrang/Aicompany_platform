@@ -3,7 +3,6 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .hr_models import HrJobTask, ProbationCase
-from .hr_retention import cutoff
 from .models import Module
 from .product_models import DocumentApproval, DocumentArtifact, DocumentRevision, DocumentTask
 from .product_service import ProductError, effective_artifact_approval, input_authorized, reviewer_allowed
@@ -94,7 +93,7 @@ def _product_items(user):
 
 
 def _hr_items(user, owner_access):
-    jobs = HrJobTask.objects.filter(owner=user, created_at__gt=cutoff()) if owner_access else HrJobTask.objects.none()
+    jobs = HrJobTask.objects.filter(owner=user, archive_state="active") if owner_access else HrJobTask.objects.none()
     owned_cases = ProbationCase.objects.filter(owner=user) if owner_access else ProbationCase.objects.none()
     case_scope = Q(assigned_manager=user)
     if owner_access:

@@ -8,6 +8,7 @@ from django.db.models import Q
 
 class RecruitmentRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    archive_state = models.CharField(max_length=16, default='active')
     position_name = models.CharField(max_length=200, blank=True)
     headcount = models.PositiveIntegerField(null=True, blank=True)
     responsibilities = models.TextField(blank=True)

@@ -131,6 +131,16 @@ class ModelCallLog(models.Model):
     completion_tokens = models.PositiveBigIntegerField("输出令牌数", null=True, blank=True)
     model_public_id = models.UUIDField("模型选择标识", null=True, blank=True, editable=False)
     config_version = models.CharField("模型配置版本", max_length=64, blank=True, editable=False)
+    root = models.ForeignKey("portal.AgentRun", on_delete=models.PROTECT, null=True, blank=True,
+                             related_name="root_model_calls")
+    run = models.ForeignKey("portal.AgentRun", on_delete=models.PROTECT, null=True, blank=True,
+                            related_name="model_calls")
+    conversation = models.ForeignKey("portal.AgentConversation", on_delete=models.PROTECT,
+                                     null=True, blank=True)
+    work = models.ForeignKey("portal.AgentWorkTask", on_delete=models.PROTECT, null=True, blank=True)
+    requirement = models.ForeignKey("portal.AgentRequirement", on_delete=models.PROTECT,
+                                    null=True, blank=True)
+    physical_call_id = models.CharField(max_length=160, null=True, blank=True, unique=True)
 
     class Meta:
         verbose_name = "模型调用日志"

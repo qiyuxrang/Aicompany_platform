@@ -15,6 +15,9 @@ import sys
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+from portal.product_formal import has_repeated_filler
+
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 CHARACTER_COUNT_SCOPE = "chapter_body_non_whitespace_only_excludes_titles_diagrams_tables_appendices"
@@ -38,7 +41,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def chapter_body_characters(root, styles=None) -> int:
+def chapter_body_characters(root, styles=None, *, paragraphs=None) -> int:
     body = root.find(W + "body")
     if body is None:
         return 0
@@ -86,10 +89,14 @@ def chapter_body_characters(root, styles=None) -> int:
             "drawing", "pict", "object", "fldChar", "instrText", "txbxContent",
         )):
             continue
+        visible = []
         for run in paragraph.findall(W + "r"):
             if any(run.find(f"{W}rPr/{W}{tag}") is not None for tag in ("vanish", "webHidden")):
                 continue
-            count += len(re.sub(r"\s+", "", "".join(node.text or "" for node in run.findall(W + "t"))))
+            visible.append("".join(node.text or "" for node in run.findall(W + "t")))
+        if paragraphs is not None:
+            paragraphs.append("".join(visible))
+        count += len(re.sub(r"\s+", "", "".join(visible)))
     return count
 
 
@@ -117,7 +124,8 @@ def inspect_docx(
     root = ET.fromstring(document_bytes)
     text = "".join(node.text or "" for node in root.iter(W + "t"))
     styles = ET.fromstring(xml_parts["word/styles.xml"]) if "word/styles.xml" in xml_parts else None
-    characters = chapter_body_characters(root, styles)
+    body_paragraphs = []
+    characters = chapter_body_characters(root, styles, paragraphs=body_paragraphs)
     non_black_text_runs = []
     for name, payload in xml_parts.items():
         if not (name == "word/document.xml" or name.startswith("word/header")
@@ -169,6 +177,8 @@ def inspect_docx(
         issues.append(f"characters_below_target:{characters}<{minimum_characters}")
     if maximum_characters is not None and characters > maximum_characters:
         issues.append(f"characters_above_target:{characters}>{maximum_characters}")
+    if has_repeated_filler(body_paragraphs):
+        issues.append("repeated_body_filler")
     length_issues = list(issues)
     if outline[0] < 1 or outline[1] < 1:
         issues.append(f"heading_depth_missing:h1={outline[0]},h2={outline[1]}")

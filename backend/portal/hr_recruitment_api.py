@@ -1,7 +1,6 @@
 """Session-authenticated, owner-scoped recruitment API."""
-from datetime import timedelta
-
 from django.db import transaction
+from django.db.models import F
 from django.urls import path
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -9,7 +8,7 @@ from rest_framework.response import Response
 from .hr_api import HrError, _body, _expected, _require_hr, hr_endpoint
 from .hr_recruitment_models import RecruitmentRequest
 from .hr_recruitment_service import REQUEST_FIELDS, RecruitmentValidationError, clean_request_data, missing_items, readable_fields
-from .security import audit
+from .security import audit, authorized_modules
 
 
 def _clean(data):
@@ -26,7 +25,6 @@ def _data(row):
             'official_jd_stale': bool(row.official_jd_id and row.official_jd.input_version != row.input_version),
             'missing_items': missing_items(row), 'original_text': row.original_text,
             'intake_source': row.intake_source, 'created_at': row.created_at.isoformat(),
-            'expires_at': (row.created_at + timedelta(days=15)).isoformat(),
             'updated_at': row.updated_at.isoformat()}
 
 
@@ -43,15 +41,28 @@ def _owned(user, request_id, *, lock=False):
         raise HrError('not_found', '对象不存在。', 404) from None
 
 
+def _gm_requests(user):
+    if (not user.is_active or user.must_change_password
+            or not user.roles.filter(code='general_manager').exists()
+            or not authorized_modules(user).filter(code='business', enabled=True).exists()):
+        return None
+    from .hr_retention import active_requests
+    return active_requests(RecruitmentRequest.objects.filter(
+        official_jd__state='confirmed', official_jd__input_version=F('input_version')))
+
+
 @api_view(['GET', 'POST'])
 @hr_endpoint
 def requests(request):
-    _require_hr(request)
     request.hr_audit_action = 'hr_recruitment_list' if request.method == 'GET' else 'hr_recruitment_create'
     if request.method == 'GET':
         from .hr_retention import active_requests
-        rows = active_requests(RecruitmentRequest.objects.filter(created_by=request.user))
+        rows = _gm_requests(request.user)
+        if rows is None:
+            _require_hr(request)
+            rows = active_requests(RecruitmentRequest.objects.filter(created_by=request.user))
         return Response([_data(row) for row in rows.select_related('official_jd')])
+    _require_hr(request)
     cleaned = _clean(_body(request, optional=REQUEST_FIELDS))
     with transaction.atomic():
         row = RecruitmentRequest.objects.create(created_by=request.user, updated_by=request.user, **cleaned)
@@ -65,10 +76,18 @@ def requests(request):
 @api_view(['GET', 'PATCH'])
 @hr_endpoint
 def request_detail(request, request_id):
-    _require_hr(request)
     request.hr_audit_action = 'hr_recruitment_read' if request.method == 'GET' else 'hr_recruitment_update'
     if request.method == 'GET':
+        rows = _gm_requests(request.user)
+        if rows is not None:
+            row = rows.select_related('official_jd').filter(pk=request_id).first()
+            if row is None:
+                raise HrError('not_found', '对象不存在。', 404)
+            audit(request.user, request.hr_audit_action, row.pk)
+            return Response(_data(row))
+        _require_hr(request)
         return Response(_data(_owned(request.user, request_id)))
+    _require_hr(request)
     with transaction.atomic():
         row = _owned(request.user, request_id, lock=True)
         body = _body(request, {'expected_version'}, REQUEST_FIELDS)

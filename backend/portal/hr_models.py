@@ -12,6 +12,7 @@ class HrJobTask(models.Model):
         CONFIRMED = "confirmed", "已确认"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    archive_state = models.CharField(max_length=16, default='active')
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="hr_job_tasks")
     title = models.CharField(max_length=200)
     department = models.CharField(max_length=200, blank=True)

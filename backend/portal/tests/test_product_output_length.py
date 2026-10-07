@@ -1,4 +1,5 @@
 from datetime import timedelta
+from hashlib import sha256
 from unittest.mock import patch
 
 from django.test import override_settings
@@ -9,6 +10,10 @@ from portal.product_service import ProductError, append_revision, digest
 from portal.product_worker import ExecutionError, _generate_family, _minimum_characters, _render
 
 from .base import PortalTestCase
+
+
+def synthetic_count_text(label, length):
+    return "".join(sha256(f"{label}:{index}".encode()).hexdigest() for index in range((length + 63) // 64))[:length]
 
 
 @override_settings(PRODUCT_P1_ENABLED=True, PRODUCT_OUTPUT_PROFILE="formal", PRODUCT_ENFORCE_OUTPUT_LENGTH=True,
@@ -67,19 +72,37 @@ class ProductOutputLengthTests(PortalTestCase):
             self.assertEqual(result["status"], "target_met")
 
     @patch("portal.product_worker._model")
-    def test_one_character_short_requires_continuation_without_discarding_saved_text(self, model):
-        saved_payload = self.chapter("甲" * 19999)
-        saved_payload["paragraphs"].extend(["乙" * 20000, "丙" * 10000])
+    def test_one_character_short_synthetic_count_requires_continuation_without_discarding_saved_text(self, model):
+        saved_payload = self.chapter(synthetic_count_text("saved-first", 19999))
+        saved_payload["paragraphs"].extend([synthetic_count_text("saved-second", 20000),
+                                            synthetic_count_text("saved-third", 10000)])
         saved = append_revision(self.task, "chapter", saved_payload, input_hash=self.input.sha256,
                                 blueprint_hash=self.blueprint.sha256, actor=self.owner)
+        self.assertEqual(sum(map(len, saved.payload["paragraphs"])), 49999)
         model.return_value = self.chapter("续")
         chapters = self.generate()
         self.assertEqual(chapters[0].payload["paragraphs"], [*saved.payload["paragraphs"], "续"])
+        self.assertEqual(sum(map(len, chapters[0].payload["paragraphs"])), 50000)
         self.assertEqual(model.call_args.args[-1]["continuation"]["saved_characters"], 49999)
         self.assertEqual(model.call_count, 1)
         model.reset_mock()
         self.generate()
         model.assert_not_called()
+
+    @patch("portal.product_worker._model")
+    def test_repeated_filler_is_rejected_without_replacing_saved_text(self, model):
+        filler = "合成重复段落内容" * 2000
+        saved_payload = self.chapter(filler)
+        saved_payload["paragraphs"].append(filler)
+        saved = append_revision(self.task, "chapter", saved_payload, input_hash=self.input.sha256,
+                                blueprint_hash=self.blueprint.sha256, actor=self.owner)
+        model.return_value = self.chapter(synthetic_count_text("unique-continuation", 18000))
+        with self.assertRaises(ExecutionError) as error:
+            self.generate()
+        self.assertEqual(error.exception.code, "repeated_body_filler")
+        self.assertEqual(self.task.revisions.filter(kind="chapter").count(), 1)
+        self.assertEqual(saved.payload["paragraphs"], [filler, filler])
+        model.assert_called_once()
 
     @patch("portal.product_worker._model")
     def test_duplicate_output_does_not_pad_word_count(self, model):

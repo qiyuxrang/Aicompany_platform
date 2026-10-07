@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 
 from django.test import Client, override_settings
 
+from portal.business_models import BusinessLedgerGrant
 from portal.hr_models import ProbationCase
 from portal.models import Module, Role
 from .base import ADMIN_PASSWORD, PortalTestCase
@@ -72,6 +73,34 @@ class CenterPageAuthorizationTests(PortalTestCase):
         self.login(self.client, user)
         self.assertEqual(self.client.get("/centers/product/solution").status_code, 200)
         self.assertEqual(self.client.post("/api/modules/product/launch/").status_code, 409)
+
+    def test_finance_deep_links_recheck_exact_department_grant_and_module(self):
+        user = self.create_user("finance-center-refresh")
+        user.department_code = "finance"
+        user.save(update_fields=["department_code"])
+        grant = BusinessLedgerGrant.objects.create(user=user, department="finance", can_edit=True)
+        BusinessLedgerGrant.objects.create(user=user, department="presales", can_edit=True)
+        self.login(self.client, user)
+        for path in ("/centers/finance", "/centers/finance/assistant?conversation=synthetic"):
+            self.assertEqual(self.client.get(path).status_code, 200)
+        module = Module.objects.get(code="business")
+        module.enabled = False
+        module.save()
+        self.assertEqual(self.client.get("/centers/finance/assistant").status_code, 404)
+        module.enabled = True
+        module.save()
+        grant.delete()
+        self.assertEqual(self.client.get("/centers/finance").status_code, 404)
+        self.assertEqual(self.client.get("/centers/finance/assistant").status_code, 404)
+
+    def test_general_manager_cannot_enter_finance_employee_workspace(self):
+        manager = self.create_user("gm-no-finance-editor", "general_manager")
+        manager.department_code = "finance"
+        manager.save(update_fields=["department_code"])
+        BusinessLedgerGrant.objects.create(user=manager, department="finance", can_edit=True)
+        self.login(self.client, manager)
+        self.assertEqual(self.client.get("/centers/business/assistant").status_code, 200)
+        self.assertEqual(self.client.get("/centers/finance/assistant").status_code, 404)
 
     def test_role_revocation_and_module_disable_deny_next_page_request(self):
         user = self.create_user("center-revoked", "product")

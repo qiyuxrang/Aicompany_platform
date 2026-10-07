@@ -1,6 +1,10 @@
 import { IconName } from "../Icon";
 
 export const centers = {
+  finance: {
+    name: "财务工作台", icon: "usage" as IconName, description: "维护本人财务记录，核对精确版本并发布。",
+    sections: [{ code: "overview", title: "财务记录" }, { code: "assistant", title: "智能助手" }],
+  },
   product: {
     name: "产品事业部", icon: "modules" as IconName, description: "一份项目资料贯穿分析、编制、审校与成果复用。",
     sections: [{ code: "overview", title: "工作台" }, { code: "opportunities", title: "全国商机看板" }, { code: "projects", title: "历史项目" }, { code: "sources", title: "资料" }, { code: "outputs", title: "文档成果" }, { code: "history", title: "版本记录" }, { code: "templates", title: "模板" }, { code: "knowledge", title: "知识库问答" }, { code: "presales", title: "售前数据录入" }, { code: "new", title: "新建项目" }, { code: "documents", title: "生成文档" }],

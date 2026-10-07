@@ -293,12 +293,15 @@ def _task_detail(task, user):
         if not input_access.get(artifact.input_hash, False):
             continue
         approved = effective_artifact_approval(artifact) is not None
+        delivered = bool(task.agent_root_id and task.state == DocumentTask.State.COMPLETED
+                         and output_current(task, artifact))
         artifacts.append({
             "id": str(artifact.pk), "family": artifact.family, "version": artifact.version, "sha256": artifact.sha256,
             "blueprint_hash": artifact.blueprint_hash, "input_hash": artifact.input_hash,
             "review_id": str(artifact.review_id) if artifact.review_id else None,
             "render_evidence": public_evidence(artifact.render_evidence), "template_hash": artifact.template_hash,
-            "approved": approved, "draft": not approved, "created_at": artifact.created_at.isoformat(),
+            "approved": approved, "delivered": delivered, "draft": not (approved or delivered),
+            "created_at": artifact.created_at.isoformat(),
         })
     sources = [{
         "id": str(source.pk), "original_name": source.original_name, "media_type": source.media_type, "purpose": source.purpose,
@@ -326,7 +329,7 @@ def _task_detail(task, user):
     if review:
         issues.extend(review.payload.get("issues", []))
         issues.extend({"code": "model_review_issue", "text": value} for value in review.payload.get("model_review", {}).get("issues", []))
-    if not getattr(settings, "PRODUCT_FORMAL_RELEASE_ENABLED", False):
+    if not getattr(settings, "PRODUCT_FORMAL_RELEASE_ENABLED", False) and not task.agent_root_id:
         issues.append({"code": "formal_release_blocked", "text": "D-02 格式与发布基线未批准，成果仅可作为草稿。"})
     actions = _task_actions(task, user, input_revision, blueprint)
     revision_count = task.approvals.filter(
@@ -932,6 +935,7 @@ def decisions(request, task_id):
 @product_endpoint
 def cancel(request, task_id):
     body = _body(request, {"expected_version"})
+    agent_action_keys = []
     with transaction.atomic():
         task = task_for(request.user, task_id, write=True)
         require_owner(task, request.user)
@@ -944,9 +948,17 @@ def cancel(request, task_id):
         task.pending_action = ""
         task.version += 1
         task.save()
+        agent_action_keys = list(DocumentAttempt.objects.filter(
+            task=task, status=DocumentAttempt.Status.RUNNING).exclude(agent_action_key="").values_list(
+                "agent_action_key", flat=True))
         DocumentAttempt.objects.filter(task=task, status=DocumentAttempt.Status.RUNNING).update(
             status=DocumentAttempt.Status.CANCELLED, finished_at=timezone.now(), error_code="cancelled",
         )
+    if agent_action_keys:
+        from .product_agent import runtime_guard_for_task
+        guard = runtime_guard_for_task(task)
+        for action_key in agent_action_keys:
+            guard.finish(action_key, "cancelled")
     _audit(request, "product_task_cancel", task, changes=["state", "fence", "lease_until"])
     return Response(_task_detail(task, request.user))
 
@@ -1057,7 +1069,8 @@ def _artifact_download_response(request, artifact):
         raise ProductError("source_permission_changed", "资料授权已变化，成果不可下载。", 404)
     document_title = artifact.render_evidence.get("document_title", task.title)
     safe_title = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", document_title).strip(" .") or "技术方案"
-    prefix = "" if approved else "草稿-"
+    delivered = bool(task.agent_root_id and task.state == DocumentTask.State.COMPLETED and current)
+    prefix = "成果-" if delivered else "" if approved else "草稿-"
     if not current:
         prefix = "历史草稿-已过期-"
     filename = f"{prefix}{safe_title}-v{artifact.version}{target.suffix or '.docx'}"

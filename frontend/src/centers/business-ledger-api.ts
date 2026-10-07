@@ -27,6 +27,12 @@ export interface BusinessLedger {
   permissions: LedgerPermissions;
   updated_at: string | null;
   last_return_reason: string;
+  record_meta?: Record<string, FinanceRecordMeta>;
+}
+
+export interface FinanceRecordMeta {
+  project_id: string; record_author_id: number | string; draft_actor_id: number | string;
+  draft_revision: number; draft_checksum: string; deleted: boolean;
 }
 
 export interface LedgerVersion {
@@ -56,6 +62,7 @@ export interface LedgerVersionDetail {
   checksum: string;
   actor: { id: number | string; name: string } | null;
   created_at: string;
+  record_meta?: Record<string, FinanceRecordMeta>;
 }
 
 const root = '/api/business/ledgers/';
@@ -103,6 +110,13 @@ export function importLedger(ledger: BusinessLedger, file: File, asOf: string) {
 export function transitionLedger(ledger: BusinessLedger, action: 'submit' | 'publish', reason?: never) {
   return apiRequest<BusinessLedger>(`${root}${ledger.department}/${action}/`, {
     method: 'POST', body: JSON.stringify({ expected_revision: ledger.revision, ...(reason ? { reason } : {}) }),
+  });
+}
+
+export function publishFinanceRecord(ledger: BusinessLedger, recordId: string, entry: FinanceRecordMeta, publishedRevision: number) {
+  return apiRequest<BusinessLedger>(`${root}finance/publish/`, {
+    method: 'POST', body: JSON.stringify({ expected_revision: ledger.revision, expected_published_revision: publishedRevision,
+      records: [{ record_id: recordId, source_revision: entry.draft_revision, source_checksum: entry.draft_checksum }] }),
   });
 }
 
